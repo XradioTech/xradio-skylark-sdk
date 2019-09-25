@@ -1,0 +1,13 @@
+mbedtls移植到freeRTOS上需要的移植哪些东西？
+
+net.c
+entropy_poll.c
+mbedtls.c
+
+1、网络接口，mbedtls目前没有基于freeRTOS，都是基于linux，windows系统等，所以在网络这部分
+需要对头文件，以及部分接口，以及部分参数进行修改。
+
+2、时间接口，mbedtls在linux，windows上的时间接口和freeRTOS上有很大的差别，所以需要对时间接口进行修改。
+
+3、提供给应用层的接口，需要把一些流程封装起来，便于应用程序开发使用。
+
