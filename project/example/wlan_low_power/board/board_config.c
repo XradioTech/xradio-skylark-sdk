@@ -247,7 +247,7 @@ static const GPIO_PinMuxParam g_pinmux_csi[] = {
 
 #define BOARD_PA_PORT    		GPIO_PORT_A
 #define BOARD_PA_PIN     		GPIO_PIN_3
-#define BOARD_PA_ON_DELAY     	10
+#define BOARD_PA_ON_DELAY     	150
 
 __xip_rodata
 static const GPIO_PinMuxParam g_pinmux_pa_switch[] = {
@@ -262,25 +262,6 @@ static const Pa_Switch_Ctl pa_switch_ctl = {
 	.pin_param_cnt = HAL_ARRAY_SIZE(g_pinmux_pa_switch),
 };
 
-#define BOARD_LINEIN_DET_EN   	0
-
-#if BOARD_LINEIN_DET_EN
-#define BOARD_LINEIN_DET_PORT    	GPIO_PORT_A
-#define BOARD_LINEIN_DET_PIN    	GPIO_PIN_16
-#define BOARD_LINEIN_DET_PIN_MODE	GPIOx_Pn_F6_EINT
-
-__xip_rodata
-static const GPIO_PinMuxParam g_pinmux_linein_det[] = {
-	{ BOARD_LINEIN_DET_PORT, BOARD_LINEIN_DET_PIN, { BOARD_LINEIN_DET_PIN_MODE,  GPIO_DRIVING_LEVEL_1, GPIO_PULL_UP } },
-};
-
-__xip_rodata
-static const Linein_Detect_Ctl linein_det_ctl = {
-	.insert_state  = GPIO_PIN_HIGH,
-	.pin_param     = g_pinmux_linein_det,
-	.pin_param_cnt = HAL_ARRAY_SIZE(g_pinmux_linein_det),
-};
-#endif
 
 __xip_rodata const static struct snd_card_board_config xradio_internal_codec_snd_card = {
 	.card_num = SND_CARD_0,
@@ -289,11 +270,6 @@ __xip_rodata const static struct snd_card_board_config xradio_internal_codec_snd
 	.platform_link = XRADIO_PLATFORM_NULL,
 
 	.pa_switch_ctl = &pa_switch_ctl,
-#if BOARD_LINEIN_DET_EN
-	.linein_detect_ctl = &linein_det_ctl,
-#else
-	.linein_detect_ctl = NULL,
-#endif
 
 	.codec_sysclk_src = SYSCLK_SRC_PLL,
 	.codec_pllclk_src = 0,	//xradio_internal_codec not use
@@ -443,12 +419,6 @@ static HAL_Status board_get_pinmux_info(uint32_t major, uint32_t minor, uint32_t
 					info[0].pinmux = snd_cards_board_cfg[i]->pa_switch_ctl->pin_param;
 					info[0].count  = snd_cards_board_cfg[i]->pa_switch_ctl->pin_param_cnt;
 				}
-			#if BOARD_LINEIN_DET_EN
-				if(snd_cards_board_cfg[i]->linein_detect_ctl){
-					info[1].pinmux = snd_cards_board_cfg[i]->linein_detect_ctl->pin_param;
-					info[1].count  = snd_cards_board_cfg[i]->linein_detect_ctl->pin_param_cnt;
-				}
-			#endif
 			}
 		}
 		break;

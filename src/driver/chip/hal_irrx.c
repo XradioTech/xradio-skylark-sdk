@@ -123,6 +123,13 @@
 #define IRRX_24M_APB_PERIPH_CLK_SRC     CCM_APB_PERIPH_CLK_SRC_HFCLK
 #define IRRX_24M_CCM_PERIPH_CLK_DIV_N   CCM_PERIPH_CLK_DIV_N_1
 #define IRRX_24M_CCM_PERIPH_CLK_DIV_M   CCM_PERIPH_CLK_DIV_M_8
+
+#define IRRX_40M_SAMPLE_CLK             IRRX_SCS_DIV_256        /* 40MHz/8/256=19531.2Hz (51.2us) */
+#define IRRX_40M_RXFILT_VAL             (6)                     /* NosieTreshold, Filter Threshold = 6*51.2 = ~307us < 500us */
+#define IRRX_40M_RXIDLE_VAL             (1)                     /* IdleTreshold, Idle Threshold = (1+1)*256*51.2 = ~26.2ms > 9ms */
+#define IRRX_40M_APB_PERIPH_CLK_SRC     CCM_APB_PERIPH_CLK_SRC_HFCLK
+#define IRRX_40M_CCM_PERIPH_CLK_DIV_N   CCM_PERIPH_CLK_DIV_N_1
+#define IRRX_40M_CCM_PERIPH_CLK_DIV_M   CCM_PERIPH_CLK_DIV_M_8
 #endif
 
 typedef struct
@@ -245,6 +252,12 @@ static void IRRX_SetConfig(IRRX_TypeDef *Instance, IRRX_InitTypeDef *param)
 		                (IRRX_24M_ACTIVE_T << IRRX_ATHR_INDEX) | \
 		                (IRRX_24M_ACTIVE_T_C << IRRX_ATHC_INDEX) | \
 		                IRRX_24M_SAMPLE_CLK;
+	} else if (clk == HOSC_CLOCK_40M) {
+		Instance->CCR = (IRRX_40M_RXFILT_VAL << IRRX_NTHR_INDEX) | \
+		                (IRRX_40M_RXIDLE_VAL << IRRX_ITHR_INDEX) | \
+		                (IRRX_40M_ACTIVE_T << IRRX_ATHR_INDEX) | \
+		                (IRRX_40M_ACTIVE_T_C << IRRX_ATHC_INDEX) | \
+		                IRRX_40M_SAMPLE_CLK;
 	} else {
 		IRRX_ERR("%s unknow clk type(%d)!\n", __func__, clk);
 	}
@@ -354,6 +367,10 @@ IRRX_HandleTypeDef *HAL_IRRX_Init(IRRX_InitTypeDef *param)
 		HAL_CCM_IRRX_SetMClock(IRRX_24M_APB_PERIPH_CLK_SRC,
 		                       IRRX_24M_CCM_PERIPH_CLK_DIV_N, \
 		                       IRRX_24M_CCM_PERIPH_CLK_DIV_M);
+	} else if (clk == HOSC_CLOCK_40M) {
+		HAL_CCM_IRRX_SetMClock(IRRX_40M_APB_PERIPH_CLK_SRC,
+		                       IRRX_40M_CCM_PERIPH_CLK_DIV_N, \
+		                       IRRX_40M_CCM_PERIPH_CLK_DIV_M);
 	} else {
 		IRRX_ERR("%s unknow clk type(%d)!\n", __func__, clk);
 	}

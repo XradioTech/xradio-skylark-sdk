@@ -131,7 +131,8 @@ typedef struct image_ota_param {
 	uint32_t	ota_flash : 8;	/* flash ID of OTA area */
 	uint32_t	ota_size  : 24; /* size of OTA area */
 	uint32_t	ota_addr;		/* start addr of OTA area */
-	uint32_t	img_max_size;	/* image max size (excluding bootloader) */
+	uint16_t	img_max_size; 	/* image max size (excluding bootloader, the unit is K) */
+	uint16_t	img_xz_max_size;/* compressed image max size (the unit is K)*/
 	uint32_t	bl_size;		/* bootloader size */
 	image_seq_t running_seq;	/* running image sequence */
 	uint8_t		flash[IMAGE_SEQ_NUM];	/* flash ID which the image on */
@@ -141,7 +142,10 @@ typedef struct image_ota_param {
 #define IMG_BL_FLASH(iop) ((iop)->flash[0]) /* bootloader flash */
 #define IMG_BL_ADDR(iop)  ((iop)->addr[0] - (iop)->bl_size) /* bootloader addr */
 
+#define IMAGE_AREA_SIZE(size) ((size) * 1024)
+
 #define IMAGE_INVALID_ADDR	(0xFFFFFFFF)
+#define IMAGE_INVALID_SIZE  (0xFFFF)
 
 int image_init(uint32_t flash, uint32_t addr, uint32_t max_size);
 void image_deinit(void);

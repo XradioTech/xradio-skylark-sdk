@@ -673,7 +673,15 @@ char      * nopoll_strdup (const char * buffer)
 	if (buffer == NULL)
 		return NULL;
 
+#if (__CONFIG_NOPOLL_HEAP_MODE == 1)
+	int	len = strlen(buffer) + 1;
+	void *new = psram_malloc(len);
+	if (new == NULL)
+	   return NULL;
+	return (char *)memcpy(new, buffer, len);
+#else
 	return strdup (buffer);
+#endif
 }
 
 

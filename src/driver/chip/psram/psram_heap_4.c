@@ -480,10 +480,11 @@ uint8_t *puc;
 	}
 }
 
-void *psram_realloc( uint8_t *srcaddr,size_t xWantedSize )
+void *psram_realloc( void *pv, size_t xWantedSize )
 {
 	psram_BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
 	void *pvReturn = NULL;
+	uint8_t *srcaddr = pv;
 
 	psram_BlockLink_t *pxBlockold,*pxBlockjudge;
 	vTaskSuspendAll();

@@ -37,6 +37,13 @@
 extern "C" {
 #endif
 
+/* sys avs enable/disable */
+#if ((__CONFIG_CHIP_ARCH_VER == 2) && !defined(__CONFIG_BOOTLOADER) && defined(__CONFIG_CHIP_XR872))
+#define SYS_AVS_EN              0
+#else
+#define SYS_AVS_EN              0
+#endif
+
 HAL_Status board_pinmux_cfg(HAL_BoardIoctlReq req,
                             const GPIO_PinMuxParam *pinmux, uint32_t count);
 void board_chip_clock_init(void);

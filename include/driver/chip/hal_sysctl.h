@@ -61,13 +61,13 @@ typedef struct {
 #define SYSCTL_PIN_MCU_MODE_SHIFT       (16)
 #define SYSCTL_PIN_MCU_MODE_EN          (0x1 << SYSCTL_PIN_MCU_MODE_SHIFT)
 
-#define SYSCTL_CSI_JPE_SHARE_SRAM_SHIFT (8)
-#define SYSCTL_CSI_JPE_SHARE_SRAM_MASK  (0x3 << SYSCTL_CSI_JPE_SHARE_SRAM_SHIFT)
+#define SYSCTL_CSI_JPEG_SHARE_SRAM_SHIFT (8)
+#define SYSCTL_CSI_JPEG_SHARE_SRAM_MASK  (0x3 << SYSCTL_CSI_JPEG_SHARE_SRAM_SHIFT)
 typedef enum {
-	SYSCTL_CSI_JPE_SHARE_NONE       = (0 << SYSCTL_CSI_JPE_SHARE_SRAM_SHIFT),
-	SYSCTL_CSI_JPE_SHARE_32K        = (1 << SYSCTL_CSI_JPE_SHARE_SRAM_SHIFT),
-	SYSCTL_CSI_JPE_SHARE_64K        = (2 << SYSCTL_CSI_JPE_SHARE_SRAM_SHIFT),
-} SYSCTL_CSI_JPE_ShareSramType;
+	SYSCTL_CSI_JPEG_SHARE_NONE       = (0 << SYSCTL_CSI_JPEG_SHARE_SRAM_SHIFT),
+	SYSCTL_CSI_JPEG_SHARE_32K        = (1 << SYSCTL_CSI_JPEG_SHARE_SRAM_SHIFT),
+	SYSCTL_CSI_JPEG_SHARE_64K        = (2 << SYSCTL_CSI_JPEG_SHARE_SRAM_SHIFT),
+} SYSCTL_CSI_JPEG_ShareSramType;
 
 #define SYSCTL_WLAN_SHARE_SRAM_SHIFT    (0)
 #define SYSCTL_WLAN_SHARE_SRAM_MASK     (0x7 << SYSCTL_WLAN_SHARE_SRAM_SHIFT)
@@ -108,13 +108,14 @@ typedef enum {
 
 void HAL_SYSCTL_SetMcuMode(uint32_t en);
 void HAL_SYSCTL_SetWlanSramShare(SYSCTL_WLAN_ShareSramType type);
-void HAL_SYSCTL_SetCSIJPEGSramShare(SYSCTL_CSI_JPE_ShareSramType mode);
+void HAL_SYSCTL_SetCSIJPEGSramShare(SYSCTL_CSI_JPEG_ShareSramType mode);
 void HAL_SYSCTL_SetPsensorControl(SYSCTL_PsensorId id, SYSCTL_OSCSelect osc_sel,
                                   uint32_t ps_n, uint32_t en);
 void HAL_SYSCTL_WaitPsensorRdyAndClean(void);
 uint32_t HAL_SYSCTL_GetPsensorCnt(void);
 void HAL_SYSCTL_SetDbgData(uint32_t id, uint32_t data);
 uint32_t HAL_SYSCTL_GetDegData(uint32_t id);
+uint32_t HAL_SYSCTL_GetPsensor(uint32_t id);
 
 #ifdef __cplusplus
 }

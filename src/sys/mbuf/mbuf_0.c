@@ -46,9 +46,15 @@
  *   - MBUF_TXRX_MEM_MAX: max sum of tx and rx mem, 0 for no limit.
  *                        MUST less than (MBUF_TX_MEM_MAX + MBUF_RX_MEM_MAX)
  */
+#if (__CONFIG_MBUF_HEAP_MODE == 1)
+uint32_t MBUF_TX_MEM_MAX   = (64 * 1024);
+uint32_t MBUF_RX_MEM_MAX   = (64 * 1024);
+uint32_t MBUF_TXRX_MEM_MAX = 0;
+#else
 uint32_t MBUF_TX_MEM_MAX   = (20 * 1024);
 uint32_t MBUF_RX_MEM_MAX   = (20 * 1024);
 uint32_t MBUF_TXRX_MEM_MAX = (32 * 1024);
+#endif
 
 static int32_t m_tx_mem_sum = 0;
 static int32_t m_rx_mem_sum = 0;

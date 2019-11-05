@@ -26,7 +26,7 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <string.h>
 #include <sys/reent.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -325,6 +325,127 @@ void __wrap__free_r(struct _reent *reent, void *ptr)
 
 #else /* WRAP_MALLOC_MEM_TRACE */
 
+#ifdef __CONFIG_MIX_HEAP_MANAGE
+#include "driver/chip/psram/psram.h"
+#include "sys/sram_heap.h"
+#define RANGEOF(num, start, end) (((num) <= (end)) && ((num) >= (start)))
+
+#define psram_malloc_r(reent, size)         psram_malloc(size)
+#define psram_realloc_r(reent, ptr, size)   psram_realloc(ptr, size)
+#define psram_free_r(reent, ptr)            psram_free(ptr)
+
+extern uint8_t __end__[];	/* sram heap start address */
+extern uint8_t _estack[];	/* sram heap end address */
+extern uint8_t __psram_end__[]; /* psram heap start address */
+extern uint8_t __PSRAM_BASE[];
+extern uint8_t __PSRAM_LENGTH[]; /* psram heap end address: __PSRAM_BASE+__PSRAM_LENGTH*/
+
+static __always_inline int is_rangeof_sramheap(void *ptr)
+{
+    return RANGEOF((uint32_t)ptr, (uint32_t)__end__, (uint32_t)_estack);
+}
+
+static __always_inline int is_rangeof_psramheap(void *ptr)
+{
+    return RANGEOF((uint32_t)ptr, (uint32_t)__psram_end__, (uint32_t)__PSRAM_BASE+(uint32_t)__PSRAM_LENGTH -1);
+}
+
+void *__wrap__malloc_r(struct _reent *reent, size_t size)
+{
+	void *ptr;
+
+	malloc_mutex_lock();
+    ptr = sram_malloc_r(reent, size);
+    if(ptr == NULL) {
+        ptr = psram_malloc_r(reent, size);
+    }
+	malloc_mutex_unlock();
+
+	return ptr;
+}
+
+void *__wrap__realloc_r(struct _reent *reent, void *ptr, size_t size)
+{
+	void *new_ptr;
+    malloc_mutex_lock();
+
+    if(is_rangeof_sramheap(ptr)) {
+        new_ptr = sram_realloc_r(reent, ptr, size);
+        if(new_ptr == NULL) {
+            new_ptr = psram_malloc_r(reent, size);
+            if(new_ptr == NULL )
+               goto out;
+            memcpy(new_ptr, ptr, size);
+            sram_free_r(reent, ptr);
+        }
+    } else {
+        new_ptr = psram_realloc_r(reent, ptr, size);
+    }
+
+out:
+    malloc_mutex_unlock();
+	return new_ptr;
+}
+
+void __wrap__free_r(struct _reent *reent, void *ptr)
+{
+	malloc_mutex_lock();
+	if(is_rangeof_sramheap(ptr)) {
+        sram_free_r(reent, ptr);
+    } else {
+        psram_free_r(reent, ptr);
+    }
+	malloc_mutex_unlock();
+}
+
+void *__wrap_malloc(size_t size)
+{
+	void *ptr;
+    ptr = sram_malloc(size);
+	if(ptr == NULL)
+        return psram_malloc(size);
+	return ptr;
+}
+
+void *__wrap_realloc(void *ptr, size_t size)
+{
+	void *new_ptr;
+
+    if(is_rangeof_sramheap(ptr)) {
+        new_ptr = sram_realloc(ptr, size);
+        if(new_ptr == NULL) {
+            new_ptr = psram_malloc(size);
+            if(new_ptr == NULL )
+                return NULL;
+            memcpy(new_ptr, ptr, size);
+            sram_free(ptr);
+        }
+    } else {
+        return psram_realloc(ptr, size);
+    }
+
+	return new_ptr;
+}
+
+void *__wrap_calloc(size_t nmemb, size_t size)
+{
+	void *ptr;
+    ptr = sram_calloc(nmemb, size);
+	if(ptr == NULL)
+        ptr = psram_calloc(nmemb, size);
+	return ptr;
+}
+
+void __wrap_free(void *ptr)
+{
+    if(is_rangeof_sramheap(ptr)) {
+        sram_free(ptr);
+    } else {
+        psram_free(ptr);
+    }
+}
+
+#else
 void *__wrap__malloc_r(struct _reent *reent, size_t size)
 {
 	void *ptr;
@@ -353,6 +474,7 @@ void __wrap__free_r(struct _reent *reent, void *ptr)
 	__real__free_r(reent, ptr);
 	malloc_mutex_unlock();
 }
+#endif
 
 #endif /* WRAP_MALLOC_MEM_TRACE */
 

@@ -63,6 +63,8 @@ static IRTX_HandleTypeDef *irtx_init()
 		tx_param.IdleDurationCnt = IRTX_26M_NEC_IDC_VALUE;
 	} else if (clk == HOSC_CLOCK_24M) {
 		tx_param.IdleDurationCnt = IRTX_24M_NEC_IDC_VALUE;
+	} else if (clk == HOSC_CLOCK_40M) {
+		tx_param.IdleDurationCnt = IRTX_40M_NEC_IDC_VALUE;
 	} else {
 		printf("%s unknow clk type(%d)!\n", __func__, clk);
 	}

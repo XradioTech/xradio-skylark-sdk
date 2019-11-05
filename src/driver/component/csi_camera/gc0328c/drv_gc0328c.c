@@ -195,6 +195,11 @@ void GC0328C_SetSubsample(uint8_t ratio)
     {
         return ;
     }
+	if (ratio == 0)
+    {
+		GC0328C_WriteSccb(0x59, 0x11); // subsample
+        return ;
+    }
     uint8_t row_col;
     uint8_t row_n1, row_n2, row_n3, row_n4;
     uint8_t col_n1, col_n2, col_n3, col_n4;
@@ -205,11 +210,7 @@ void GC0328C_SetSubsample(uint8_t ratio)
     tmp &= ~(3<<4);
     GC0328C_WriteSccb(0x5a, tmp); // sub_mode[5:4]
 
-    if (ratio == 0)
-    {
-        return ;
-    }
-    else if (ratio == 1)
+	if (ratio == 1)
     {
         row_col = 0x22;
         row_n1 = row_n2 = row_n3 = row_n4 = 0;
@@ -339,6 +340,8 @@ static void GC0328C_InitPower(SENSOR_PowerCtrlCfg *cfg)
     param.pull = GPIO_PULL_NONE;
 
     HAL_GPIO_Init(cfg->Pwdn_Port, cfg->Pwdn_Pin, &param);
+	HAL_GPIO_WritePin(cfg->Pwdn_Port, cfg->Pwdn_Pin, GPIO_PIN_HIGH);
+	OS_MSleep(10);
     HAL_GPIO_WritePin(cfg->Pwdn_Port, cfg->Pwdn_Pin, GPIO_PIN_LOW);
     OS_MSleep(10);
 }
@@ -347,6 +350,12 @@ static void GC0328C_DeInitPower(SENSOR_PowerCtrlCfg *cfg)
 {
     HAL_GPIO_WritePin(cfg->Pwdn_Port, cfg->Pwdn_Pin, GPIO_PIN_HIGH);
     HAL_GPIO_DeInit(cfg->Pwdn_Port, cfg->Pwdn_Pin);
+}
+
+static void GC0328C_SyncEnable(void)
+{
+	GC0328C_WriteSccb(0xf1, 0x07);
+	GC0328C_WriteSccb(0xf2, 0x01);
 }
 
 HAL_Status HAL_GC0328C_IoCtl(SENSOR_IoctrlCmd attr, uint32_t arg)
@@ -359,6 +368,12 @@ HAL_Status HAL_GC0328C_IoCtl(SENSOR_IoctrlCmd attr, uint32_t arg)
             GC0328C_SetPixelOutFmt(output_fmt);
             break;
         }
+		case SENSOR_SET_SUBSAMP:
+		{
+			uint8_t radio = (uint8_t)arg;
+			GC0328C_SetSubsample(radio);
+			break;
+		}
         default:
             SENSOR_DBG(ERROR, "un support camsensor cmd %d\n", attr);
             return HAL_ERROR;
@@ -410,20 +425,24 @@ HAL_Status HAL_GC0328C_Init(SENSOR_ConfigParam *cfg)
     GC0328C_InitPower(&cfg->pwcfg);
 
     if (GC0328C_Init() != HAL_OK) {
-	    SENSOR_DBG(ERROR, "GC0328C  Init error!!\n");
+	    SENSOR_DBG(ERROR, "GC0328C Init error!!\n");
 	    return HAL_ERROR;
     }
 
 	/* sensor set, windows cfg_set, pixelformat cfg_set and so on */
 	GC0328C_SetPixelOutFmt(cfg->pixel_outfmt);
+
+	GC0328C_SetWindow(0, 0, 648, 488);
+
 	if ((cfg->pixel_size.height == 240) && (cfg->pixel_size.width == 320)) {  //subsample 1/2
-    	GC0328C_SetSubsample(1);//1/2  320*240
-    	GC0328C_SetCropWindow(0,0,320,240);
+		GC0328C_SetCropWindow(160, 120, 320, 240);
 	} else if ((cfg->pixel_size.height == 480) && (cfg->pixel_size.width == 640)) {
-		GC0328C_SetCropWindow(0,0,640,480);
+		GC0328C_SetCropWindow(0, 0, 640, 480);
 	} else {
-		SENSOR_DBG(ERROR, "GC0328C  untest pixel_size case\n");
+		SENSOR_DBG(WARN, "GC0328C unconventional image resolution\n");
 	}
+
+	GC0328C_SyncEnable();
 
     OS_MSleep(1000);
 

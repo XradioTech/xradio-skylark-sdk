@@ -91,7 +91,6 @@ void JsonRecursiveReadExample(cJSON *json){
 	}
 }
 
-
 /* Parse text to JSON, then render back to text, and print! */
 void doit(char *text)
 {
@@ -111,14 +110,12 @@ void doit(char *text)
         cJSON_Delete(json);
 		if(out == NULL){
 			printf("malloc error\n");
-			free(out);
+			return;
 		}
      	printf("%s\n", out);
         free(out);
-
     }
 }
-
 
 #if 0
 /* Read a file, parse, render back, etc. */
@@ -163,7 +160,6 @@ struct record
     const char *zip;
     const char *country;
 };
-
 
 /* Create a bunch of objects as demonstration. */
 static int print_preallocated(cJSON *root)

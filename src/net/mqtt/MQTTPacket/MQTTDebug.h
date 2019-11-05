@@ -47,11 +47,11 @@
 
 #else /* MQTT_DBG_ON */
 
-#define MQTT_INFO(msg, arg...) 
+#define MQTT_INFO(msg, arg...)
 
 #define MQTT_WARN(msg, arg...)
 
-#define MQTT_DEBUG(msg, arg...) 
+#define MQTT_DEBUG(msg, arg...)
 
 
 #define MQTT_CAP_SEND(rc, c, len)
@@ -59,9 +59,9 @@
 #define MQTT_CAP_RECV(rc, c, len)
 
 
-#define MQTT_ENTRY() 
+#define MQTT_ENTRY()
 
-#define MQTT_EXIT(ret) 
+#define MQTT_EXIT(ret)
 
 #endif /* MQTT_DBG_ON */
 
@@ -70,18 +70,18 @@
 
 #define MQTT_PLATFORM (DBG_ON | MLEVEL_DEBUG)
 
-#define MQTT_PLATFORM_WARN(msg, arg...) MWARN(MQTT_MODULE, NOEXPAND, "[MQTT PLATFORM warning] " msg, ##arg) 
+#define MQTT_PLATFORM_WARN(msg, arg...) MWARN(MQTT_MODULE, NOEXPAND, "[MQTT PLATFORM warning] " msg, ##arg)
 
 #define MQTT_PLATFORM_ENTRY() MENTRY(MQTT_PLATFORM, "[MQTT PLATFORM entry] ")
 
 #define MQTT_PLATFORM_EXIT(ret) MRET(MQTT_PLATFORM, "[MQTT PLATFORM return] ", ret)
 #else /* MQTT_PLATFORM_DBG && MQTT_DBG_ON*/
 
-#define MQTT_PLATFORM_WARN(msg, arg...) 
+#define MQTT_PLATFORM_WARN(msg, arg...)
 
-#define MQTT_PLATFORM_ENTRY() 
+#define MQTT_PLATFORM_ENTRY()
 
-#define MQTT_PLATFORM_EXIT(ret) 
+#define MQTT_PLATFORM_EXIT(ret)
 
 #endif /* MQTT_PLATFORM_DBG && MQTT_DBG_ON*/
 

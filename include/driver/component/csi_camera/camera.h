@@ -40,16 +40,17 @@
 #include "kernel/os/os.h"
 #include "driver/component/csi_camera/camera_sensor.h"
 
-#define CAMERA_JPEG_HEADER_LEN 623
+#define ALIGN_16B(x)				(((x) + (15)) & ~(15))
+#define ALIGN_1K(x)					(((x) + (1023)) & ~(1023))
+
+#define CAMERA_JPEG_HEADER_LEN		623
 
 typedef struct {
 	uint8_t *org_addr; /* malloc addr */
-	uint8_t *online_jpeg_buf;  /* last jpeg data buf location */
+	uint8_t *jpeg_buf;  /* last jpeg data buf location */
 	uint8_t *online_jpeg_mempart_tmp_buf; /* mem part mode, temp for hardware rx */
 	uint8_t *online_jpeg_mempart_last_buf;  /* last jpeg data buf location */
-	uint8_t *offline_jpeg_buf; /*last jpeg data buf location */
-	uint8_t *offline_y_buf; /* last yuv420 NV12 y data */
-	uint8_t *offline_uv_buf; /* last yuv420 NV12 uv data */
+	uint8_t *yuv_buf; /* last yuv420 NV12 data */
 	uint8_t *jpeg_header_buf; /* 623 bytes */
 } CAMERA_Mgmt;
 
@@ -78,13 +79,29 @@ typedef struct {
 	CAMERA_CsiCfg csi_cfg;
 	CAMERA_Sensorcfg sensor_cfg;
 	SENSOR_Func sensor_func;
+	CAMERA_Mgmt *mgmt;
 } CAMERA_Cfg;
+
+typedef enum {
+	CAMERA_OUT_YUV420,
+	CAMERA_OUT_JPEG,
+} CAMERA_OutFmt;
+
+typedef enum  {
+	CAMERA_SET_PIXEL_SIZE    = 0,
+    CAMERA_SET_JPEG_MODE,
+    CAMERA_RESET_CSI_JPEG,
+    CAMERA_SET_SENSOR_SUBSAMP,
+
+        /* TODO ... */
+} CAMERA_IoctrlCmd;
 
 HAL_Status HAL_CAMERA_Init(CAMERA_Cfg *cfg);
 void HAL_CAMERA_DeInit(void);
-void HAL_CAMERA_SetImageBuf(CAMERA_Mgmt *mem_mgmt_t);
-uint32_t HAL_CAMERA_CaptureOneImage(void);
+int HAL_CAMERA_CaptureImage(CAMERA_OutFmt fmt, uint8_t restart);
 HAL_Status HAL_CAMERA_CaptureVideoStart(void);
 void HAL_CAMERA_CaptureVideoStop(void);
 uint32_t HAL_CAMERA_CaptureVideoGetData(void);
+HAL_Status HAL_CAMERA_IoCtl(CAMERA_IoctrlCmd cmd, uint32_t arg);
+
 #endif

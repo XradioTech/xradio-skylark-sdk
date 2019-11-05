@@ -28,8 +28,8 @@
  */
 #include "driver/chip/hal_prcm.h"
 #include "driver/chip/hal_adc.h"
+#include <stdio.h>
 
-#ifdef __CONFIG_ROM
 /**
  *@brief modify adc vref voltage
  *@param Mode Mode 0 usage is verf inside soc, and input voltage range of 0~1.4v.
@@ -52,6 +52,8 @@ void HAL_ADC_Set_VrefMode(ADC_VrefMode mode)
     }
 }
 
+#ifdef __CONFIG_ROM
+
 extern HAL_Status __HAL_ADC_Init(ADC_InitParam *initParam);
 /**
  * @brief Initialize the ADC according to the specified parameters.
@@ -66,6 +68,5 @@ HAL_Status HAL_ADC_Init(ADC_InitParam *initParam)
     HAL_ADC_Set_VrefMode(initParam->vref_mode);
     return ret;
 }
+
 #endif /*__CONFIG_ROM*/
-
-

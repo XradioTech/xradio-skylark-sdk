@@ -16,7 +16,7 @@
  *  License along with this program; if not, write to the Free
  *  Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
  *  02111-1307 USA
- *  
+ *
  *  You may find a copy of the license under this software is released
  *  at COPYING file. This is LGPL software: you are welcome to develop
  *  proprietary applications using this library without any royalty or
@@ -25,7 +25,7 @@
  *
  *  For commercial support on build Websocket enabled solutions
  *  contact us:
- *          
+ *
  *      Postal address:
  *         Advanced Software Production Line, S.L.
  *         Av. Juan Carlos I, Nº13, 2ºC
@@ -37,53 +37,65 @@
  */
 #include <nopoll_decl.h>
 
-/** 
+/**
  * \addtogroup nopoll_decl_module
  * @{
  */
 
-/** 
+/**
  * @brief Calloc helper for nopoll library.
  *
  * @param count How many items to allocate.
  * @param size Size of one item.
- * 
+ *
  * @return A newly allocated pointer.
  * @see nopoll_free
  */
 noPollPtr nopoll_calloc(size_t count, size_t size)
 {
-   return calloc (count, size);
+#if (__CONFIG_NOPOLL_HEAP_MODE == 1)
+	return psram_calloc (count, size);
+#else
+	return calloc (count, size);
+#endif
 }
 
-/** 
+/**
  * @brief Realloc helper for nopoll library.
  *
  * @param ref the reference to reallocate.
  * @param size Size of the new reference.
- * 
+ *
  * @return A newly allocated pointer.
  * @see nopoll_free
  */
 noPollPtr nopoll_realloc(noPollPtr ref, size_t size)
 {
-   return realloc (ref, size);
+#if (__CONFIG_NOPOLL_HEAP_MODE == 1)
+	return psram_realloc (ref, size);
+#else
+	return realloc (ref, size);
+#endif
 }
 
-/** 
+/**
  * @brief Allows to deallocate memory referenced by <i>ref</i> but
  * checking before that the reference is different from null.
- * 
+ *
  * @param ref The reference to clear.
  */
 void nopoll_free (noPollPtr ref)
 {
+#if (__CONFIG_NOPOLL_HEAP_MODE == 1)
+	psram_free (ref);
+#else
 	free (ref);
+#endif
 	return;
 }
 
 
-/** 
+/**
  * @}
  */
 

@@ -193,16 +193,6 @@ typedef enum {
 	CSI_IRQ_NONE,
 } CSI_IRQState;
 
-/** @brief Type define of CSI interrupt callback function */
-typedef void (*CSI_IRQCallback)(void *arg);
-
-/**
- * @brief CSI initialization parameters
- */
-typedef struct {
-	CSI_IRQCallback	cb;
-} CSI_InitParam;
-
 typedef enum {
 	CSI_STATE_INVALID	= 0,
 	CSI_STATE_INIT		= 1, /* Initializing		*/
@@ -234,12 +224,7 @@ typedef struct {
 	uint16_t			hor_start;
 	uint16_t			ver_len;
 	uint16_t			ver_start;
-
-	uint8_t 			frame_half_down;
-	uint8_t				frame_mask;
 } CSI_ConfigParam;
-
-////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
   * @brief The register for JPEG.
@@ -500,10 +485,9 @@ typedef enum {
  */
 
 typedef struct {
+	uint8_t			jpeg_en;
 	uint8_t 		jpeg_mode;
 	uint8_t 		sensor_out_type;
-	uint8_t 		top_clk_en;
-	uint8_t 		jpe_clk_en;
 
 	uint32_t		csi_output_addr_y;
 	uint32_t		csi_output_addr_uv;
@@ -514,21 +498,17 @@ typedef struct {
 	uint32_t		jpe_input_addr_y;
 	uint32_t		jpe_input_addr_uv;
 
-	uint8_t 		marvolvl_ovtime_int_en;
-	uint8_t 		bitstream_stall_int_en;
-	uint8_t 		ve_finish_int_en;
-
 	uint32_t		outstream_start_addr;
 	uint32_t		outstream_end_addr;
 	uint32_t		outstream_offset;
 	uint32_t		outstream_mem_size;
+	uint8_t			outstream_buff_num;
 
-	uint32_t		quality;
-
-	uint8_t			jpeg_en;
 	uint8_t 		mem_part_en;
 	JPEG_MemPartNum mem_part_num;
 	uint8_t			*mem_part_buf;
+
+	uint32_t		quality;
 } JPEG_ConfigParam;
 
 typedef enum {
@@ -541,7 +521,23 @@ typedef enum {
 	JPEG_MEM_PART_EN,
 } JPEG_MemPartMode;
 
-HAL_Status HAL_CSI_JPEG_Init(CSI_InitParam *param);
+typedef enum {
+	CSI_JPEG_EVENT_FRM_END,
+	CSI_JPEG_EVENT_VE_END,
+	CSI_JPEG_EVENT_EXCP,
+} CSI_JPEG_IRQEvent;
+
+/** @brief Type define of CSI-JPEG interrupt callback function */
+typedef void (*CSI_JPEG_IRQCallback)(CSI_JPEG_IRQEvent event, void *arg);
+
+/**
+ * @brief CSI-JPEG initialization parameters
+ */
+typedef struct {
+	CSI_JPEG_IRQCallback	cb;
+} CSI_JPEG_InitParam;
+
+HAL_Status HAL_CSI_JPEG_Init(CSI_JPEG_InitParam *param);
 HAL_Status HAL_CSI_JPEG_Deinit(void);
 HAL_Status HAL_CSI_Config(CSI_ConfigParam *cfg);
 

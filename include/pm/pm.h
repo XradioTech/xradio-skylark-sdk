@@ -70,9 +70,10 @@ enum suspend_state_t {
 };
 
 enum pm_sram_N {
-    PM_SRAM_0   = PRCM_SYS_SRAM_32K_SWM4_BIT,           /*sram 0x200000 ~ 0x207FFF*/
-    PM_SRAM_1   = PRCM_SYS_SRAM_32K_SWM3_BIT,           /*sram 0x208000 ~ 0x20FFFF*/
-    PM_SRAM_2   = PRCM_SYS_SRAM_352K_SWM2_BIT,          /*sram 0x210000 ~ 0x25FFFF*/
+    PM_SRAM_0   = PRCM_SYS_SRAM_32K_SWM4_BIT,
+    PM_SRAM_1   = PRCM_SYS_SRAM_32K_SWM3_BIT,
+    PM_SRAM_2   = PRCM_SYS_SRAM_352K_SWM2_BIT,
+    PM_SRAM_3   = PRCM_SYS_CACHE_SRAM_SWM1_BIT,
 };
 
 #define PM_MODE_MAGIC           (0x7FF20000)
@@ -254,6 +255,7 @@ extern int pm_check_wakeup_irqs(void);
 extern int pm_test(void);
 extern void pm_set_debug_mask(uint16_t debug_mask);
 void pm_standby_sram_retention_only(uint32_t sramN);
+void pm_standby_set_resume_entry(uint32_t entry);
 
 #else /* CONFIG_PM */
 #ifdef __CINFIG_ROM

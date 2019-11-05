@@ -134,7 +134,9 @@ static struct cmd_data g_main_cmds[] = {
 #endif
 	{ "pm",		cmd_pm_exec },
 	{ "efpg",	cmd_efpg_exec },
+#if PRJCONF_NET_EN
 	{ "lmac",	cmd_lmac_exec },
+#endif
 	{ "sysinfo",cmd_sysinfo_exec },
 };
 

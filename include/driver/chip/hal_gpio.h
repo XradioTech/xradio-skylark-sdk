@@ -69,7 +69,7 @@ typedef enum {
 typedef enum {
     GPIOx_Pn_F0_INPUT       = 0U,   /* for all GPIO pins */
     GPIOx_Pn_F1_OUTPUT      = 1U,   /* for all GPIO pins */
-    GPIOx_Pn_F6_EINT        = 6U,   /* XR871: [PA0, PB13]; XR875: all */
+    GPIOx_Pn_F6_EINT        = 6U,   /* XR871/XR809: [PA0, PB13]; XR872/XR808: all */
     GPIOx_Pn_F7_DISABLE     = 7U,   /* for all GPIO pins */
 
 #if (__CONFIG_CHIP_ARCH_VER == 1)

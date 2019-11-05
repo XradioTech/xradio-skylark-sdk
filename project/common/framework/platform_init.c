@@ -34,6 +34,7 @@
 #include "image/image.h"
 
 #include "common/board/board.h"
+#include "common/board/board_common.h"
 #include "sysinfo.h"
 #if PRJCONF_NET_EN
 #include "net_ctrl.h"
@@ -56,10 +57,13 @@
 #if (PRJCONF_CE_EN && PRJCONF_PRNG_INIT_SEED) || (PRJCONF_NET_EN)
 #include "efpg/efpg.h"
 #endif
+#include "driver/chip/system_chip.h"
+#include "driver/chip/hal_prcm.h"
 #include "driver/chip/hal_icache.h"
 #include "driver/chip/hal_dcache.h"
 #ifdef __CONFIG_PSRAM
 #include "psram.h"
+#include "sys/sys_heap.h"
 #endif
 
 #ifdef __CONFIG_XIP
@@ -98,14 +102,18 @@ static void platform_show_info(void)
 	extern uint8_t __ram_table_lma_start__[];
 	extern uint8_t __ram_table_lma_end__[];
 #endif
-
+#ifdef __CONFIG_PSRAM
+    extern uint8_t __PSRAM_BASE[];
+    extern uint8_t __PSRAM_LENGTH[];
+    extern uint8_t __psram_end__[];
+#endif
 #if PRJCONF_NET_EN
 	uint8_t mac_addr[6] = {0};
 	struct sysinfo *sys_info = NULL;
 #endif
 
 	FWK_LOG(1, "\nplatform information ===============================================\n");
-	FWK_LOG(1, "XRADIO Skylark SDK "SDK_VERSION_STR" "SDK_STAGE_STR" "__DATE__" "__TIME__"\n\n");
+	FWK_LOG(1, "XRADIO Skylark SDK "SDK_VERSION_STR SDK_STAGE_STR" "__DATE__" "__TIME__"\n\n");
 
 	FWK_LOG(dbg_en, "__text_start__ %p\n", __text_start__);
 	FWK_LOG(dbg_en, "__text_end__   %p\n", __text_end__);
@@ -127,9 +135,14 @@ static void platform_show_info(void)
 #endif
 	FWK_LOG(dbg_en, "\n");
 
-	FWK_LOG(1, "heap space [%p, %p), size %u\n\n",
+	FWK_LOG(1, "sram heap space [%p, %p), total size %u Bytes\n",
 	           __end__, _estack - PRJCONF_MSP_STACK_SIZE,
 	           _estack - __end__ - PRJCONF_MSP_STACK_SIZE);
+#ifdef __CONFIG_PSRAM
+    FWK_LOG(1, "psram heap space [%p, %p), total size %u Bytes\n\n",
+	           __psram_end__, (uint32_t*)((uint32_t)__PSRAM_BASE+(uint32_t)__PSRAM_LENGTH),
+	           (uint32_t)__PSRAM_BASE + (uint32_t)__PSRAM_LENGTH - (uint32_t)__psram_end__);
+#endif
 
 	FWK_LOG(1,      "cpu  clock %9u Hz\n", HAL_GetCPUClock());
 	FWK_LOG(dbg_en, "ahb1 clock %9u Hz\n", HAL_GetAHB1Clock());
@@ -188,6 +201,108 @@ static void platform_xip_init(void)
 	HAL_Xip_Init(PRJCONF_IMG_FLASH, addr + IMAGE_HEADER_SIZE);
 }
 #endif /* __CONFIG_XIP */
+
+void platform_set_cpu_clock(PRCM_SysClkFactor factor)
+{
+	extern uint32_t SystemCoreClock;
+	uint32_t clk = HAL_PRCM_SysClkFactor2Hz(factor);
+
+	if (clk != SystemCoreClock) {
+		HAL_PRCM_SetCPUAClk(PRCM_CPU_CLK_SRC_SYSCLK, factor);
+		SystemCoreClockUpdate();
+#ifdef __CONFIG_OS_FREERTOS
+		extern void vPortSetupTimerInterrupt(void);
+		vPortSetupTimerInterrupt();
+#endif
+	}
+}
+
+#if SYS_AVS_EN
+#include "driver/chip/hal_util.h"
+#include "driver/chip/hal_prcm.h"
+#include "driver/chip/hal_psensor.h"
+#define AVS_MIN_SOC_VOLT    (PRCM_LDO1_VOLT_1225MV >> PRCM_LDO1_VOLT_SHIFT)
+#define AVS_MAX_SOC_VOLT    (PRCM_LDO1_VOLT_1375MV >> PRCM_LDO1_VOLT_SHIFT)
+
+static __always_inline uint32_t cpufreq_to_psensor(PRCM_SysClkFactor freq)
+{
+    switch(freq) {
+    case PRCM_SYS_CLK_FACTOR_384M:
+        return ((28500 << 16) | (26500 << 0));
+    case PRCM_SYS_CLK_FACTOR_320M:
+        return ((28100 << 16) | (26100 << 0));
+    case PRCM_SYS_CLK_FACTOR_274M:
+        return ((27700 << 16) | (25700 << 0));
+    case PRCM_SYS_CLK_FACTOR_240M:
+        return ((27300 << 16) | (25300 << 0));
+    default:
+        return ((28500 << 16) | (25300 << 0));
+    }
+}
+
+static void avs_timer_callback(void *arg)
+{
+    uint32_t workVolt;
+    uint32_t psensor;
+    uint32_t temp;
+    uint16_t minPsensor;
+    uint16_t maxPsensor;
+    temp = cpufreq_to_psensor((uint32_t)BOARD_CPU_CLK_FACTOR);
+    minPsensor = temp & 0xFFFF;
+    maxPsensor = (temp >> 16) & 0xFFFF;
+
+    psensor = HAL_Psensor_GetValue();
+    workVolt = HAL_PRCM_GetLDO1WorkVolt();
+    FWK_DBG("AVS: minPsensor=%d, maxPsensor=%d, workVolt = %d, psensor=%d\n",
+            minPsensor, maxPsensor, workVolt, psensor);
+    if(psensor < minPsensor) {
+        for(int i=workVolt+1; i<=AVS_MAX_SOC_VOLT; i++) {
+            HAL_PRCM_SetLDO1WorkVolt( i<< PRCM_LDO1_VOLT_SHIFT);
+            HAL_UDelay(10);
+            psensor = HAL_Psensor_GetValue();
+            if(psensor >= minPsensor) {
+                platform_set_cpu_clock(BOARD_CPU_CLK_FACTOR);
+                return;
+            }
+        }
+        platform_set_cpu_clock(PRCM_SYS_CLK_FACTOR_240M);
+        FWK_WRN("AVS: change cpu frequency to safe value\n");
+    } else if(psensor > maxPsensor) {
+        for(int i=workVolt-1; i>=AVS_MIN_SOC_VOLT; i--) {
+            HAL_PRCM_SetLDO1WorkVolt( i<< PRCM_LDO1_VOLT_SHIFT);
+            HAL_UDelay(10);
+            psensor = HAL_Psensor_GetValue();
+            if((psensor >= minPsensor) && (psensor < maxPsensor)) {
+                return;
+            } else if(psensor < minPsensor) {
+                HAL_PRCM_SetLDO1WorkVolt((i+1) << PRCM_LDO1_VOLT_SHIFT);
+                return;
+            }
+        }
+    } else {
+        platform_set_cpu_clock(BOARD_CPU_CLK_FACTOR);
+    }
+
+    return;
+}
+
+int32_t platform_avs_init(void)
+{
+    OS_Timer_t timer;
+    avs_timer_callback(NULL);
+    /* create OS timer to avs */
+	OS_TimerSetInvalid(&timer);
+    if (OS_TimerCreate(&timer, OS_TIMER_PERIODIC, avs_timer_callback,
+                        NULL, 5000) != OS_OK) {
+        FWK_WRN("AVS: timer create failed\n");
+        return -1;
+    }
+    /* start OS timer to avs */
+    OS_TimerStart(&timer);
+    return 0;
+}
+
+#endif /* PRJCONF_SYS_AVS_EN */
 
 #if PRJCONF_WDG_EN
 static void platform_wdg_feed(void *arg)
@@ -373,7 +488,11 @@ __weak void platform_init_level0(void)
 	pm_start();
 
 	HAL_Flash_Init(PRJCONF_IMG_FLASH);
+#if (__CONFIG_OTA_POLICY == 0x00)
 	image_init(PRJCONF_IMG_FLASH, PRJCONF_IMG_ADDR, PRJCONF_IMG_MAX_SIZE);
+#else
+	image_init(PRJCONF_IMG_FLASH, PRJCONF_IMG_ADDR, 0);
+#endif
 #if (defined(__CONFIG_XIP) || defined(__CONFIG_PSRAM))
     platform_cache_init();
 #endif
@@ -390,6 +509,22 @@ __weak void platform_init_level0(void)
 /* init standard platform hardware and services */
 __weak void platform_init_level1(void)
 {
+#if SYS_AVS_EN
+    if(HAL_PRCM_SysClkFactor2Hz(BOARD_CPU_CLK_FACTOR) > 240*1000*1000)
+    {
+        platform_avs_init();
+    }
+#endif
+
+#if (__CONFIG_WPA_HEAP_MODE == 1)
+	wpa_set_heap_fn(psram_malloc, psram_realloc, psram_free);
+#endif
+#if (__CONFIG_UMAC_HEAP_MODE == 1)
+	umac_set_heap_fn(psram_malloc, psram_free);
+#endif
+#if (__CONFIG_LMAC_HEAP_MODE == 1)
+	lmac_set_heap_fn(psram_malloc, psram_free);
+#endif
 #if PRJCONF_CE_EN
 	HAL_CE_Init();
 #endif

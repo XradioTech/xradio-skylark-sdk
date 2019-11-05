@@ -85,14 +85,13 @@ extern "C" {
 #define PRJCONF_IMG_ADDR                0x00000000
 #endif
 
-/* image max size, including bootloader, for compatibility only */
-#if (!defined(PRJCONF_IMG_MAX_SIZE) && defined(PRJCONF_IMG_SIZE))
-#define PRJCONF_IMG_MAX_SIZE            PRJCONF_IMG_SIZE
-#endif
-
 /* image max size, including bootloader */
 #ifndef PRJCONF_IMG_MAX_SIZE
-#define PRJCONF_IMG_MAX_SIZE            ((1024 - 4) * 1024)
+#define PRJCONF_IMG_MAX_SIZE            0
+#endif
+
+#if ((__CONFIG_OTA_POLICY != 0x00) && (PRJCONF_IMG_MAX_SIZE != 0))
+#error "image max size MUST be defined in image.cfg file and set PRJCONF_IMG_MAX_SIZE to 0!"
 #endif
 
 /* save sysinfo to flash or not */
@@ -109,7 +108,7 @@ extern "C" {
 
 /* sysinfo start address */
 #ifndef PRJCONF_SYSINFO_ADDR
-#define PRJCONF_SYSINFO_ADDR            (PRJCONF_IMG_ADDR + PRJCONF_IMG_MAX_SIZE)
+#define PRJCONF_SYSINFO_ADDR            ((1024 - 4) * 1024)
 #endif
 
 /* sysinfo size */
@@ -214,22 +213,6 @@ extern "C" {
 /* swd enable/disable */
 #ifndef PRJCONF_SWD_EN
 #define PRJCONF_SWD_EN                  0
-#endif
-
-#if (__CONFIG_CHIP_ARCH_VER == 2)
-/* icache and dcache size config */
-#ifndef PRJCONF_ICACHE_MODE
-#define PRJCONF_ICACHE_MODE             (ICACHE_ASSOCIATE_MODE_TWO_WAY) /* 16K */
-#endif
-
-#ifndef PRJCONF_DCACHE_MODE
-#define PRJCONF_DCACHE_MODE             (DCACHE_ASSOCIATE_MODE_TWO_WAY) /* 16K */
-#endif
-
-#ifndef PRJCONF_CACHE_MIXED_MODE
-#define PRJCONF_CACHE_MIXED_MODE        (DCACHE_MIXED_MODE_ID)
-#endif
-
 #endif
 
 /*

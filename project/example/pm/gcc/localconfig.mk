@@ -7,3 +7,4 @@
 # ----------------------------------------------------------------------------
 # enable/disable XIP, default to y
 export __CONFIG_XIP := y
+export __CONFIG_CACHE_POLICY := 0x01

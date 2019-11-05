@@ -16,11 +16,11 @@ typedef struct CaptureCtrl CaptureCtrl;
 
 struct CaptureControlOpsS
 {
-    void (*destroy)(CaptureCtrl* c);
-    void (*setFormat)(CaptureCtrl* c, CdxCapbkCfg* cfg);
-    int (*start)(CaptureCtrl* c);
-    int (*stop)(CaptureCtrl* c);
-    int (*read)(CaptureCtrl* c, void* pData, int nDataSize);
+    void (*cdxDestroy)(CaptureCtrl* c);
+    void (*cdxSetFormat)(CaptureCtrl* c, CdxCapbkCfg* cfg);
+    int (*cdxStart)(CaptureCtrl* c);
+    int (*cdxStop)(CaptureCtrl* c);
+    int (*cdxRead)(CaptureCtrl* c, void* pData, int nDataSize);
 };
 
 struct CaptureCtrl
@@ -34,40 +34,40 @@ static inline void CaptureDeviceDestroy(CaptureCtrl* c)
 {
     CDX_CHECK(c);
     CDX_CHECK(c->ops);
-    CDX_CHECK(c->ops->destroy);
-    return c->ops->destroy(c);
+    CDX_CHECK(c->ops->cdxDestroy);
+    return c->ops->cdxDestroy(c);
 }
 
 static inline void CaptureDeviceSetFormat(CaptureCtrl* c, CdxCapbkCfg* cfg)
 {
     CDX_CHECK(c);
     CDX_CHECK(c->ops);
-    CDX_CHECK(c->ops->setFormat);
-    return c->ops->setFormat(c, cfg);
+    CDX_CHECK(c->ops->cdxSetFormat);
+    return c->ops->cdxSetFormat(c, cfg);
 }
 
 static inline int CaptureDeviceStart(CaptureCtrl* c)
 {
     CDX_CHECK(c);
     CDX_CHECK(c->ops);
-    CDX_CHECK(c->ops->start);
-    return c->ops->start(c);
+    CDX_CHECK(c->ops->cdxStart);
+    return c->ops->cdxStart(c);
 }
 
 static inline int CaptureDeviceStop(CaptureCtrl* c)
 {
     CDX_CHECK(c);
     CDX_CHECK(c->ops);
-    CDX_CHECK(c->ops->stop);
-    return c->ops->stop(c);
+    CDX_CHECK(c->ops->cdxStop);
+    return c->ops->cdxStop(c);
 }
 
 static inline int CaptureDeviceRead(CaptureCtrl* c, void* pData, int nDataSize)
 {
     CDX_CHECK(c);
     CDX_CHECK(c->ops);
-    CDX_CHECK(c->ops->read);
-    return c->ops->read(c, pData, nDataSize);
+    CDX_CHECK(c->ops->cdxRead);
+    return c->ops->cdxRead(c, pData, nDataSize);
 }
 
 #ifdef __cplusplus

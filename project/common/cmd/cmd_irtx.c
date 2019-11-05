@@ -112,6 +112,8 @@ static enum cmd_status cmd_irtx_config_exec(char *cmd)
 			irtx_param.IdleDurationCnt = IRTX_26M_NEC_IDC_VALUE;
 		} else if (clk == HOSC_CLOCK_24M) {
 			irtx_param.IdleDurationCnt = IRTX_24M_NEC_IDC_VALUE;
+		} else if (clk == HOSC_CLOCK_40M) {
+			irtx_param.IdleDurationCnt = IRTX_40M_NEC_IDC_VALUE;
 		} else {
 			CMD_ERR("%s unknow clk type(%d)!\n", __func__, clk);
 		}

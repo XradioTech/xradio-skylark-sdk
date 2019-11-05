@@ -43,6 +43,20 @@
 #include "net_ctrl.h"
 #include "net_ctrl_debug.h"
 
+#if (__CONFIG_CHIP_ARCH_VER == 2)
+#include "driver/chip/hal_clock.h"
+#include "driver/chip/hal_prcm.h"
+extern void platform_set_cpu_clock(PRCM_SysClkFactor factor);
+
+#define NET_CTRL_OPT_CHG_CPU_CLK    1
+#define NET_CTRL_OPT_DIS_LOW_PWR    1
+#define NET_CTRL_OPT_CPU_CLK_THRESH (240 * 1000 * 1000)
+#define NET_CTRL_OPT_CPU_CLK_FACTOR PRCM_SYS_CLK_FACTOR_240M
+#else
+#define NET_CTRL_OPT_CHG_CPU_CLK    0
+#define NET_CTRL_OPT_DIS_LOW_PWR    0
+#endif
+
 struct netif_conf {
     uint8_t     bring_up;   // bring up or down
     uint8_t     use_dhcp;   // use DHCP or not
@@ -344,7 +358,26 @@ struct netif *net_open(enum wlan_mode mode, wlan_event_cb_func cb)
 	NET_DBG("%s(), mode %d\n", __func__, mode);
 
 	wlan_attach(cb);
-	nif = wlan_netif_create(mode);
+#if (NET_CTRL_OPT_CHG_CPU_CLK || NET_CTRL_OPT_DIS_LOW_PWR)
+	if (HAL_GetCPUClock() > NET_CTRL_OPT_CPU_CLK_THRESH) {
+#if NET_CTRL_OPT_CHG_CPU_CLK
+		PRCM_CPUClkSrc old_factor = HAL_GET_BIT(PRCM->SYS_CLK1_CTRL, PRCM_SYS_CLK_FACTOR_MASK);
+		platform_set_cpu_clock(NET_CTRL_OPT_CPU_CLK_FACTOR);
+#endif
+#if NET_CTRL_OPT_DIS_LOW_PWR
+		extern void xradio_drv_cmd(const char **arg);
+		char *cmd_argv[3] = { "low_pwr_disable_set", "0x1", NULL};
+		xradio_drv_cmd((const char **)cmd_argv);
+#endif
+		nif = wlan_netif_create(mode);
+#if NET_CTRL_OPT_CHG_CPU_CLK
+		platform_set_cpu_clock(old_factor);
+#endif
+	} else
+#endif
+	{
+		nif = wlan_netif_create(mode);
+	}
 	if (nif == NULL) {
 		return NULL;
 	}
@@ -401,7 +434,17 @@ void net_close(struct netif *nif)
 	netif_set_link_callback(nif, NULL);
 #endif
 #endif
-	wlan_netif_delete(nif);
+#if (NET_CTRL_OPT_CHG_CPU_CLK)
+	if (HAL_GetCPUClock() > NET_CTRL_OPT_CPU_CLK_THRESH) {
+		PRCM_CPUClkSrc old_factor = HAL_GET_BIT(PRCM->SYS_CLK1_CTRL, PRCM_SYS_CLK_FACTOR_MASK);
+		platform_set_cpu_clock(NET_CTRL_OPT_CPU_CLK_FACTOR);
+		wlan_netif_delete(nif);
+		platform_set_cpu_clock(old_factor);
+	} else
+#endif
+	{
+		wlan_netif_delete(nif);
+	}
 	wlan_detach();
 }
 

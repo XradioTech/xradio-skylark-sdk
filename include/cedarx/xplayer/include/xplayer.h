@@ -152,6 +152,14 @@ typedef struct XPlayerBufferConfig
 	int maxMovStcoBufferSize;
 } XPlayerBufferConfig;
 
+typedef struct HttpStreamBufferConfig
+{
+	int maxBufferSize;
+	int maxProtectAreaSize;
+	int thresholdSize;
+	int seekIgnoreThresholdSize;
+} HttpStreamBufferConfig;
+
 typedef struct PlayerContext XPlayer;
 
 XPlayer* XPlayerCreate();
@@ -253,7 +261,7 @@ int XPlayerGetPlaybackSettings(XPlayer* p,XAudioPlaybackRate *rate);
 
 int XPlayerSetPlaybackSettings(XPlayer* p,const XAudioPlaybackRate *rate);
 
-void XPlayerSetHttpBuffer(XPlayer* p, int size, int threshold);
+void XPlayerSetHttpBuffer(XPlayer* p, HttpStreamBufferConfig *config);
 
 void XPlayerSetBuffer(XPlayer* p, const XPlayerBufferConfig *bufcfg);
 

@@ -43,6 +43,11 @@
 #include "net/udhcp/usr_dhcpd.h"
 #include "dns.h"
 
+#ifdef DHCPD_UPGRADE_STA_MAC
+#include "net/wlan/wlan.h"
+#include "net/wlan/wlan_defs.h"
+#endif
+
 /* globals */
 struct dhcpOfferedAddr *leases = NULL;
 struct server_config_t server_config;
@@ -65,6 +70,61 @@ static void udhcpd_use_default_init_config(struct server_config_t *config)
 	config->min_lease     = atoi(DHCPD_MIN_LEASE);
 	config->siaddr        = inet_addr(DHCPD_SIADDR);
 	config->sname         = "IOT";
+}
+#endif
+
+#ifdef DHCPD_UPGRADE_STA_MAC
+#define STA_MAX_NUM 5
+
+static wlan_ap_stas_t stas;
+
+static int udhcpd_check_sta_connect(wlan_ap_stas_t *stas, uint8_t *addr)
+{
+	int i;
+
+	for (i = 0; i < stas->num; i++)
+		if (!memcmp(&stas->sta[i].addr[0], addr, 6))
+			return 1;
+
+	return 0;
+}
+
+static int udhcpd_upgrade_sta_mac(void)
+{
+	int i;
+	int ret;
+
+	if (stas.sta == NULL)
+		stas.sta = (wlan_ap_sta_t *)malloc(STA_MAX_NUM * sizeof(wlan_ap_sta_t));
+	if (stas.sta == NULL) {
+		DHCPD_LOG(LOG_ERR, "no mem");
+		ret = -1;
+		goto exit;
+	}
+	stas.size = STA_MAX_NUM;
+	ret = wlan_ap_sta_info(&stas);
+
+	for (i = 0; i < stas.num; i++) {
+		DEBUG(LOG_INFO, "sta info [%02d] Mac: %02x:%02x:%02x:%02x:%02x:%02x",
+			i + 1, stas.sta[i].addr[0], stas.sta[i].addr[1],
+			stas.sta[i].addr[2], stas.sta[i].addr[3],
+			stas.sta[i].addr[4], stas.sta[i].addr[5]);
+	}
+
+	if (ret == 0) {
+		for (i = 0; i < server_config.max_leases; i++) {
+			if (leases[i].yiaddr && leases[i].expires &&
+				!udhcpd_check_sta_connect(&stas, leases[i].chaddr)) {
+				DEBUG(LOG_INFO, "Mac: %02x:%02x:%02x:%02x:%02x:%02x has disconnect, will be delete!",
+					leases[i].chaddr[0], leases[i].chaddr[1], leases[i].chaddr[2],
+					leases[i].chaddr[3], leases[i].chaddr[4], leases[i].chaddr[5]);
+				memset(&(leases[i]), 0, sizeof(struct dhcpOfferedAddr));
+			}
+		}
+	}
+
+exit:
+	return ret;
 }
 #endif
 
@@ -184,6 +244,9 @@ static void udhcpd_start(void *arg)
 				continue;
 			}
 
+#ifdef 	DHCPD_UPGRADE_STA_MAC
+			udhcpd_upgrade_sta_mac();
+#endif
 			if ((state = get_option(packet, DHCP_MESSAGE_TYPE)) == NULL) {
 				DEBUG(LOG_ERR, "couldn't get option from packet, ignoring");
 				continue;
@@ -301,6 +364,12 @@ exit_server:
 	}
 	if (arg != NULL)
 		free(arg);
+#ifdef DHCPD_UPGRADE_STA_MAC
+	if (stas.sta != NULL) {
+		free(stas.sta);
+		stas.sta = NULL;
+	}
+#endif
 	OS_ThreadDelete(&g_dhcpd_thread);
 }
 

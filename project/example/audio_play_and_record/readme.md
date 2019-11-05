@@ -40,6 +40,7 @@
 >
 > prj_config.h
 > * PRJCONF_INTERNAL_SOUNDCARD_EN: 必选项，配置使用内置声卡
+> * PRJCONF_AC107_SOUNDCARD_EN:可选项，配置使用AC107
 > * PRJCONF_NET_EN: 可选项，配置使用网络功能
 > * PRJCONF_MMC_EN:可选项，配置使用sd卡
 
@@ -118,7 +119,7 @@
 >   D）循环播放音频“1.mp3”
 > 5. 录音线程函数入口：record_task()
 > 6. record_task()函数流程：
->   A）初始化输出模块
+>   A）初始化输出模块。该工程配置使用AC107的PDM输出作为内部codec的dmic输入
 >   B）启动录音
 >   C）循环获取录音数据，并将录音数据输出到输出模块
 

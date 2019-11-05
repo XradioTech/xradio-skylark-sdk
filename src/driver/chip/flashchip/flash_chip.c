@@ -88,6 +88,9 @@ extern FlashChipCtor  P25Q40H_FlashChip;
 #ifdef FLASH_P25Q16H
 extern FlashChipCtor  P25Q16H_FlashChip;
 #endif
+#ifdef FLASH_P25Q64H
+extern FlashChipCtor  P25Q64H_FlashChip;
+#endif
 #ifdef FLASH_EN25QH64A
 extern FlashChipCtor  EN25QH64A_FlashChip;
 #endif
@@ -116,6 +119,9 @@ FlashChipCtor *flashChipList[] = {
 #endif
 #ifdef FLASH_P25Q16H
 	&P25Q16H_FlashChip,
+#endif
+#ifdef FLASH_P25Q64H
+	&P25Q64H_FlashChip,
 #endif
 #ifdef FLASH_EN25QH64A
 	&EN25QH64A_FlashChip,

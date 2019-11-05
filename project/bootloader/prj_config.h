@@ -54,12 +54,6 @@ extern "C" {
 /* image flash ID */
 #define PRJCONF_IMG_FLASH               0
 
-/* image start address, including bootloader */
-#define PRJCONF_IMG_ADDR                0x00000000
-
-/* image max size, including bootloader */
-#define PRJCONF_IMG_MAX_SIZE            ((1024 - 4) * 1024)
-
 /*
  * project hardware feature
  */

@@ -119,8 +119,7 @@ struct snd_card {
 	const struct platform_driver *platform_drv;
 
 	//board config control
-	const Pa_Switch_Ctl     *pa_switch_ctl;
-	const Linein_Detect_Ctl *linein_detect_ctl;
+	const Pa_Switch_Ctl *pa_switch_ctl;
 
 	//user config
 	uint16_t codec_play_vol;

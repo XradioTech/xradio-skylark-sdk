@@ -7,7 +7,11 @@ MEMORY
 {
 #if (defined(__CONFIG_CHIP_XR872))
 #if (defined(__CONFIG_JPEG))
+#if (defined(__CONFIG_JPEG_SHARE_64K))
     RAM (rwx)   : ORIGIN = 0x00201000, LENGTH = 348K
+#else
+    RAM (rwx)   : ORIGIN = 0x00201000, LENGTH = 380K
+#endif
 #else
     RAM (rwx)   : ORIGIN = 0x00201000, LENGTH = 412K
 #endif
@@ -120,7 +124,6 @@ SECTIONS
         *libconsole.a: (.text .text.* .rodata .rodata.*)
         *libutil.a: (.text .text.* .rodata .rodata.*)
 
-        *libchip.a:hal_mbox.o (.text .text.* .rodata .rodata.*)
         *libchip.a:hal_wdg.o (.text .text.* .rodata .rodata.*)
         *libchip.a:hal_timer.o (.text .text.* .rodata .rodata.*)
         *libchip.a:hal_rtc.o (.text .text.* .rodata .rodata.*)

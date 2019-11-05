@@ -42,29 +42,29 @@ typedef struct SoundControlOpsS SoundControlOpsT;
 
 struct SoundControlOpsS
 {
-    void (*destroy)(SoundCtrl* s);
+    void (*cdxDestroy)(SoundCtrl* s);
 
-    void (*setFormat)(SoundCtrl* s, CdxPlaybkCfg* cfg);
+    void (*cdxSetFormat)(SoundCtrl* s, CdxPlaybkCfg* cfg);
 
-    int (*start)(SoundCtrl* s);
+    int (*cdxStart)(SoundCtrl* s);
 
-    int (*stop)(SoundCtrl* s);
+    int (*cdxStop)(SoundCtrl* s);
 
-    int (*pause)(SoundCtrl* s);
+    int (*cdxPause)(SoundCtrl* s);
 
-    int (*flush)(SoundCtrl* s, void *block);
+    int (*cdxFlush)(SoundCtrl* s, void *block);
 
-    int (*write)(SoundCtrl* s, void* pData, int nDataSize);
+    int (*cdxWrite)(SoundCtrl* s, void* pData, int nDataSize);
 
-    int (*reset)(SoundCtrl* s);
+    int (*cdxReset)(SoundCtrl* s);
 
-    int (*getCachedTime)(SoundCtrl* s);
+    int (*cdxGetCachedTime)(SoundCtrl* s);
 
-    int (*getFrameCount)(SoundCtrl* s);
+    int (*cdxGetFrameCount)(SoundCtrl* s);
 
-    int (*setPlaybackRate)(SoundCtrl* s,const XAudioPlaybackRate *rate);
+    int (*cdxSetPlaybackRate)(SoundCtrl* s,const XAudioPlaybackRate *rate);
 
-    int (*control)(SoundCtrl* s, int cmd, void* para);
+    int (*cdxControl)(SoundCtrl* s, int cmd, void* para);
 };
 
 struct SoundCtrl
@@ -99,95 +99,96 @@ static inline void SoundDeviceDestroy(SoundCtrl* s)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->destroy);
-    return s->ops->destroy(s);
+    CDX_CHECK(s->ops->cdxDestroy);
+    return s->ops->cdxDestroy(s);
 }
 
 static inline void SoundDeviceSetFormat(SoundCtrl* s, CdxPlaybkCfg* cfg)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->setFormat);
-    return s->ops->setFormat(s, cfg);
+    CDX_CHECK(s->ops->cdxSetFormat);
+    return s->ops->cdxSetFormat(s, cfg);
 }
 
 static inline int SoundDeviceStart(SoundCtrl* s)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->start);
-    return s->ops->start(s);
+    CDX_CHECK(s->ops->cdxStart);
+    return s->ops->cdxStart(s);
 }
 
 static inline int SoundDeviceStop(SoundCtrl* s)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->stop);
-    return s->ops->stop(s);
+    CDX_CHECK(s->ops->cdxStop);
+    return s->ops->cdxStop(s);
 }
 
 static inline int SoundDevicePause(SoundCtrl* s)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->pause);
-    return s->ops->pause(s);
+    CDX_CHECK(s->ops->cdxPause);
+    return s->ops->cdxPause(s);
 }
 
 static inline int SoundDeviceFlush(SoundCtrl* s, void* block)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->flush);
-    return s->ops->flush(s, block);
+    CDX_CHECK(s->ops->cdxFlush);
+    return s->ops->cdxFlush(s, block);
 }
 
 static inline int SoundDeviceWrite(SoundCtrl* s, void* pData, int nDataSize)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->write);
-    return s->ops->write(s, pData, nDataSize);
+    CDX_CHECK(s->ops->cdxWrite);
+    return s->ops->cdxWrite(s, pData, nDataSize);
 }
 
 static inline int SoundDeviceReset(SoundCtrl* s)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->reset);
-    return s->ops->reset(s);
+    CDX_CHECK(s->ops->cdxReset);
+    return s->ops->cdxReset(s);
 }
 
 static inline int SoundDeviceGetCachedTime(SoundCtrl* s)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->getCachedTime);
-    return s->ops->getCachedTime(s);
+    CDX_CHECK(s->ops->cdxGetCachedTime);
+    return s->ops->cdxGetCachedTime(s);
 }
 
 static inline int SoundDeviceGetFrameCount(SoundCtrl* s)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->getFrameCount);
-    return s->ops->getFrameCount(s);
+    CDX_CHECK(s->ops->cdxGetFrameCount);
+    return s->ops->cdxGetFrameCount(s);
 }
 
 static inline int SoundDeviceSetPlaybackRate(SoundCtrl* s,const XAudioPlaybackRate *rate)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    return s->ops->setPlaybackRate(s,rate);
+    CDX_CHECK(s->ops->cdxSetPlaybackRate);
+    return s->ops->cdxSetPlaybackRate(s,rate);
 }
 
 static inline int SoundDeviceControl(SoundCtrl* s, int cmd, void* para)
 {
     CDX_CHECK(s);
     CDX_CHECK(s->ops);
-    CDX_CHECK(s->ops->control);
-    return s->ops->control(s, cmd, para);
+    CDX_CHECK(s->ops->cdxControl);
+    return s->ops->cdxControl(s, cmd, para);
 }
 
 SoundCtrl* SoundDeviceCreate();

@@ -140,7 +140,7 @@ int   arpping(u_int32_t yiaddr, u_int32_t ip, unsigned char *mac, char *interfac
 #ifdef DHCPD_ICMPPING
 	sl.sin_len = sizeof(sl);
 	sl.sin_family = AF_INET;
-	sl.sin_addr.s_addr = yiaddr;
+	sl.sin_addr.s_addr = htonl(INADDR_ANY);
 #else
 	sl.sll_family = AF_PACKET;
     	//sl.sll_addr = MAC_SOURCE;

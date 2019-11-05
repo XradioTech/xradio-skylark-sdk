@@ -35,7 +35,8 @@ CC_FLAGS += -DDHCPD_LWIP \
             -DDHCPD_ICMPPING \
             -DDHCPD_LOW_LEVEL \
             -DDHCPD_DNS \
-            -DDHCPD_USE_DEFAULT_INIT
+            -DDHCPD_USE_DEFAULT_INIT \
+            -DDHCPD_UPGRADE_STA_MAC
 
 # library make rules
 include $(LIB_MAKE_RULES)

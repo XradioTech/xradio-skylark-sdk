@@ -105,7 +105,15 @@ ifneq ($(__CONFIG_MALLOC_USE_STDLIB), y)
 LD_FLAGS += -Wl,--wrap,malloc
 LD_FLAGS += -Wl,--wrap,realloc
 LD_FLAGS += -Wl,--wrap,free
+else
+ifeq ($(__CONFIG_MIX_HEAP_MANAGE), y)
+LD_FLAGS += -Wl,--wrap,malloc
+LD_FLAGS += -Wl,--wrap,realloc
+LD_FLAGS += -Wl,--wrap,calloc
+LD_FLAGS += -Wl,--wrap,free
 endif
+endif
+
 LD_FLAGS += -Wl,--wrap,_malloc_r
 LD_FLAGS += -Wl,--wrap,_realloc_r
 LD_FLAGS += -Wl,--wrap,_free_r

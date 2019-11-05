@@ -1033,6 +1033,14 @@ dhcp_renew(struct netif *netif)
     dhcp_option(dhcp, DHCP_OPTION_MAX_MSG_SIZE, DHCP_OPTION_MAX_MSG_SIZE_LEN);
     dhcp_option_short(dhcp, DHCP_MAX_MSG_LEN(netif));
 
+#if LWIP_BUG_FIXED
+	dhcp_option(dhcp, DHCP_OPTION_PARAMETER_REQUEST_LIST, 4/*num options*/);
+	dhcp_option_byte(dhcp, DHCP_OPTION_SUBNET_MASK);
+	dhcp_option_byte(dhcp, DHCP_OPTION_ROUTER);
+	dhcp_option_byte(dhcp, DHCP_OPTION_BROADCAST);
+	dhcp_option_byte(dhcp, DHCP_OPTION_DNS_SERVER);
+#endif
+
 #if 0
     dhcp_option(dhcp, DHCP_OPTION_REQUESTED_IP, 4);
     dhcp_option_long(dhcp, ntohl(dhcp->offered_ip_addr.addr));
@@ -1087,6 +1095,14 @@ dhcp_rebind(struct netif *netif)
     dhcp_option(dhcp, DHCP_OPTION_MAX_MSG_SIZE, DHCP_OPTION_MAX_MSG_SIZE_LEN);
     dhcp_option_short(dhcp, DHCP_MAX_MSG_LEN(netif));
 
+#if LWIP_BUG_FIXED
+	dhcp_option(dhcp, DHCP_OPTION_PARAMETER_REQUEST_LIST, 4/*num options*/);
+	dhcp_option_byte(dhcp, DHCP_OPTION_SUBNET_MASK);
+	dhcp_option_byte(dhcp, DHCP_OPTION_ROUTER);
+	dhcp_option_byte(dhcp, DHCP_OPTION_BROADCAST);
+	dhcp_option_byte(dhcp, DHCP_OPTION_DNS_SERVER);
+#endif
+
 #if LWIP_NETIF_HOSTNAME
     dhcp_option_hostname(dhcp, netif);
 #endif /* LWIP_NETIF_HOSTNAME */
@@ -1139,6 +1155,14 @@ dhcp_reboot(struct netif *netif)
 
     dhcp_option(dhcp, DHCP_OPTION_REQUESTED_IP, 4);
     dhcp_option_long(dhcp, ntohl(ip4_addr_get_u32(&dhcp->offered_ip_addr)));
+
+#if LWIP_BUG_FIXED
+    dhcp_option(dhcp, DHCP_OPTION_PARAMETER_REQUEST_LIST, 4/*num options*/);
+    dhcp_option_byte(dhcp, DHCP_OPTION_SUBNET_MASK);
+    dhcp_option_byte(dhcp, DHCP_OPTION_ROUTER);
+    dhcp_option_byte(dhcp, DHCP_OPTION_BROADCAST);
+    dhcp_option_byte(dhcp, DHCP_OPTION_DNS_SERVER);
+#endif
 
     dhcp_option_trailer(dhcp);
 

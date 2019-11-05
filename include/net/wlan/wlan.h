@@ -98,6 +98,7 @@ int wlan_sta_enable(void);
 int wlan_sta_disable(void);
 
 int wlan_sta_scan_once(void);
+int wlan_sta_get_scan_result_num(int *num);
 int wlan_sta_scan(wlan_sta_scan_param_t *param);
 int wlan_sta_scan_result(wlan_sta_scan_results_t *results);
 int wlan_sta_scan_interval(int sec);
@@ -130,6 +131,7 @@ int wlan_ap_sta_info(wlan_ap_stas_t *stas);
 
 int wlan_ap_scan_once(void);
 int wlan_ap_scan(wlan_sta_scan_param_t *param);
+int wlan_ap_get_scan_result_num(int *num);
 int wlan_ap_scan_result(wlan_sta_scan_results_t *results);
 
 /* monitor */

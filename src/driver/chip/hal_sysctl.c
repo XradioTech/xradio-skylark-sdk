@@ -31,4 +31,22 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include "driver/chip/hal_sysctl.h"
+uint32_t HAL_SYSCTL_GetPsensor(uint32_t id)
+{
+    uint32_t value;
+    if( id > 1 ) return 0;
+    HAL_SYSCTL_SetPsensorControl(id == 0 ? SYSCTL_PSENSOR_0 : SYSCTL_PSENSOR_1,
+	                             SYSCTL_OSC_LVT_CASECODE,
+	                             SYSCTL_PS_N_PRD_VAL(7),
+	                             1);
+
+	HAL_SYSCTL_WaitPsensorRdyAndClean();
+	HAL_SET_BIT(SYSCTL->PS_CTL_REG, SYSCTL_CLK250M_CNT_RDY_MASK); // clear ready bit
+
+	value = HAL_SYSCTL_GetPsensorCnt();
+	HAL_CLR_BIT(SYSCTL->PS_CTL_REG, SYSCTL_PS_EN_MASK); // disable psensor
+
+    return value;
+}
 

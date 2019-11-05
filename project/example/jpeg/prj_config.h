@@ -45,7 +45,7 @@ extern "C" {
 #define PRJCONF_MAIN_THREAD_PRIO        OS_THREAD_PRIO_APP
 
 /* main thread stack size */
-#define PRJCONF_MAIN_THREAD_STACK_SIZE  (2* 1024)
+#define PRJCONF_MAIN_THREAD_STACK_SIZE  (4* 1024)
 /* sys ctrl enable/disable */
 #define PRJCONF_SYS_CTRL_EN             1
 /* sys ctrl thread priority */
@@ -64,7 +64,7 @@ extern "C" {
 #define PRJCONF_MMC_EN                  1
 #define PRJCONF_MMC_DETECT_MODE         CARD_ALWAYS_PRESENT
 /* console enable/disable */
-#define PRJCONF_CONSOLE_EN              0
+#define PRJCONF_CONSOLE_EN              1
 
 #define	PRJCONF_CSI_SDC_EN				1
 

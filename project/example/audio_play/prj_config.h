@@ -62,6 +62,8 @@ extern "C" {
 /* network and wlan enable/disable */
 #define PRJCONF_NET_EN                  0
 
+#define PRJCONF_SYSINFO_SAVE_TO_FLASH	0
+
 #ifdef __cplusplus
 }
 #endif

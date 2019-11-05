@@ -67,9 +67,12 @@ extern "C" {
 #define FLASH_BY25D80
 
 #define FLASH_P25Q80H
+
 #define FLASH_P25Q40H
 
 #define FLASH_P25Q16H
+
+#define FLASH_P25Q64H
 
 #define FLASH_EN25Q80B
 

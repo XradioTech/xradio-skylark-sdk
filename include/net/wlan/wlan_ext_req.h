@@ -73,6 +73,13 @@ typedef enum wlan_ext_cmd {
     WLAN_EXT_CMD_SET_TEMP_FRM,
     WLAN_EXT_CMD_SET_UPDATE_TEMP_IE,
     WLAN_EXT_CMD_SET_SYNC_FRM_SEND,
+    WLAN_EXT_CMD_GET_TEMP_VOLT,
+
+	WLAN_EXT_CMD_SET_SDD_FREQ_OFFSET,
+	WLAN_EXT_CMD_GET_SDD_FREQ_OFFSET,
+	WLAN_EXT_CMD_SET_SDD_POWER,
+	WLAN_EXT_CMD_GET_SDD_POWER,
+	WLAN_EXT_CMD_GET_SDD_FILE,
 
     WLAN_EXT_CMD_GET_TX_RATE = 50,
     WLAN_EXT_CMD_GET_SIGNAL,
@@ -504,6 +511,15 @@ typedef struct wlan_ext_power_level_tab_get
     uint16_t   PowerTabType;
     uint16_t   PowerTab[POWER_LEVEL_TAB_USE_LENGTH];
 } wlan_ext_power_level_tab_get_t;
+
+/**
+ * @brief Parameter for WLAN_EXT_CMD_GET_TEMP_VOLT
+ */
+typedef struct wlan_ext_temp_volt_get
+{
+    int32_t    Temperature;
+    uint32_t   Voltage;
+} wlan_ext_temp_volt_get_t;
 
 
 int wlan_ext_request(struct netif *nif, wlan_ext_cmd_t cmd, uint32_t param);

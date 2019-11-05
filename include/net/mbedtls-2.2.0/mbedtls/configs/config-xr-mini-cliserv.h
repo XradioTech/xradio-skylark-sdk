@@ -30,8 +30,15 @@
 /* System support */
 #define MBEDTLS_HAVE_ASM
 #define MBEDTLS_HAVE_TIME
-//#define MBEDTLS_PLATFORM_MEMORY
 #define MBEDTLS_SSL_ALPN
+
+#if (__CONFIG_MBEDTLS_HEAP_MODE == 1)
+#include "driver/chip/psram/psram.h"
+#define MBEDTLS_PLATFORM_C
+#define MBEDTLS_PLATFORM_MEMORY
+#define MBEDTLS_PLATFORM_CALLOC_MACRO psram_calloc
+#define MBEDTLS_PLATFORM_FREE_MACRO psram_free
+#endif
 
 /* Save RAM at the expense of ROM */
 #define MBEDTLS_AES_ROM_TABLES
@@ -46,7 +53,6 @@
 #define MBEDTLS_SSL_PROTO_TLS1_2
 //#define MBEDTLS_THREADING_C
 //#define MBEDTLS_THREADING_ALT
-//#define MBEDTLS_PLATFORM_C
 
 /* mbed TLS modules */
 #define MBEDTLS_AES_C

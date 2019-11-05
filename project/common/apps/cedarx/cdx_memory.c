@@ -27,13 +27,15 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
-#ifdef __CONFIG_PSRAM
+#if (__CONFIG_CEDARX_HEAP_MODE == 1)
+#include "sys/sys_heap.h"
+#else
+#include <stdlib.h>
+#endif
 
-#include "driver/chip/psram/psram.h"
+#if (__CONFIG_CEDARX_HEAP_MODE == 1)
 
 void *cdx_malloc(size_t size)
 {

@@ -1231,7 +1231,6 @@ static inline HAL_Status I2S_HwDeInit(I2S_HWParam *param)
 }
 
 #ifdef CONFIG_PM
-__nonxip_text
 static int i2s_suspend(struct soc_device *dev, enum suspend_state_t state)
 {
         struct I2S_Private *i2sPrivate = gI2sPrivate;
@@ -1257,7 +1256,6 @@ static int i2s_suspend(struct soc_device *dev, enum suspend_state_t state)
         return 0;
 }
 
-__nonxip_text
 static int i2s_resume(struct soc_device *dev, enum suspend_state_t state)
 {
         struct I2S_Private *i2sPrivate = gI2sPrivate;

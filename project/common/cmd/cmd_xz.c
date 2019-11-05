@@ -139,7 +139,7 @@ static enum cmd_status cmd_xz_dec_file_exec(char *cmd)
 		return CMD_STATUS_FAIL;
 	}
 
-	b.in = xz_array;
+	b.in = in_buf;
 	b.in_pos = 0;
 	b.in_size = 0;
 	b.out = out_buf;

@@ -38,6 +38,7 @@
 #include <stdbool.h>
 #include "kernel/os/os.h"
 #include "driver/chip/hal_def.h"
+#include "driver/chip/hal_dma.h"
 #include "driver/chip/psram/psram.h"
 #include "pm/pm.h"
 
@@ -522,11 +523,12 @@ extern "C" {
 #define PSRAMC_OVERWR_CAL               HAL_BIT(24)
 #define PSRAMC_OVERWR_CAL_SHIFT         (16)
 #define PSRAMC_OVERWR_CAL_VMASK         (0x3F)
-#define PSRAMC_OVERWR_CAL_VAL(n)	(((n) & PSRAMC_OVERWR_CAL_VMASK) << PSRAMC_OVERWR_CAL_SHIFT)
-#define PSRAMC_CAL_SUCCEED		HAL_BIT(12)
-#define PSRAMC_CAL_RESULT_VAL_SHIFT	(4)
-#define PSRAMC_CAL_RESULT_VAL_MASK	(0x3F << PSRAMC_CAL_RESULT_VAL_SHIFT)
-#define PSRAMC_START_DQS_DELAY_CAL	HAL_BIT(0)
+#define PSRAMC_OVERWR_CAL_MASK          (0x3F << PSRAMC_OVERWR_CAL_SHIFT)
+#define PSRAMC_OVERWR_CAL_VAL(n)        (((n) & PSRAMC_OVERWR_CAL_VMASK) << PSRAMC_OVERWR_CAL_SHIFT)
+#define PSRAMC_CAL_SUCCEED              HAL_BIT(12)
+#define PSRAMC_CAL_RESULT_VAL_SHIFT     (4)
+#define PSRAMC_CAL_RESULT_VAL_MASK      (0x3F << PSRAMC_CAL_RESULT_VAL_SHIFT)
+#define PSRAMC_START_DQS_DELAY_CAL      HAL_BIT(0)
 
     /*
      * bit field definition of PSRAMC->PSRAM_ADDR
@@ -535,120 +537,153 @@ extern "C" {
 #define PSRAMC_END_POS(addr)            ((addr) & 0xFFFFFFF0)
 #define PSRAMC_ADDR_BIAS_EN             HAL_BIT(31)
 
-    typedef struct {
-        __IO uint32_t START_ADDR;       /* ,        Address offset: N * 0x4 + 0x00        */
-        __IO uint32_t END_ADDR;         /* ,        Address offset: N * 0x4 + 0x04        */
-        __IO uint32_t BIAS_ADDR;        /* ,        Address offset: N * 0x4 + 0x08        */
-        __I  uint32_t RESERVE0C;        /* ,        Address offset: N * 0x4 + 0x0C        */
-    } ADDR_T;
+typedef struct {
+    __IO uint32_t START_ADDR;       /* ,        Address offset: N * 0x4 + 0x00        */
+    __IO uint32_t END_ADDR;         /* ,        Address offset: N * 0x4 + 0x04        */
+    __IO uint32_t BIAS_ADDR;        /* ,        Address offset: N * 0x4 + 0x08        */
+    __I  uint32_t RESERVE0C;        /* ,        Address offset: N * 0x4 + 0x0C        */
+} ADDR_T;
 
-    typedef struct {
-        __IO uint32_t MEM_COM_CFG;		/* ,	 Address offset: 0x000	 */
-        __IO uint32_t OPI_CTRL_CMM_CFG; 	/* ,	 Address offset: 0x004	 */
-        __IO uint32_t CACHE_RLVT_CFG;   	/* ,	 Address offset: 0x008	 */
-        __IO uint32_t MEM_AC_CFG;		/* ,	 Address offset: 0x00C	 */
-        __IO uint32_t C_RD_OPRT_CFG;            /* ,	 Address offset: 0x010	 */
-        __IO uint32_t C_WD_OPRT_CFG;            /* ,	 Address offset: 0x014	 */
-        __IO uint32_t C_RD_DUMMY_DATA_H;	/* ,	 Address offset: 0x018	 */
-        __IO uint32_t C_RD_DUMMY_DATA_L;	/* ,	 Address offset: 0x01C	 */
-        __IO uint32_t C_WD_DUMMY_DATA_H;	/* ,	 Address offset: 0x020	 */
-        __IO uint32_t C_WD_DUMMY_DATA_L;	/* ,	 Address offset: 0x024	 */
-        __IO uint32_t C_IO_SW_WAIT_TIME;	/* ,	 Address offset: 0x028	 */
-        __IO uint32_t S_RW_OPRT_CFG;            /* ,	 Address offset: 0x02C	 */
-        __IO uint32_t S_ADDR_CFG;		/* ,	 Address offset: 0x030	 */
-        __IO uint32_t S_DUMMY_DATA_H;           /* ,	 Address offset: 0x034	 */
-        __IO uint32_t S_DUMMY_DATA_L;           /* ,	 Address offset: 0x038	 */
-        __IO uint32_t S_IO_SW_WAIT_TIME;	/* ,	 Address offset: 0x03C	 */
-        __IO uint32_t S_WD_DATA_BYTE_NUM;	/* ,	 Address offset: 0x040	 */
-        __IO uint32_t S_RD_DATA_BYTE_NUM;	/* ,	 Address offset: 0x044	 */
-        __IO uint32_t S_START_SEND_REG;         /* ,	 Address offset: 0x048	 */
-        __IO uint32_t FIFO_TRIGGER_LEVEL;	/* ,	 Address offset: 0x04C	 */
-        __I  uint32_t FIFO_STATUS_REG;		/* ,	 Address offset: 0x050	 */
-        __IO uint32_t INT_ENABLE_REG;		/* ,	 Address offset: 0x054	 */
-        __IO uint32_t INT_STATUS_REG;		/* ,	 Address offset: 0x058	 */
-        __IO uint32_t XIP_WARP_MODE_EXE_IDCT;	/* ,	 Address offset: 0x05C	 */
-        __I  uint32_t MEM_CTRL_DBG_STATE;	/* ,	 Address offset: 0x060	 */
-        __I  uint32_t MEM_CTRL_SBUS_DBG_CNTH;	/* ,	 Address offset: 0x064	 */
-        __I  uint32_t MEM_CTRL_SBUS_DBG_CNTL;	/* ,	 Address offset: 0x068	 */
-        __IO uint32_t PSRAM_FORCE_CFG;		/* ,	 Address offset: 0x06C	 */
-        __IO uint32_t PSRAM_COM_CFG;		/* ,	 Address offset: 0x070	 */
-        __IO uint32_t PSRAM_LAT_CFG;		/* ,	 Address offset: 0x074	 */
-        __IO uint32_t PSRAM_TIM_CFG;		/* ,	 Address offset: 0x078	 */
-        __IO uint32_t PSRAM_DQS_DELAY_CFG;	/* ,	 Address offset: 0x07C	 */
-        ADDR_T   PSRAM_ADDR[8];		/* ,	 Address offset: 0x080~0x0FC */
-        __IO uint32_t S_WD_DATA_REG;            /* ,	 Address offset: 0x100	 */
-        __IO uint32_t RESERVE101[63];
-        __I  uint32_t S_RD_DATA_REG;            /* ,	 Address offset: 0x200	 */
-    } PSRAM_CTRL_T;
+typedef struct {
+    __IO uint32_t MEM_COM_CFG;		/* ,	 Address offset: 0x000	 */
+    __IO uint32_t OPI_CTRL_CMM_CFG; 	/* ,	 Address offset: 0x004	 */
+    __IO uint32_t CACHE_RLVT_CFG;   	/* ,	 Address offset: 0x008	 */
+    __IO uint32_t MEM_AC_CFG;		/* ,	 Address offset: 0x00C	 */
+    __IO uint32_t C_RD_OPRT_CFG;            /* ,	 Address offset: 0x010	 */
+    __IO uint32_t C_WD_OPRT_CFG;            /* ,	 Address offset: 0x014	 */
+    __IO uint32_t C_RD_DUMMY_DATA_H;	/* ,	 Address offset: 0x018	 */
+    __IO uint32_t C_RD_DUMMY_DATA_L;	/* ,	 Address offset: 0x01C	 */
+    __IO uint32_t C_WD_DUMMY_DATA_H;	/* ,	 Address offset: 0x020	 */
+    __IO uint32_t C_WD_DUMMY_DATA_L;	/* ,	 Address offset: 0x024	 */
+    __IO uint32_t C_IO_SW_WAIT_TIME;	/* ,	 Address offset: 0x028	 */
+    __IO uint32_t S_RW_OPRT_CFG;            /* ,	 Address offset: 0x02C	 */
+    __IO uint32_t S_ADDR_CFG;		/* ,	 Address offset: 0x030	 */
+    __IO uint32_t S_DUMMY_DATA_H;           /* ,	 Address offset: 0x034	 */
+    __IO uint32_t S_DUMMY_DATA_L;           /* ,	 Address offset: 0x038	 */
+    __IO uint32_t S_IO_SW_WAIT_TIME;	/* ,	 Address offset: 0x03C	 */
+    __IO uint32_t S_WD_DATA_BYTE_NUM;	/* ,	 Address offset: 0x040	 */
+    __IO uint32_t S_RD_DATA_BYTE_NUM;	/* ,	 Address offset: 0x044	 */
+    __IO uint32_t S_START_SEND_REG;         /* ,	 Address offset: 0x048	 */
+    __IO uint32_t FIFO_TRIGGER_LEVEL;	/* ,	 Address offset: 0x04C	 */
+    __I  uint32_t FIFO_STATUS_REG;		/* ,	 Address offset: 0x050	 */
+    __IO uint32_t INT_ENABLE_REG;		/* ,	 Address offset: 0x054	 */
+    __IO uint32_t INT_STATUS_REG;		/* ,	 Address offset: 0x058	 */
+    __IO uint32_t XIP_WARP_MODE_EXE_IDCT;	/* ,	 Address offset: 0x05C	 */
+    __I  uint32_t MEM_CTRL_DBG_STATE;	/* ,	 Address offset: 0x060	 */
+    __I  uint32_t MEM_CTRL_SBUS_DBG_CNTH;	/* ,	 Address offset: 0x064	 */
+    __I  uint32_t MEM_CTRL_SBUS_DBG_CNTL;	/* ,	 Address offset: 0x068	 */
+    __IO uint32_t PSRAM_FORCE_CFG;		/* ,	 Address offset: 0x06C	 */
+    __IO uint32_t PSRAM_COM_CFG;		/* ,	 Address offset: 0x070	 */
+    __IO uint32_t PSRAM_LAT_CFG;		/* ,	 Address offset: 0x074	 */
+    __IO uint32_t PSRAM_TIM_CFG;		/* ,	 Address offset: 0x078	 */
+    __IO uint32_t PSRAM_DQS_DELAY_CFG;	/* ,	 Address offset: 0x07C	 */
+    ADDR_T   PSRAM_ADDR[8];		/* ,	 Address offset: 0x080~0x0FC */
+    __IO uint32_t S_WD_DATA_REG;            /* ,	 Address offset: 0x100	 */
+    __IO uint32_t RESERVE101[63];
+    __I  uint32_t S_RD_DATA_REG;            /* ,	 Address offset: 0x200	 */
+} PSRAM_CTRL_T;
 
 #define PSRAM_CTRL ((PSRAM_CTRL_T *)PSRAM_CTRL_BASE)
 
-    /**
-     * @brief PSRAM Controller initialization parameters
-     */
-    typedef struct {
-        uint32_t p_type;
-        uint32_t freq;			/*!< PSRAM working frequency */
+/**
+ * @brief PSRAM Controller initialization parameters
+ */
+typedef struct {
+    uint32_t p_type;
+    uint32_t freq;			/*!< PSRAM working frequency */
 //	uint32_t t_shsl_ns;		/*!< PSRAM t_shsl parameter. for calculate the cs delay. */
-        uint8_t rdata_w;                /*!< PSRAM receive data wait cycle(0~3), base on board line length */
-    } PSRAMCtrl_InitParam;
+    uint8_t rdata_w;                /*!< PSRAM receive data wait cycle(0~3), base on board line length */
+} PSRAMCtrl_InitParam;
 
-    typedef struct {
-        uint8_t data_bits;
-    } HAL_PSRAMGPIOCfg;
+typedef struct {
+    uint8_t data_bits;
+} HAL_PSRAMGPIOCfg;
 
-    struct psram_ctrl;
+struct psram_ctrl {
+    volatile uint32_t rd_buf_idx;
+    //volatile uint32_t wr_buf_idx;
+    volatile uint32_t Psram_WR_FULL;
+    volatile uint32_t wait;
 
-    int32_t HAL_PsramCtrl_Request(struct psram_ctrl *ctrl, struct psram_request *mrq);
-    void HAL_PsramCtrl_Set_DBUS_WR_LATENCY(struct psram_ctrl *ctrl, uint32_t lat);
-    void HAL_PsramCtrl_Set_SBUS_WR_LATENCY(struct psram_ctrl *ctrl, uint32_t lat);
-    uint32_t HAL_PsramCtrl_Set_BusWidth(struct psram_ctrl *ctrl, uint32_t width);
-    void HAL_Psram_SbusCfg(struct psram_ctrl *ctrl, uint32_t opcfg, uint32_t wait, uint32_t waitcfg);
-    void HAL_PsramCtrl_IDbusCfg(struct psram_ctrl *ctrl, uint32_t write, uint32_t opcfg, uint32_t wait, uint32_t waitcfg);
-    void HAL_PsramCtrl_CacheCfg(struct psram_ctrl *ctrl, uint32_t cbus_wsize_bus);
-    void HAL_PsramCtrl_MaxCE_LowCyc(struct psram_ctrl *ctrl, uint32_t clk);
+    OS_Semaphore_t lock;
+    uint32_t status_int;
+    uint32_t inte;
+    uint32_t trans_done;
+    uint32_t dma_done;
 
-    /**
-     * @brief Initialize Psram controller.
-     * @param cfg:
-     * 	   @arg cfg->freq: Psram working frequency.
-     * @retval HAL_Status: The status of driver.
-     */
-    HAL_Status HAL_PsramCtrl_Init(struct psram_ctrl *ctrl, const PSRAMCtrl_InitParam *cfg);
+    OS_Semaphore_t dmaSem;
+    DMA_ChannelInitParam dmaParam;
+    DMA_Channel dma_ch;
+    uint8_t dma_use;
+    uint8_t ref;
 
-    /**
-    * @brief Deinitialize Psram controller.
-    * @param None
-    * @retval HAL_Status: The status of driver.
-    */
-    HAL_Status HAL_PsramCtrl_Deinit(struct psram_ctrl *ctrl);
-    /**
-     * @brief Open psram controller SBUS.
-     * @note At the same time, it will disable XIP and suspend schedule.
-     * @param None
-     * @retval HAL_Status: The status of driver.
-     */
-    struct psram_ctrl *HAL_PsramCtrl_Open(uint32_t id);
-    /**
-     * @brief Close psram controller SBUS.
-     * @param None
-     * @retval HAL_Status: The status of driver.
-     */
-    HAL_Status HAL_PsramCtrl_Close(struct psram_ctrl *ctrl);
-    struct psram_ctrl *HAL_PsramCtrl_Create(uint32_t id, const PSRAMCtrl_InitParam *cfg);
+    uint32_t busconfig;
 
-    HAL_Status HAL_PsramCtrl_Destory(struct psram_ctrl *ctrl);
-    void HAL_PsramCtrl_IDBUS_Dma_Enable(uint32_t en);
-    void HAL_PsramCtrl_Set_Address_Field(struct psram_ctrl *ctrl, uint32_t id,
-            uint32_t startaddr, uint32_t endaddr, uint32_t bias_addr);
-    int32_t HAL_PsramCtrl_Sbus_Transfer(struct psram_ctrl *ctrl, struct psram_request *mrq, bool dma);
-    void HAL_PsramCtrl_Set_Address_Field(struct psram_ctrl *ctrl, uint32_t id,
-            uint32_t startaddr, uint32_t endaddr, uint32_t bias_addr);
-    int32_t HAL_PsramCtrl_Set_DQS_Delay_Cal(uint32_t clk);
-    void HAL_PsramCtrl_Set_RD_BuffSize(PSRAMC_CacheLLCfg size);
-    uint32_t HAL_PsramCtrl_Get_RD_BuffSize();
-    void HAL_PsramCtrl_Set_WR_BuffSize(PSRAMC_WrCacheLL size);
-    uint32_t HAL_PsramCtrl_Get_WR_BuffSize();
+    uint32_t p_type;        /* psram type */
+    uint32_t freq;          /* psram freq */
+    uint8_t rdata_w;
+    struct psram_request *mrq;
+
+#ifdef CONFIG_PM
+    uint8_t suspending;
+    PSRAMCtrl_InitParam pm_sbus_cfg;
+    struct soc_device_driver psramc_drv;
+    struct soc_device psramc_dev;
+#endif
+};
+
+int32_t HAL_PsramCtrl_Request(struct psram_ctrl *ctrl, struct psram_request *mrq);
+void HAL_PsramCtrl_Set_DBUS_WR_LATENCY(struct psram_ctrl *ctrl, uint32_t lat);
+void HAL_PsramCtrl_Set_SBUS_WR_LATENCY(struct psram_ctrl *ctrl, uint32_t lat);
+uint32_t HAL_PsramCtrl_Set_BusWidth(struct psram_ctrl *ctrl, uint32_t width);
+void HAL_Psram_SbusCfg(struct psram_ctrl *ctrl, uint32_t opcfg, uint32_t wait, uint32_t waitcfg);
+void HAL_PsramCtrl_IDbusCfg(struct psram_ctrl *ctrl, uint32_t write, uint32_t opcfg, uint32_t wait, uint32_t waitcfg);
+void HAL_PsramCtrl_CacheCfg(struct psram_ctrl *ctrl, uint32_t cbus_wsize_bus);
+void HAL_PsramCtrl_MaxCE_LowCyc(struct psram_ctrl *ctrl, uint32_t clk);
+
+/**
+ * @brief Initialize Psram controller.
+ * @param cfg:
+ * 	   @arg cfg->freq: Psram working frequency.
+ * @retval HAL_Status: The status of driver.
+ */
+HAL_Status HAL_PsramCtrl_Init(struct psram_ctrl *ctrl, const PSRAMCtrl_InitParam *cfg);
+
+/**
+* @brief Deinitialize Psram controller.
+* @param None
+* @retval HAL_Status: The status of driver.
+*/
+HAL_Status HAL_PsramCtrl_Deinit(struct psram_ctrl *ctrl);
+/**
+ * @brief Open psram controller SBUS.
+ * @note At the same time, it will disable XIP and suspend schedule.
+ * @param None
+ * @retval HAL_Status: The status of driver.
+ */
+struct psram_ctrl *HAL_PsramCtrl_Open(uint32_t id);
+/**
+ * @brief Close psram controller SBUS.
+ * @param None
+ * @retval HAL_Status: The status of driver.
+ */
+HAL_Status HAL_PsramCtrl_Close(struct psram_ctrl *ctrl);
+struct psram_ctrl *HAL_PsramCtrl_Create(uint32_t id, const PSRAMCtrl_InitParam *cfg);
+
+HAL_Status HAL_PsramCtrl_Destory(struct psram_ctrl *ctrl);
+void HAL_PsramCtrl_IDBUS_Dma_Enable(uint32_t en);
+void HAL_PsramCtrl_Set_Address_Field(struct psram_ctrl *ctrl, uint32_t id,
+        uint32_t startaddr, uint32_t endaddr, uint32_t bias_addr);
+int32_t HAL_PsramCtrl_Sbus_Transfer(struct psram_ctrl *ctrl, struct psram_request *mrq, bool dma);
+void HAL_PsramCtrl_Set_Address_Field(struct psram_ctrl *ctrl, uint32_t id,
+        uint32_t startaddr, uint32_t endaddr, uint32_t bias_addr);
+int32_t HAL_PsramCtrl_Set_DQS_Delay_Cal(uint32_t clk);
+void HAL_PsramCtrl_Set_RD_BuffSize(PSRAMC_CacheLLCfg size);
+uint32_t HAL_PsramCtrl_Get_RD_BuffSize();
+void HAL_PsramCtrl_Set_WR_BuffSize(PSRAMC_WrCacheLL size);
+uint32_t HAL_PsramCtrl_Get_WR_BuffSize();
+int32_t HAL_PsramCtrl_DQS_Delay_Cal_Policy(struct psram_ctrl *ctrl);
+
 #endif /* (__CONFIG_CHIP_ARCH_VER == 2) */
 
 #ifdef __cplusplus

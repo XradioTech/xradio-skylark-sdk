@@ -104,6 +104,14 @@
 #define IRTX_24M_CCM_PERIPH_CLK         (24000000/4)
 #define IRTX_24M_MC_VALUE               (IRTX_24M_CCM_PERIPH_CLK/IRTX_CAVE_FREQ/2)    /* 6MHz/IRTX_CAVE_FREQ=157 */
 #define IRTX_24M_RCS					IRTX_RCS_DIV_256  /* IRTX_CCM_PERIPH_CLK/256=23.4KHz, Ts=43.7uS */
+
+#define IRTX_40M_APB_PERIPH_CLK_SRC     CCM_APB_PERIPH_CLK_SRC_HFCLK
+#define IRTX_40M_CCM_PERIPH_CLK_DIV_N   CCM_PERIPH_CLK_DIV_N_1
+#define IRTX_40M_CCM_PERIPH_CLK_DIV_M   CCM_PERIPH_CLK_DIV_M_8  /* 40M/8=5M */
+#define IRTX_40M_CCM_PERIPH_CLK         (40000000/8)
+#define IRTX_40M_MC_VALUE               (IRTX_40M_CCM_PERIPH_CLK/IRTX_CAVE_FREQ/2)    /* 5MHz/IRTX_CAVE_FREQ=131 */
+#define IRTX_40M_RCS					IRTX_RCS_DIV_256  /* IRTX_CCM_PERIPH_CLK/256=19.5KHz, Ts=51.2uS */
+
 #endif
 
 #define IR_TX_FIFO_SIZE                 (128)
@@ -237,6 +245,11 @@ static void IRTX_SetConfig(IRTX_TypeDef *Instance, IRTX_InitTypeDef *Init)
 
 		Instance->TCR &= ~IRTX_RCS_DIV_MASK;
 		Instance->TCR |= IRTX_24M_RCS;
+	} else if (clk == HOSC_CLOCK_40M) {
+		Instance->TMCR = IRTX_40M_MC_VALUE;
+
+		Instance->TCR &= ~IRTX_RCS_DIV_MASK;
+		Instance->TCR |= IRTX_40M_RCS;
 	}
 #endif
 
@@ -430,6 +443,10 @@ IRTX_HandleTypeDef *HAL_IRTX_Init(IRTX_InitTypeDef *param)
 		HAL_CCM_IRTX_SetMClock(IRTX_24M_APB_PERIPH_CLK_SRC,
 		                       IRTX_24M_CCM_PERIPH_CLK_DIV_N, \
 		                       IRTX_24M_CCM_PERIPH_CLK_DIV_M);
+	} else if (clk == HOSC_CLOCK_40M) {
+		HAL_CCM_IRTX_SetMClock(IRTX_40M_APB_PERIPH_CLK_SRC,
+		                       IRTX_40M_CCM_PERIPH_CLK_DIV_N, \
+		                       IRTX_40M_CCM_PERIPH_CLK_DIV_M);
 	} else {
 		IRTX_ERR("%s unknow clk type(%d)!\n", __func__, clk);
 		return NULL;

@@ -213,16 +213,20 @@ HAL_Status HAL_EFUSE_Read(uint32_t start_bit, uint32_t bit_num, uint8_t *data)
 
 static void EFUSE_WriteData(uint8_t index, uint32_t data)
 {
+    uint32_t tmp;
+    tmp = HAL_PRCM_GetTOPLDOVoltage();
+    HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_2V4);
 	EFUSE_EnableClkGate();
 	EFUSE_SetIndex(index << 2);
 	EFUSE_SetProgValue(data);
 	EFUSE_StartProgram();
 
 	while (EFUSE_GetSwProgStatus())
-		;
+        ;
 
 	EFUSE_ClrCtrlReg();
 	EFUSE_DisableClkGate();
+    HAL_PRCM_SetTOPLDOVoltage(tmp);
 }
 
 /**

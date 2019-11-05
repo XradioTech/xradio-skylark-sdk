@@ -34,6 +34,14 @@
 #include "mbuf_0_mem.h"
 #include "mbuf_debug.h"
 
+#if (__CONFIG_MBUF_HEAP_MODE == 1)
+#define _MB_MALLOC(l)   psram_malloc(l)
+#define _MB_FREE(p)     psram_free(p)
+#else
+#define _MB_MALLOC(l)   malloc(l)
+#define _MB_FREE(p)     free(p)
+#endif
+
 #if MB0_MEM_TRACE_DETAIL
 #define MBUF_MEM_MAX_CNT    256
 
@@ -104,7 +112,7 @@ void mbuf_mem_info(int verbose)
 
 void *mbuf_malloc(size_t size)
 {
-	void *ptr = malloc(size);
+	void *ptr = _MB_MALLOC(size);
 
 	mbuf_mutex_lock();
 	if (ptr) {
@@ -179,7 +187,7 @@ void mbuf_free(void *ptr)
 #endif /* MB0_MEM_TRACE_DETAIL */
 	}
 	mbuf_mutex_unlock();
-	free(ptr);
+	_MB_FREE(ptr);
 }
 
 #endif /* (__CONFIG_MBUF_IMPL_MODE == 0) */

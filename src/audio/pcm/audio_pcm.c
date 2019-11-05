@@ -28,7 +28,6 @@
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "sys/defs.h"
 #include "sys/list.h"
@@ -38,6 +37,11 @@
 #include "audio/pcm/audio_pcm.h"
 #include "kernel/os/os_mutex.h"
 
+#if (__CONFIG_AUDIO_HEAP_MODE == 1)
+#include "sys/sys_heap.h"
+#else
+#include <stdlib.h>
+#endif
 
 #define AUDIO_PCM_DEBUG_EN				0
 
@@ -90,7 +94,14 @@ struct pcm_priv {
 void* pcm_zalloc(uint32_t size)
 {
 	void *p;
-	if ((p = malloc(size)) != NULL){
+
+#if (__CONFIG_AUDIO_HEAP_MODE == 1)
+	p = psram_malloc(size);
+#else
+	p = malloc(size);
+#endif
+
+	if (p != NULL) {
 		memset(p, 0, size);
 		return p;
 	}
@@ -100,7 +111,11 @@ void* pcm_zalloc(uint32_t size)
 void pcm_free(void *p)
 {
 	if(p){
+#if (__CONFIG_AUDIO_HEAP_MODE == 1)
+		psram_free(p);
+#else
 		free(p);
+#endif
 		p = NULL;
 	}
 }

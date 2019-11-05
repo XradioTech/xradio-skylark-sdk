@@ -33,7 +33,7 @@
 #include "driver/chip/hal_prcm.h"
 #include "driver/chip/hal_wdg.h"
 
-enum cmd_status cmd_freq_offset_exec(char *cmd)
+enum cmd_status cmd_etf_app_exec(char *cmd)
 {
 	enum cmd_status status;
 
@@ -90,7 +90,7 @@ enum cmd_status cmd_etf_exec(char *cmd)
 {
 #ifdef __CONFIG_ETF_CLI
 	//compare freq_offset cmd
-	enum cmd_status status = cmd_freq_offset_exec(cmd);
+	enum cmd_status status = cmd_etf_app_exec(cmd);
 	if (status != CMD_STATUS_UNKNOWN_CMD)
 		return status;
 

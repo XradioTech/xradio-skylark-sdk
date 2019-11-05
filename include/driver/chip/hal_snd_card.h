@@ -338,13 +338,6 @@ typedef struct {
 	uint8_t		  pin_param_cnt;
 } Pa_Switch_Ctl;
 
-/* LINEIN Detect Control */
-typedef struct {
-	GPIO_PinState insert_state;
-	const GPIO_PinMuxParam *pin_param;
-	uint8_t		  pin_param_cnt;
-} Linein_Detect_Ctl;
-
 /* snd card board config */
 struct snd_card_board_config {
 	Snd_Card_Num card_num;
@@ -353,8 +346,7 @@ struct snd_card_board_config {
 	Codec_Attr    codec_link;
 	Platform_Attr platform_link;
 
-	const Pa_Switch_Ctl     *pa_switch_ctl;
-	const Linein_Detect_Ctl *linein_detect_ctl;
+	const Pa_Switch_Ctl *pa_switch_ctl;
 
 	Codec_Sysclk_Src codec_sysclk_src;
 	Codec_Pllclk_Src codec_pllclk_src;

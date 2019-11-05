@@ -61,7 +61,7 @@
 #ifdef CONFIG_PM
 
 static struct arm_CMX_core_regs vault_arm_registers;
-
+uint32_t g_standby_entry;
 #define PM_TIMEOFDAY_SAVE() timeofday_save()
 
 #ifdef CONFIG_PM_DEBUG
@@ -96,9 +96,10 @@ void pm_set_dump_addr(uint32_t addr, uint32_t len, uint32_t idx)
  *
  * @param sramN pm_sram_N or combination
  * enum pm_sram_N {
- *  PM_SRAM_0   = PRCM_SYS_SRAM_32K_SWM4_BIT,           //sram 0x200000 ~ 0x207FFF
- *  PM_SRAM_1   = PRCM_SYS_SRAM_32K_SWM3_BIT,           //sram 0x208000 ~ 0x20FFFF
- *  PM_SRAM_2   = PRCM_SYS_SRAM_352K_SWM2_BIT,          //sram 0x210000 ~ 0x25FFFF
+ *  PM_SRAM_0   = PRCM_SYS_SRAM_32K_SWM4_BIT,
+ *  PM_SRAM_1   = PRCM_SYS_SRAM_32K_SWM3_BIT,
+ *  PM_SRAM_2   = PRCM_SYS_SRAM_352K_SWM2_BIT,
+ *  PM_SRAM_3   = PRCM_SYS_CACHE_SRAM_SWM1_BIT,
  *};
  *
  * @retval None.
@@ -107,6 +108,11 @@ void pm_set_dump_addr(uint32_t addr, uint32_t len, uint32_t idx)
 void pm_standby_sram_retention_only(uint32_t sramN)
 {
     HAL_MODIFY_REG(PRCM->SYS1_SLEEP_CTRL, (0x7 << 25), ((~sramN) & (0x7 << 25)));
+}
+
+void pm_standby_set_resume_entry(uint32_t entry)
+{
+    g_standby_entry = entry;
 }
 
 static int __suspend_begin(enum suspend_state_t state)
@@ -231,7 +237,14 @@ static void __suspend_enter(enum suspend_state_t state)
         HAL_SET_BIT(PRCM->SYS1_SLEEP_CTRL, PRCM_SYS_WLAN_SRAM_116K_SWM5_BIT);
 #endif
 		__record_dbg_status(PM_SUSPEND_ENTER | 9);
-		__cpu_suspend(state);
+#ifdef __CONFIG_PSRAM
+        uint32_t oldVolt = HAL_PRCM_GetTOPLDOVoltage();
+        HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_1V8_DEFAULT);
+#endif
+        __cpu_suspend(state);
+#ifdef __CONFIG_PSRAM
+        HAL_PRCM_SetTOPLDOVoltage(oldVolt);
+#endif
 	}
 
 	PM_BUG_ON(NULL, !PM_IRQ_GET_FLAGS());

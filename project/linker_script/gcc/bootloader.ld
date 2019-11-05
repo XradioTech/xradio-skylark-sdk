@@ -6,6 +6,11 @@ INCLUDE rom_symbol.ld
 MEMORY
 {
     RAM (rwx)   : ORIGIN = 0x00268000, LENGTH = 32K
+#if (defined __CONFIG_CHIP_XR872)
+	RAM1 (rwx)  : ORIGIN = 0x0025c000, LENGTH = 48K
+#elif (defined __CONFIG_CHIP_XR808)
+	RAM1 (rwx)  : ORIGIN = 0x00234000, LENGTH = 48K
+#endif
 #if (defined(__CONFIG_XIP))
     FLASH (rx)  : ORIGIN = 0x00400000, LENGTH = 16M
 #else
@@ -163,7 +168,7 @@ SECTIONS
         end = __end__;
         *(.heap*)
         __HeapLimit = .;
-    } > RAM
+    } > RAM1
 
     /* .stack_dummy section doesn't contains any symbols. It is only
      * used for linker to calculate size of stack sections, and assign
@@ -171,7 +176,7 @@ SECTIONS
     .stack_dummy (COPY):
     {
         *(.stack*)
-    } > RAM
+    } > RAM1
 
 #if (defined(__CONFIG_ROM))
     .ram_table : AT(__bss_start__)
@@ -184,9 +189,9 @@ SECTIONS
     __ram_table_lma_end__ = __ram_table_lma_start__ + SIZEOF(.ram_table);
 #endif
 
-    /* Set stack top to end of RAM, and stack limit move down by
+    /* Set stack top to end of RAM1, and stack limit move down by
      * size of stack_dummy section */
-    __StackTop = ORIGIN(RAM) + LENGTH(RAM);
+    __StackTop = ORIGIN(RAM1) + LENGTH(RAM1);
     _estack = __StackTop;
     __StackLimit = __StackTop - SIZEOF(.stack_dummy);
     PROVIDE(__stack = __StackTop);
@@ -194,6 +199,6 @@ SECTIONS
     __FLASH_BASE = ORIGIN(FLASH);
     PROVIDE(__XIP_Base = __FLASH_BASE);
 
-    /* Check if data + heap + stack exceeds RAM limit */
-    ASSERT(__StackLimit >= __HeapLimit, "region RAM overflowed with stack")
+    /* Check if heap + stack exceeds RAM1 limit */
+    ASSERT(__StackLimit >= __HeapLimit, "region RAM1 overflowed with stack")
 }

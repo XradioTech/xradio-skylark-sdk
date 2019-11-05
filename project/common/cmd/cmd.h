@@ -65,6 +65,7 @@
 #include "common/cmd/cmd_pm.h"
 #include "common/cmd/cmd_ota.h"
 #include "common/cmd/cmd_cedarx.h"
+#include "common/cmd/cmd_psensor.h"
 
 #include "common/cmd/cmd_oled.h"
 
@@ -88,6 +89,7 @@
 #include "common/cmd/cmd_broadcast.h"
 #include "common/cmd/cmd_arp.h"
 #include "common/cmd/cmd_lmac.h"
+#include "common/cmd/cmd_rf.h"
 #endif /* PRJCONF_NET_EN */
 #include "common/cmd/cmd_etf.h"
 

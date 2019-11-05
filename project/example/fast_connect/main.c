@@ -36,13 +36,62 @@
 #include "common/framework/sysinfo.h"
 #include "lwip/inet.h"
 #include "sys/fdcm.h"
+#include "util/time_logger.h"
 
-#define FC_DEBUG_EN		1
+extern uint64_t HAL_RTC_GetFreeRunTime(void);
+
+#define FC_DEBUG_EN		0
 #if FC_DEBUG_EN
 #define FC_DEBUG(fmt, arg...)			printf(fmt, ##arg)
 #else
 #define FC_DEBUG(fmt, arg...)
 #endif
+
+uint8_t g_ap_connected = 0;
+void net_msg_receiver(uint32_t event, uint32_t data, void *arg)
+{
+	uint16_t type = EVENT_SUBTYPE(event);
+
+	switch (type) {
+	case NET_CTRL_MSG_WLAN_CONNECTED:
+		break;
+	case NET_CTRL_MSG_WLAN_DISCONNECTED:
+		g_ap_connected = 0;
+		break;
+	case NET_CTRL_MSG_WLAN_SCAN_SUCCESS:
+	case NET_CTRL_MSG_WLAN_SCAN_FAILED:
+		break;
+	case NET_CTRL_MSG_WLAN_4WAY_HANDSHAKE_FAILED:
+	case NET_CTRL_MSG_WLAN_CONNECT_FAILED:
+	case NET_CTRL_MSG_CONNECTION_LOSS:
+		g_ap_connected = 0;
+		break;
+	case NET_CTRL_MSG_NETWORK_UP:
+		g_ap_connected = 1;
+		break;
+	case NET_CTRL_MSG_NETWORK_DOWN:
+		g_ap_connected = 0;
+		break;
+	default:
+		printf("unknown msg (%u, %u)\n", type, data);
+		break;
+	}
+}
+
+int net_msg_rcv_init(void)
+{
+	observer_base *ob = sys_callback_observer_create(CTRL_MSG_TYPE_NETWORK,
+	                                                 NET_CTRL_MSG_ALL,
+	                                                 net_msg_receiver,
+	                                                 NULL);
+	if (ob == NULL)
+		return -1;
+	if (sys_ctrl_attach(ob) != 0)
+		return -1;
+
+	return 0;
+}
+
 
 #define BSS_FLASH_NUM		(0)
 #define BSS_FLASH_ADDR		((1024 + 128) * 1024)
@@ -51,25 +100,21 @@ typedef struct bss_info {
 	uint8_t		ssid[32];
 	uint8_t		psk[32];
 	uint32_t	bss_size;
-	uint8_t		bss[500];
+	uint8_t		bss[800];
 } bss_info_t;
 
-char * sta_ssid = "your_ap_name";
-char * sta_psk = "your_ap_password";
+bss_info_t g_bss_info;
+char sta_ssid[100];
+char sta_psk[100];
 void connect_ap(void)
 {
-    printf("Set SSID:%s\n", sta_ssid);
-    printf("Set psk:%s\n", sta_psk);
-	wlan_sta_set((uint8_t *)sta_ssid, strlen(sta_ssid), (uint8_t *)sta_psk);
-
-    printf("Try to connect AP\n");
-	wlan_sta_enable();
-
     printf("Wait for link up...\n");
-    while (!(g_wlan_netif && netif_is_up(g_wlan_netif) &&
-              netif_is_link_up(g_wlan_netif))) {
-        OS_MSleep(1);
+	printf("use this cmd to connect your ap with your own ssid and password:\n"
+			"\t\"net fc config your_ssid your_password\"\n\t\"net fc enable\"\n");
+    while (!g_ap_connected) {
+        OS_MSleep(10);
     }
+	save_time((uint32_t)HAL_RTC_GetFreeRunTime(), 2);
     printf("Connect AP success!\n");
 	struct sysinfo *sysinfo = sysinfo_get();
 	if (sysinfo == NULL) {
@@ -85,32 +130,6 @@ void connect_ap(void)
 	sysinfo_save();
 }
 
-void connect_ap_fast(bss_info_t * pbss_info)
-{
-	char psk_buf[64];
-	char *p;
-	int i;
-	p = psk_buf;
-
-    FC_DEBUG("Set old bss info!\n");
-	for (i = 0;i < 32;i++) {
-		sprintf(p, "%02x", pbss_info->psk[i]);
-		p += 2;
-	}
-	wlan_sta_set((uint8_t *)pbss_info->ssid, strlen((char *)pbss_info->ssid), (uint8_t *)psk_buf);
-
-    FC_DEBUG("Try to connect AP\n");
-	wlan_sta_enable();
-
-    FC_DEBUG("Wait for link up...\n");
-    while (!(g_wlan_netif && netif_is_up(g_wlan_netif) &&
-              netif_is_link_up(g_wlan_netif))) {
-        OS_MSleep(1);
-    }
-    OS_MSleep(1000);
-    printf("Fast connect AP success!\n");
-}
-
 int save_bss_to_flash(bss_info_t * pbss_info)
 {
 	int ret = 0;
@@ -118,6 +137,11 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 	wlan_sta_bss_info_t bss_get;
 	fdcm_handle_t * bss_fdcm_hdl;
 
+	if (!g_ap_connected) {
+		printf("Please connect AP first!\n");
+		ret = -1;
+		return ret;
+	}
     printf("Try to get current bss info size\n");
 	ret = wlan_sta_get_bss_size(&size);
 	if (ret != 0) {
@@ -164,6 +188,70 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 	return ret;
 }
 
+int clear_bss_in_flash(void)
+{
+	int ret = 0;
+	fdcm_handle_t * bss_fdcm_hdl;
+
+    printf("Clear bss info in flash!\n");
+	memset(&g_bss_info, 0, sizeof(bss_info_t));
+	bss_fdcm_hdl = fdcm_open(BSS_FLASH_NUM, BSS_FLASH_ADDR, BSS_FLASH_SIZE);
+	if (bss_fdcm_hdl == NULL) {
+		printf("fdcm open failed, hdl %p\n", bss_fdcm_hdl);
+		ret = -1;
+		return ret;
+	}
+	fdcm_write(bss_fdcm_hdl, &g_bss_info, sizeof(bss_info_t));
+	fdcm_close(bss_fdcm_hdl);
+
+	struct sysinfo *sysinfo = sysinfo_get();
+	if (sysinfo == NULL) {
+		printf("sysinfo %p\n", sysinfo);
+		ret = -1;
+		return ret;
+	}
+
+    printf("Clear IP info inflash!\n");
+	sysinfo->sta_use_dhcp = 1;
+	sysinfo_save();
+	return ret;
+}
+
+void connect_ap_normal(void)
+{
+	connect_ap();
+
+	printf("Save new bss info to flash!\n");
+	save_bss_to_flash(&g_bss_info);
+}
+
+
+void connect_ap_fast(bss_info_t * pbss_info)
+{
+	char psk_buf[64];
+	char *p;
+	int i;
+	p = psk_buf;
+
+    FC_DEBUG("Set old bss info!\n");
+	for (i = 0;i < 32;i++) {
+		sprintf(p, "%02x", pbss_info->psk[i]);
+		p += 2;
+	}
+	wlan_sta_set((uint8_t *)pbss_info->ssid, strlen((char *)pbss_info->ssid), (uint8_t *)psk_buf);
+
+    FC_DEBUG("Try to connect AP\n");
+	wlan_sta_enable();
+
+    FC_DEBUG("Wait for link up...\n");
+    while (!g_ap_connected) {
+        OS_MSleep(10);
+    }
+	save_time((uint32_t)HAL_RTC_GetFreeRunTime(), 2);
+    OS_MSleep(100);
+    printf("Fast connect AP success!\n");
+}
+
 int get_bss_from_flash(bss_info_t * pbss_info)
 {
 	int ret;
@@ -181,6 +269,11 @@ int get_bss_from_flash(bss_info_t * pbss_info)
 	fdcm_close(bss_fdcm_hdl);
 	if (size != sizeof(bss_info_t)) {
 		printf("fdcm read failed, size %d\n", size);
+		ret = -1;
+		return ret;
+	}
+	if (pbss_info->bss_size == 0) {
+		printf("empty bss info\n");
 		ret = -1;
 		return ret;
 	}
@@ -203,30 +296,34 @@ int get_bss_from_flash(bss_info_t * pbss_info)
 
 void fast_connect_example(void)
 {
-	bss_info_t * pbss_info;
-	pbss_info = malloc(sizeof(bss_info_t));
-	printf("Begin fast connect example\n");
+    FC_DEBUG("Init wlan message receiver\n");
+	net_msg_rcv_init();
+
+	FC_DEBUG("Begin fast connect example\n");
 	FC_DEBUG("Try to get old bss info in flash...\n");
-	if (get_bss_from_flash(pbss_info)) {
+	if (get_bss_from_flash(&g_bss_info)) {
 		printf("Get old bss failed!\n");
 		printf("Begin normal connection\n");
-		connect_ap();
-
-    	printf("Save new bss info to flash!\n");
-		save_bss_to_flash(pbss_info);
+		connect_ap_normal();
     	printf("Complete first time connection, please reboot to run fast connection!\n");
 	} else {
 		FC_DEBUG("Get old bss info success!\n");
 		FC_DEBUG("Begin fast connection\n");
-		connect_ap_fast(pbss_info);
+		connect_ap_fast(&g_bss_info);
 	}
-	free(pbss_info);
 }
 
 int main(void)
 {
+	uint32_t time_eob, time_eop;
+	time_eob = (uint32_t)HAL_RTC_GetFreeRunTime();
 	platform_init();
+	time_eop = (uint32_t)HAL_RTC_GetFreeRunTime();
+	save_time(time_eob, 0);
+	save_time(time_eop, 1);
 	fast_connect_example();
+	OS_MSleep(100);
+	get_time();
 	return 0;
 }
 

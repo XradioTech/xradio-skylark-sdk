@@ -129,6 +129,7 @@ static enum cmd_status cmd_drv_exec(char *cmd)
 static const struct cmd_data g_main_cmds[] = {
 #if PRJCONF_NET_EN
 	{ "net",	cmd_net_exec },
+	{ "rf",     cmd_rf_exec },
 #endif
 	{ "drv",	cmd_drv_exec },
 	{ "echo",	cmd_echo_exec },
@@ -144,7 +145,9 @@ static const struct cmd_data g_main_cmds[] = {
 	{ "pm",		cmd_pm_exec },
 	{ "efpg",	cmd_efpg_exec },
 	{ "flash",	cmd_flash_exec },
+#if PRJCONF_NET_EN
 	{ "lmac",	cmd_lmac_exec },
+#endif
 	{ "sysinfo",cmd_sysinfo_exec },
 };
 

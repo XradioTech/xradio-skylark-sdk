@@ -31,6 +31,9 @@
 > localconfig.mk：
 >
 > - __CONFIG_JPEG：必选项， 配置JPEG模块使能，需使能。
+> - __CONFIG_JPEG_SHAR_SRAM_64K：可选项，配置要切出给JPEG使用的内存大小。当图像的高大于576或宽大于720时需要使能该项。
+> - __CONFIG_PSRAM：可选项，配置工程PSRAM使能，当工程使用PSRAM功能时需使能该项。
+> - __CONFIG_PSRAM_CHIP_OPI32：可选项，配置PSRAM的类型。
 >
 > Makefile：
 >
@@ -58,6 +61,7 @@
 
 > 本工程对camera模块捕获一帧JPEG图像，然后保存在SD卡中的使用进行说明（JPEG工作方式是在线模式），获取到的图像保存在SD卡根目录下的“test.jpg”。
 >
+> 如果想同时获取JEPG和YUV图像，需要配置JPEG模块工作模式为离线模式（将工程的JPEG_ONLINE_EN配置为0），同时需要使用PSRAM功能（将工程的JPEG_PSRAM_EN配置为1），否则图像数据过大，内存不够。获取到的YUV图像保存在SD卡根目录下的test.YUV文件。
 
 ### 操作说明：
 
@@ -71,6 +75,8 @@
 ### 代码结构
 ```
 .
+├── command.c          			# 本工程的控制台命令入口和命令定义
+├── command.h
 ├── gcc
 │   ├── localconfig.mk          # 本工程的配置规则，用于覆盖默认配置
 │   └── Makefile                # 本工程的编译选项，可覆盖默认配置

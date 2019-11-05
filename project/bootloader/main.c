@@ -28,7 +28,7 @@
  */
 
 #include <stdint.h>
-#ifdef __CONFIG_BIN_COMPRESS
+#if defined(__CONFIG_BIN_COMPRESS)
 #include <stdlib.h>
 #include "xz/xz.h"
 #endif
@@ -39,6 +39,9 @@
 #include "driver/chip/hal_chip.h"
 #include "image/image.h"
 #include "kernel/os/os_time.h"
+#include "image/flash.h"
+#include "ota/ota.h"
+#include "ota/ota_opt.h"
 
 #include "common/board/board.h"
 #include "bl_debug.h"
@@ -206,6 +209,198 @@ out:
 
 #endif /* __CONFIG_BIN_COMPRESS */
 
+#define BL_UPDATE_DEBUG_SIZE_UNIT (50 * 1024)
+
+#define BL_DEC_IMG_INBUF_SIZE  (4 * 1024)
+#define BL_DEC_IMG_OUTBUF_SIZE (4 * 1024)
+#define BL_DEC_IMG_DICT_MAX    (8 * 1024)
+
+static uint8_t bl_dec_inbuf[BL_DEC_IMG_INBUF_SIZE] = {0};
+static uint8_t bl_dec_outbuf[BL_DEC_IMG_OUTBUF_SIZE] = {0};
+
+static int bl_xz_image(image_seq_t seq)
+{
+	int ret = -1;
+	struct xz_dec *s = NULL;
+	struct xz_buf b;
+	enum xz_ret xzret;
+	uint8_t *in_buf = bl_dec_inbuf, *out_buf = bl_dec_outbuf;
+	uint32_t left, read_size, offset;
+	uint32_t ota_addr;
+	uint32_t ota_xz_addr;
+	uint32_t image_addr;
+	const image_ota_param_t *iop;
+	section_header_t xz_sh;
+	section_header_t boot_sh;
+	uint32_t len;
+	uint32_t write_pos;
+	uint32_t maxsize;
+	uint32_t debug_size = BL_UPDATE_DEBUG_SIZE_UNIT;
+/*
+	uint32_t *verify_value;
+	ota_verify_t verify_type;
+	ota_verify_data_t verify_data;
+*/
+	image_cfg_t cfg;
+#if BL_DBG_ON
+	OS_Time_t tm;
+#endif
+
+#if BL_DBG_ON
+	BL_DBG("%s() start\n", __func__);
+	tm = OS_GetTicks();
+#endif
+
+	iop = image_get_ota_param();
+	maxsize = IMAGE_AREA_SIZE(iop->img_max_size);
+	BL_DBG("%s, data maxsize size = 0x%x\n", __func__, maxsize);
+
+	/* get the compressed image address */
+	ota_addr = iop->ota_addr + iop->ota_size;
+	ota_xz_addr = iop->ota_addr + iop->ota_size + IMAGE_HEADER_SIZE;
+	BL_DBG("iop addr = 0x%x, ota addr = 0x%x, ota xz addr = 0x%x, ota info size = 0x%x\n",
+			ota_addr, iop->ota_addr, ota_xz_addr, iop->ota_size);
+	len = flash_read(iop->flash[seq], ota_addr, &xz_sh, IMAGE_HEADER_SIZE);
+	if (len != IMAGE_HEADER_SIZE) {
+		BL_ERR("%s, image read failed!\n", __func__);
+		return ret;
+	}
+	BL_DBG("%s, ota load size = 0x%x, ota attribute = 0x%x\n", __func__,
+			xz_sh.body_len, xz_sh.attribute);
+
+	if (!(xz_sh.attribute & IMAGE_ATTR_FLAG_COMPRESS)) {
+		BL_ERR("the ota image is not a compress image!\n");
+		ret = -2;
+		goto out;
+	}
+
+	BL_DBG("xz file begin...\n");
+	s = xz_dec_init(XZ_PREALLOC, BL_DEC_IMG_DICT_MAX);
+	if (s == NULL) {
+		BL_ERR("xz_dec_init malloc failed\n");
+		goto out;
+	}
+
+	/* get boot section header */
+	image_set_running_seq(0);
+	len = image_read(IMAGE_BOOT_ID, IMAGE_SEG_HEADER, 0, &boot_sh, IMAGE_HEADER_SIZE);
+	if (len != IMAGE_HEADER_SIZE) {
+		BL_ERR("bin header size %u, read %u\n", IMAGE_HEADER_SIZE, len);
+		goto out;
+	}
+
+	/* Erase the area from behind the BootLoader to IMG_MAX_SIZE */
+	image_addr = boot_sh.next_addr;
+	BL_DBG("erase image start, flash:%d addr:0x%x size:%d\n", iop->flash[seq],
+							image_addr, IMAGE_AREA_SIZE(iop->img_max_size));
+	if (flash_erase(iop->flash[seq], image_addr, IMAGE_AREA_SIZE(iop->img_max_size)) == -1) {
+		BL_ERR("%s, image erase err\n", __func__);
+		goto out;
+	}
+	BL_DBG("erase image end...\n");
+
+	write_pos = 0;
+	offset = 0;
+	left = xz_sh.body_len;
+
+	b.in = in_buf;
+	b.in_pos = 0;
+	b.in_size = 0;
+	b.out = out_buf;
+	b.out_pos = 0;
+	b.out_size = BL_DEC_IMG_OUTBUF_SIZE;
+
+	while (1) {
+		if (b.in_pos == b.in_size) {
+			if (left == 0) {
+				BL_DBG("no more input data\n");
+				break;
+			}
+
+			read_size = left > BL_DEC_IMG_INBUF_SIZE ? BL_DEC_IMG_INBUF_SIZE : left;
+			len = flash_read(iop->flash[seq], ota_xz_addr + offset, in_buf, read_size);
+
+			if (len == 0) {
+				BL_ERR("flash read err\n");
+				break;
+			}
+
+			offset += len;
+			left -= len;
+			b.in_size = len;
+			b.in_pos = 0;
+		}
+
+		xzret = xz_dec_run(s, &b);
+		if (xzret == XZ_OK) {
+
+			len = flash_write(iop->flash[seq], image_addr + write_pos, out_buf, b.out_pos);
+			if (len != b.out_pos) {
+				BL_ERR("flash write err len:%d out_pos:%d\n", len, b.out_pos);
+				break;
+			}
+
+			if (write_pos >= debug_size) {
+				BL_DBG("decompress data:%dK\n", write_pos / 1024);
+				debug_size += BL_UPDATE_DEBUG_SIZE_UNIT;
+			}
+
+			write_pos += b.out_pos;
+			b.out_pos = 0;
+			continue;
+		} else if (xzret == XZ_STREAM_END) {
+			len = flash_write(iop->flash[seq], image_addr + write_pos, out_buf, b.out_pos);
+			if (len != b.out_pos) {
+				BL_ERR("flash write err len:%d out_pos:%d\n", len, b.out_pos);
+				break;
+			}
+			write_pos += b.out_pos;
+#if BL_DBG_ON
+			tm = OS_GetTicks() - tm;
+			BL_DBG("%s() end, size %u --> %u, cost %u ms\n", __func__,
+					 xz_sh.body_len, b.out_pos, tm);
+#endif
+			break;
+		} else {
+			BL_ERR("xz stream failed %d\n", xzret);
+			break;
+		}
+	}
+
+	/* check every section */
+	if (image_check_sections(seq) == IMAGE_INVALID) {
+		BL_ERR("ota check image failed\n");
+		goto out;
+	}
+/*
+	if (ota_get_verify_data(&verify_data) != OTA_STATUS_OK) {
+		verify_type = OTA_VERIFY_NONE;
+		verify_value = NULL;
+	} else {
+		verify_type = verify_data.ov_type;
+		verify_value = (uint32_t*)(verify_data.ov_data);
+	}
+
+	if (ota_verify_image(verify_type, verify_value)  != OTA_STATUS_OK) {
+		BL_ERR("ota file verify image failed\n");
+		goto out;
+	}
+*/
+	cfg.seq = 0;
+	cfg.state = IMAGE_STATE_VERIFIED;
+	if (image_set_cfg(&cfg) != 0)
+		goto out;
+
+	ret = 0;
+
+out:
+	if (s)
+		xz_dec_end(s);
+
+	BL_DBG("xz file end...\n");
+	return ret;
+}
+
 static int bl_load_bin_by_id(uint32_t id, uint32_t max_addr, uint32_t *entry)
 {
 	uint32_t len;
@@ -313,8 +508,7 @@ static uint32_t bl_load_app_bin(void)
 static uint32_t bl_load_bin(void)
 {
 	/* init image */
-	if (image_init(PRJCONF_IMG_FLASH, PRJCONF_IMG_ADDR,
-	               PRJCONF_IMG_MAX_SIZE) != 0) {
+	if (image_init(PRJCONF_IMG_FLASH, PRJCONF_IMG_ADDR, 0) != 0) {
 		BL_ERR("img init fail\n");
 		return BL_INVALID_APP_ENTRY;
 	}
@@ -346,6 +540,19 @@ static uint32_t bl_load_bin(void)
 
 	/* load app bin */
 	load_seq = (cfg_seq == IMAGE_SEQ_NUM) ? 0 : cfg_seq;
+
+	/* if img_xz_max_size is not invalid size, mean use image compression mode */
+	if (cfg_seq == 1 && cfg.state == IMAGE_STATE_VERIFIED &&
+		iop->img_xz_max_size != IMAGE_INVALID_SIZE) {
+		int ret = bl_xz_image(cfg_seq);
+		if (ret == 0)
+			load_seq = 0;
+		else if (ret == -1)
+			return BL_INVALID_APP_ENTRY;
+		else if (ret == -2)
+			; // do nothing
+	}
+
 	for (i = 0; i < IMAGE_SEQ_NUM; ++i) {
 		image_set_running_seq(load_seq);
 		entry = bl_load_app_bin();

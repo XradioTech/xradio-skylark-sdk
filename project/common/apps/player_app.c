@@ -656,6 +656,10 @@ player_base *player_create()
 {
     OS_Status status;
     app_player *impl = NULL;
+#if (__CONFIG_CEDARX_HEAP_MODE == 1)
+    XPlayerBufferConfig xplayerConfig;
+    HttpStreamBufferConfig httpConfig;
+#endif
 
     if (player_singleton)
         return &player_singleton->base;
@@ -670,6 +674,18 @@ player_base *player_create()
     if(impl->xplayer == NULL) {
         goto err0;
     }
+
+#if (__CONFIG_CEDARX_HEAP_MODE == 1)
+    memset(&xplayerConfig, 0, sizeof(XPlayerBufferConfig));
+    xplayerConfig.maxMovStcoBufferSize = 8 * 1024;
+    xplayerConfig.maxMovStszBufferSize = 64 * 1024;
+    XPlayerSetBuffer(impl->xplayer, &xplayerConfig);
+
+    memset(&httpConfig, 0, sizeof(HttpStreamBufferConfig));
+    httpConfig.maxBufferSize = (128 * 1024);
+    httpConfig.maxProtectAreaSize = (32 * 1024);
+    XPlayerSetHttpBuffer(impl->xplayer, &httpConfig);
+#endif
 
     /* set callback to player. */
     XPlayerSetNotifyCallback(impl->xplayer, player_callback, (void*)impl);

@@ -128,6 +128,9 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#if (__CONFIG_NOPOLL_HEAP_MODE == 1)
+#include "driver/chip/psram/psram.h"
+#endif
 
 /* only include unistd.h if unix platform is found or gnu gcc compiler
  * is found */

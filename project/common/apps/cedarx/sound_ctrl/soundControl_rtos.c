@@ -303,17 +303,17 @@ static int __Control(SoundCtrl* s, int cmd, void* para)
 
 static const SoundControlOpsT mSoundControlOps =
 {
-    .destroy       = __Release,
-    .setFormat     = __SetFormat,
-    .start         = __Start,
-    .stop          = __Stop,
-    .pause         = __Pause,
-    .flush         = __Flush,
-    .write         = __Write,
-    .reset         = __Reset,
-    .getCachedTime = __GetCachedTime,
-    .getFrameCount = __GetFrameCount,
-    .control       = __Control,
+    .cdxDestroy       = __Release,
+    .cdxSetFormat     = __SetFormat,
+    .cdxStart         = __Start,
+    .cdxStop          = __Stop,
+    .cdxPause         = __Pause,
+    .cdxFlush         = __Flush,
+    .cdxWrite         = __Write,
+    .cdxReset         = __Reset,
+    .cdxGetCachedTime = __GetCachedTime,
+    .cdxGetFrameCount = __GetFrameCount,
+    .cdxControl       = __Control,
 };
 
 SoundCtrl* SoundDeviceCreate()

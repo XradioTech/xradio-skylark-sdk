@@ -23,6 +23,10 @@
 #include "lwip/netdb.h"
 #include "errno.h"
 
+#if (__CONFIG_MQTT_HEAP_MODE == 1)
+#include "driver/chip/psram/psram.h"
+#endif
+
 #ifdef XR_MQTT_PLATFORM_UTEST
 static unsigned int tick;
 
@@ -366,6 +370,7 @@ int NetworkConnectTLS(Network *n, char* addr, int port, SlSockSecureFiles_t* cer
 #endif
 
 #define TLS_DEBUG_LEVEL 3
+#define TLS_RECV_TIMOUT_DEFAULT                 (9*60*1000) /* 9 min */
 
 int mqtt_random()
 {
@@ -444,6 +449,24 @@ static int ssl_parse_crt(mbedtls_x509_crt *crt)
 
 static void mqtt_ssl_network_deinit(Network *n)
 {
+#if (__CONFIG_MQTT_HEAP_MODE == 1)
+	if (n->fd)
+		psram_free(n->fd);
+	if (n->ssl)
+		psram_free(n->ssl);
+	if (n->conf)
+		psram_free(n->conf);
+	if (n->entropy)
+		psram_free(n->entropy);
+	if (n->ctr_drbg)
+		psram_free(n->ctr_drbg);
+	if (n->cacertl)
+		psram_free(n->cacertl);
+	if (n->clicert)
+		psram_free(n->clicert);
+	if (n->pkey)
+		psram_free(n->pkey);
+#else
 	if (n->fd)
 		free(n->fd);
 	if (n->ssl)
@@ -460,6 +483,7 @@ static void mqtt_ssl_network_deinit(Network *n)
 		free(n->clicert);
 	if (n->pkey)
 		free(n->pkey);
+#endif
 
 	n->fd = NULL;
 	n->ssl = NULL;
@@ -473,6 +497,16 @@ static void mqtt_ssl_network_deinit(Network *n)
 
 static int mqtt_ssl_network_init(Network *n)
 {
+#if (__CONFIG_MQTT_HEAP_MODE == 1)
+	n->fd = psram_malloc(sizeof(mbedtls_net_context));
+	n->ssl = psram_malloc(sizeof(mbedtls_ssl_context));
+	n->conf = psram_malloc(sizeof(mbedtls_ssl_config));
+	n->entropy = psram_malloc(sizeof(mbedtls_entropy_context));
+	n->ctr_drbg = psram_malloc(sizeof(mbedtls_ctr_drbg_context));
+	n->cacertl = psram_malloc(sizeof(mbedtls_x509_crt));
+	n->clicert = psram_malloc(sizeof(mbedtls_x509_crt));
+	n->pkey = psram_malloc(sizeof(mbedtls_pk_context));
+#else
 	n->fd = malloc(sizeof(mbedtls_net_context));
 	n->ssl = malloc(sizeof(mbedtls_ssl_context));
 	n->conf = malloc(sizeof(mbedtls_ssl_config));
@@ -481,6 +515,7 @@ static int mqtt_ssl_network_init(Network *n)
 	n->cacertl = malloc(sizeof(mbedtls_x509_crt));
 	n->clicert = malloc(sizeof(mbedtls_x509_crt));
 	n->pkey = malloc(sizeof(mbedtls_pk_context));
+#endif
 
 	if (!n->fd || !n->ssl || !n->conf || !n->entropy ||
 		!n->ctr_drbg || !n->cacertl || !n->clicert || !n->pkey) {
@@ -643,6 +678,7 @@ int TLSConnectNetwork(Network *n, const char *addr, const char *port,
         mbedtls_ssl_conf_authmode(n->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
     else
         mbedtls_ssl_conf_authmode(n->conf, MBEDTLS_SSL_VERIFY_NONE);
+	mbedtls_ssl_conf_read_timeout(n->conf, TLS_RECV_TIMOUT_DEFAULT); /* recv timeout 9 min */
 
     mbedtls_ssl_conf_ca_chain(n->conf, n->cacertl, NULL);
 
@@ -654,7 +690,9 @@ int TLSConnectNetwork(Network *n, const char *addr, const char *port,
 //    mbedtls_ssl_conf_rng(n->conf, mqtt_ssl_random, n->ctr_drbg);
 	mbedtls_ssl_conf_rng(n->conf, mqtt_ssl_random, NULL);
     mbedtls_ssl_conf_dbg(n->conf, mqtt_ssl_debug, NULL);
-
+#ifdef MQTT_DBG_ON
+//	mbedtls_debug_set_threshold(TLS_DEBUG_LEVEL);
+#endif
     if ((ret = mbedtls_ssl_setup(n->ssl, n->conf)) != 0) {
         MQTT_PLATFORM_WARN( "failed ! mbedtls_ssl_setup returned -0x%04x\n", -ret);
         goto exit;
@@ -671,7 +709,7 @@ int TLSConnectNetwork(Network *n, const char *addr, const char *port,
      */
     while ((ret = mbedtls_ssl_handshake(n->ssl)) != 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            MQTT_PLATFORM_WARN( " failed ! mbedtls_ssl_handshake returned -0x%04x", -ret);
+            MQTT_PLATFORM_WARN( " failed ! mbedtls_ssl_handshake returned -0x%04x\n", -ret);
             goto exit;
         }
     }
@@ -681,11 +719,19 @@ int TLSConnectNetwork(Network *n, const char *addr, const char *port,
      */
     uint32_t flags = 0;
     if ((flags = mbedtls_ssl_get_verify_result(n->ssl)) != 0) {
+#if (__CONFIG_MQTT_HEAP_MODE == 1)
+		char *vrfy_buf = psram_malloc(256);
+#else
 		char *vrfy_buf = malloc(256);
+#endif
 		if (vrfy_buf) {
 			mbedtls_x509_crt_verify_info(vrfy_buf, 256, " ! ", flags);
 			printf("%s\n", vrfy_buf);
+#if (__CONFIG_MQTT_HEAP_MODE == 1)
+			psram_free(vrfy_buf);
+#else
 			free(vrfy_buf);
+#endif
 		}
     }
 

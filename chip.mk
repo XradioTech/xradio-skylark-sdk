@@ -65,6 +65,15 @@ ifneq ($(MAKECMDGOALS), config_clean)
     $(error )
   endif
 
+  ifndef __CONFIG_HOSC_TYPE
+    __nullstring :=
+    $(info ERROR:)
+    $(info $(__nullstring)  External high speed crystal oscillator is not defined!)
+    $(info $(__nullstring)  Please run `make config` in your project.)
+    $(info $(__nullstring)  Or run `./configure.sh` in the root directory.)
+    $(error )
+  endif
+
   ifndef __CONFIG_CHIP_ARCH_VER
     $(error Invalid chip configuration!)
   endif

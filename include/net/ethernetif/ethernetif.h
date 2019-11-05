@@ -27,8 +27,8 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _NET_WLAN_ETHERNETIF_H_
-#define _NET_WLAN_ETHERNETIF_H_
+#ifndef _NET_ETHERNETIF_ETHERNETIF_H_
+#define _NET_ETHERNETIF_ETHERNETIF_H_
 
 #include "lwip/netif.h"
 
@@ -57,4 +57,4 @@ void *ethernetif_get_state(struct netif *nif);
 }
 #endif
 
-#endif /* _NET_WLAN_ETHERNETIF_H_ */
+#endif /* _NET_ETHERNETIF_ETHERNETIF_H_ */

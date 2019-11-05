@@ -94,6 +94,20 @@ uint32_t IRRX_NECPacket_DeCode(uint8_t *buf, uint32_t dcnt)
 		irrx_pmax = IRRX_24M_PMAX;
 		irrx_dmid = IRRX_24M_DMID;
 		irrx_dmax = IRRX_24M_DMAX;
+	} else if (clk == HOSC_CLOCK_24M) {
+		active_delay = (IRRX_24M_ACTIVE_T + 1) * (IRRX_24M_ACTIVE_T_C ? 128 : 1);
+		irrx_l1_min = IRRX_24M_L1_MIN;
+		irrx_l0_min = IRRX_24M_L0_MIN;
+		irrx_pmax = IRRX_24M_PMAX;
+		irrx_dmid = IRRX_24M_DMID;
+		irrx_dmax = IRRX_24M_DMAX;
+	} else if (clk == HOSC_CLOCK_40M) {
+		active_delay = (IRRX_40M_ACTIVE_T + 1) * (IRRX_40M_ACTIVE_T_C ? 128 : 1);
+		irrx_l1_min = IRRX_40M_L1_MIN;
+		irrx_l0_min = IRRX_40M_L0_MIN;
+		irrx_pmax = IRRX_40M_PMAX;
+		irrx_dmid = IRRX_40M_DMID;
+		irrx_dmax = IRRX_40M_DMAX;
 	}
 #endif
 	//IRNEC_INF("active_delay = %d\n", active_delay);
@@ -249,6 +263,12 @@ uint32_t IRTX_NECPacket_Code(uint8_t *txBuff, uint32_t ir_tx_code)
 		txBuff[txCnt++] = IRTX_24M_4P5MS_NUM1;     /* S0:4.5ms */
 		irtx_560us_num = IRTX_24M_560US_NUM;
 		irtx_1680us_num = IRTX_24M_1680US_NUM;
+	} else if (clk == HOSC_CLOCK_40M) {
+		txBuff[txCnt++] = 0x80|IRTX_40M_9MS_NUM1;  /* S1:9ms */
+		txBuff[txCnt++] = 0x80|IRTX_40M_9MS_NUM2;
+		txBuff[txCnt++] = IRTX_40M_4P5MS_NUM1;     /* S0:4.5ms */
+		irtx_560us_num = IRTX_40M_560US_NUM;
+		irtx_1680us_num = IRTX_40M_1680US_NUM;
 	}
 #endif
 

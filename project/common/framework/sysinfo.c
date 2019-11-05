@@ -155,16 +155,35 @@ int sysinfo_init(void)
 {
 #if PRJCONF_SYSINFO_SAVE_TO_FLASH
 #if PRJCONF_SYSINFO_CHECK_OVERLAP
-	uint32_t image_size = image_get_size();
-	if (image_size == 0) {
-		SYSINFO_ERR("get image size failed\n");
+	image_ota_param_t *iop;
+	int i;
+	uint32_t image_start, image_end;
+
+	iop = (image_ota_param_t*)image_get_ota_param();
+	for (i = 0; i < IMAGE_SEQ_NUM; ++i) {
+		image_start = iop->addr[i];
+		if (i == 0)
+			image_end = iop->addr[i] + IMAGE_AREA_SIZE(iop->img_max_size);
+		else
+#if (__CONFIG_OTA_POLICY == 0x00)
+			image_end = iop->addr[i] + IMAGE_AREA_SIZE(iop->img_max_size);
+#else
+			image_end = iop->addr[i] + IMAGE_AREA_SIZE(iop->img_xz_max_size);
+#endif
+		if (PRJCONF_SYSINFO_ADDR >= image_start && PRJCONF_SYSINFO_ADDR < image_end) {
+			SYSINFO_ERR("sysinfo: %#x has overlay image%d: %#x - %#x\n",
+				PRJCONF_SYSINFO_ADDR, i, image_start, image_end);
+			return -1;
+		}
+	}
+
+	if (PRJCONF_SYSINFO_ADDR >= iop->ota_addr &&
+		PRJCONF_SYSINFO_ADDR < iop->ota_addr + iop->ota_size) {
+		SYSINFO_ERR("sysinfo: %#x has overlay ota area: %#x - %#x\n",
+			PRJCONF_SYSINFO_ADDR, iop->ota_addr, iop->ota_addr + iop->ota_size);
 		return -1;
 	}
-	if (image_size > PRJCONF_SYSINFO_ADDR) {
-		SYSINFO_ERR("image is too big: %#x, please make it smaller than %#x\n",
-		            image_size, PRJCONF_SYSINFO_ADDR);
-		return -1;
-	}
+
 #endif
 	g_fdcm_hdl = fdcm_open(PRJCONF_SYSINFO_FLASH, PRJCONF_SYSINFO_ADDR, PRJCONF_SYSINFO_SIZE);
 	if (g_fdcm_hdl == NULL) {

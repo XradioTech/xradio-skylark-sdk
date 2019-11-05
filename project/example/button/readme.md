@@ -59,7 +59,7 @@
 
 ## 工程说明
 
-> 本工程代码需要配合`board_config.c`来使用，`board_config.c`中保存了按键的配置信息。本工程使用的`board_config.c`的路径为：`project/common/board/xradio_storybot/board_config.c`。本工程只支持`XR872ET_STORYTOY_PRO_V1_0`工程板，如果需要支持其他板子，则需要选择对应的`board_config.c`，可修改gcc目录下`localconfig.mk`中的`__PRJ_CONFIG_BOARD`。
+> 本工程代码需要配合`board_config.c`来使用，`board_config.c`中保存了按键的配置信息。本工程使用的`board_config.c`的路径为：`project/common/board/xradio_storybot/board_config.c`。本工程只支持`XR872ET_STORYTOY_PRO_V1_0`工程板，如果需要支持其他板子，则需要选择对应的`board_config.c`，可修改gcc目录下`makefile`中的`PRJ_BOARD`。
 >
 > 由于`XR872ET_STORYTOY_PRO_V1_0`工程板不含GPIO按键，故本工程只支持AD按键。
 

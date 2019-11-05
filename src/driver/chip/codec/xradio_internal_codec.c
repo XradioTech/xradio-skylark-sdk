@@ -1,8 +1,3 @@
-/**
-  * @file  xradio_internal_codec.c
-  * @author  XRADIO IOT WLAN Team
-  */
-
 /*
  * Copyright (C) 2017 XRADIO TECHNOLOGY CO., LTD. All rights reserved.
  *
@@ -38,6 +33,11 @@
 
 #include "xradio_internal_codec.h"
 
+#if (__CONFIG_CODEC_HEAP_MODE == 1)
+#include "sys/sys_heap.h"
+#else
+#include <stdlib.h>
+#endif
 
 //Debug config
 #define XRADIO_CODEC_DBG_EN				0
@@ -49,7 +49,6 @@
 
 #define XRADIO_CODEC_IT_ERR(fmt, arg...)	HAL_IT_LOG(XRADIO_CODEC_ERR_EN, "[XRADIO_INTERNAL_CODEC] "fmt, ##arg)
 
-
 //Xradio Codec config
 #define XRADIO_DEFAULT_PLAY_VOLUME		VOLUME_LEVEL31
 #define XRADIO_DEFAULT_RECORD_GAIN		VOLUME_GAIN_0dB
@@ -58,11 +57,15 @@
 #define XRADIO_RECORD_OVERRUN_THRESHOLD 3//256//
 
 //Interface define
+#if (__CONFIG_CODEC_HEAP_MODE == 1)
+#define XRADIO_CODEC_MALLOC             psram_malloc
+#define XRADIO_CODEC_FREE               psram_free
+#else
 #define XRADIO_CODEC_MALLOC             HAL_Malloc
 #define XRADIO_CODEC_FREE               HAL_Free
+#endif
 #define XRADIO_CODEC_MEMCPY             HAL_Memcpy
 #define XRADIO_CODEC_MEMSET             HAL_Memset
-
 
 //Xradio codec priv struct
 struct Xradio_Codec_Priv {
@@ -98,10 +101,12 @@ struct Xradio_Codec_Priv {
 	HAL_Semaphore rxReady;
 	bool isTxSemaphore;
 	bool isRxSemaphore;
+
+	//codec analog voltage control
+	uint8_t vra1_vol;
 } ;
 
 static struct Xradio_Codec_Priv *xradio_codec_priv;
-
 
 //const array define
 struct real_val_to_reg_val {
@@ -143,7 +148,7 @@ static const struct real_val_to_reg_val xradio_sample_rate[] = {
 	{96000, 7},
 };
 
-static const struct real_val_to_reg_val xradio_maic_mic_pga_gain[] = {
+static const struct real_val_to_reg_val xradio_amic_pga_gain[] = {
 	{VOLUME_GAIN_0dB,  0},
 	{VOLUME_GAIN_21dB, 1},
 	{VOLUME_GAIN_24dB, 2},
@@ -310,7 +315,7 @@ static int xradio_codec_dma_threshold_check(Audio_Stream_Dir dir)
 		}
 	}
 
-	return 0;
+	return HAL_OK;
 }
 
 __sram_text
@@ -430,6 +435,7 @@ static void xradio_codec_reset(void)
 static void xradio_codec_hw_common_init(Audio_Stream_Dir dir)
 {
 	//Analog voltage VRA1/ALDO/ADDA_BIAS enable
+	xradio_codec_reg_update_bits(AC_POWER_CTRL, 0x3<<VRA1_OUT_VOL_CTRL_BIT, xradio_codec_priv->vra1_vol<<VRA1_OUT_VOL_CTRL_BIT);
 	xradio_codec_reg_update_bits(AC_POWER_CTRL, 0x1<<ADLDO_EN_BIT | 0x1<<VRA1_EN_BIT, 0x1<<ADLDO_EN_BIT | 0x1<<VRA1_EN_BIT);
 	xradio_codec_reg_update_bits(AC_DAC_ANA_CTRL, 0x1<<ADDA_BIAS_EN_BIT, 0x1<<ADDA_BIAS_EN_BIT);
 
@@ -444,6 +450,9 @@ static void xradio_codec_hw_common_init(Audio_Stream_Dir dir)
 
 		//ADC HPF Enable
 		xradio_codec_reg_update_bits(AC_ADC_HPF_CTRL, 0x1<<ADC_HPF_EN_BIT, 0x1<<ADC_HPF_EN_BIT);
+
+		//ADC DITHER AMP set to max
+		xradio_codec_reg_update_bits(AC_ADC_ANA_CTRL, 0x3<<ADC_DITH_AMP_BIT, 0x3<<ADC_DITH_AMP_BIT);
 	}
 }
 
@@ -496,9 +505,9 @@ static int xradio_codec_set_audio_pll(Audio_Clk_Freq pll_freq_out)
 	return HAL_OK;
 }
 
-static void xradio_codec_set_main_mic(bool enable)
+static void xradio_codec_set_amic(bool enable)
 {
-	XRADIO_CODEC_ALWAYS("Route(cap): main mic %s\n",enable ? "Enable" : "Disable");
+	XRADIO_CODEC_ALWAYS("Route(cap): amic %s\n",enable ? "Enable" : "Disable");
 
 	//MIC PGA & ADCL Analog enable/disable
 	xradio_codec_reg_update_bits(AC_ADC_ANA_CTRL, 0x1<<MIC_PGA_EN_BIT | 0x1<<ADCL_ANA_EN_BIT, !!enable<<MIC_PGA_EN_BIT | !!enable<<ADCL_ANA_EN_BIT);
@@ -508,10 +517,9 @@ static void xradio_codec_set_main_mic(bool enable)
 	xradio_codec_reg_update_bits(AC_ADC_FIFO_CTRL, 0x1<<ADCL_FIFO_EN_BIT, !!enable<<ADCL_FIFO_EN_BIT);
 }
 
-__nonxip_text
 static void xradio_codec_set_linein(bool enable)
 {
-	//XRADIO_CODEC_ALWAYS("Route(cap): linein %s\n",enable ? "Enable" : "Disable");
+	XRADIO_CODEC_ALWAYS("Route(cap): linein %s\n",enable ? "Enable" : "Disable");
 
 	//LINEIN PGA & ADCR Analog enable/disable
 	xradio_codec_reg_update_bits(AC_ADC_ANA_CTRL, 0x1<<LINEIN_PGA_EN_BIT | 0x1<<ADCR_ANA_EN_BIT, !!enable<<LINEIN_PGA_EN_BIT | !!enable<<ADCR_ANA_EN_BIT);
@@ -546,7 +554,7 @@ static void xradio_codec_set_lineout(bool enable)
 	//Playback Path Analog Part enable
 	xradio_codec_reg_update_bits(AC_DAC_ANA_CTRL, 0x1<<PLAY_ANA_EN_BIT, !!enable<<PLAY_ANA_EN_BIT);
 	//wait lineout ramp to stable, default ramp time: 24us*4096=98ms
-	if(enable)	HAL_MSleep(150);
+	//if(enable)	HAL_MSleep(150);
 }
 
 
@@ -603,21 +611,21 @@ static int xradio_dai_set_volume(Audio_Device device, uint16_t volume)
 		case AUDIO_IN_DEV_AMIC:
 			if(vol_set_flag == VOLUME_SET_LEVEL){
 				if (vol_set_value > VOLUME_LEVEL7){
-					XRADIO_CODEC_ERR("Invalid main mic volume level: %d!\n",vol_set_value);
+					XRADIO_CODEC_ERR("Invalid amic volume level: %d!\n",vol_set_value);
 					return HAL_INVALID;
 				}
 				reg_val = vol_set_value;
 				XRADIO_CODEC_ALWAYS("AMIC set volume Level-[%d]\n",vol_set_value);
 			} else if (vol_set_flag == VOLUME_SET_GAIN){
-				for(i=0; i<HAL_ARRAY_SIZE(xradio_maic_mic_pga_gain); i++){
-					if(xradio_maic_mic_pga_gain[i].real_val == vol_set_value){
-						reg_val = xradio_maic_mic_pga_gain[i].reg_val;
+				for(i=0; i<HAL_ARRAY_SIZE(xradio_amic_pga_gain); i++){
+					if(xradio_amic_pga_gain[i].real_val == vol_set_value){
+						reg_val = xradio_amic_pga_gain[i].reg_val;
 						XRADIO_CODEC_ALWAYS("AMIC set volume Gain-[%d]\n",vol_set_value);
 						break;
 					}
 				}
-				if(i == HAL_ARRAY_SIZE(xradio_maic_mic_pga_gain)){
-					XRADIO_CODEC_ERR("Invalid main mic volume gain: %d!\n",vol_set_value);
+				if(i == HAL_ARRAY_SIZE(xradio_amic_pga_gain)){
+					XRADIO_CODEC_ERR("Invalid amic volume gain: %d!\n",vol_set_value);
 					return HAL_INVALID;
 				}
 			}
@@ -687,15 +695,14 @@ static int xradio_dai_set_volume(Audio_Device device, uint16_t volume)
 	return HAL_OK;
 }
 
-__nonxip_text
 static int xradio_dai_set_route(Audio_Device device, Audio_Dev_State state)
 {
-	//XRADIO_CODEC_DBG("--->%s\n",__FUNCTION__);
+	XRADIO_CODEC_DBG("--->%s\n",__FUNCTION__);
 	bool enable = (state==AUDIO_DEV_EN) ? 1 : 0;
 
 	switch(device){
 		case AUDIO_IN_DEV_AMIC:
-			xradio_codec_set_main_mic(enable);
+			xradio_codec_set_amic(enable);
 			break;
 		case AUDIO_IN_DEV_LINEIN:
 			xradio_codec_set_linein(enable);
@@ -991,7 +998,7 @@ static int xradio_codec_ioctl_set_adda_direct(Audio_Device device, Audio_Dev_Sta
 
 		switch(device) {
 			case AUDIO_IN_DEV_AMIC:
-				xradio_codec_set_main_mic(1);
+				xradio_codec_set_amic(1);
 				xradio_codec_reg_update_bits(AC_ADC_FIFO_CTRL, 0x1<<ADC_DMIC_EN_BIT, 0x0<<ADC_DMIC_EN_BIT);				 //ADC_DMIC MUX Select ADC
 				xradio_codec_reg_update_bits(AC_ADC_FIFO_CTRL, 0x1<<ADC_TO_DAC_MUX_SEL_BIT, 0x0<<ADC_TO_DAC_MUX_SEL_BIT);//ADC_TO_DAC MUX Select ADC Left Channel
 				break;
@@ -1019,7 +1026,7 @@ static int xradio_codec_ioctl_set_adda_direct(Audio_Device device, Audio_Dev_Sta
 
 		switch(device) {
 			case AUDIO_IN_DEV_AMIC:
-				xradio_codec_set_main_mic(0);
+				xradio_codec_set_amic(0);
 				break;
 			case AUDIO_IN_DEV_LINEIN:
 				xradio_codec_set_linein(0);
@@ -1050,6 +1057,11 @@ static int xradio_codec_ioctl(uint32_t cmd, uint32_t cmd_param[], uint32_t cmd_p
 		case CODEC_IOCTL_PCM_WRITE:
 			if(cmd_param_len != 2)	return HAL_INVALID;
 			ret = xradio_codec_ioctl_pcm_write((uint8_t *)cmd_param[0], cmd_param[1]);
+			break;
+		case CODEC_IOCTL_HW_CONFIG:
+			if(cmd_param_len != 1)	return HAL_INVALID;
+			xradio_codec_priv->vra1_vol = cmd_param[0] & 0x3;
+			ret = HAL_OK;
 			break;
 		case CODEC_IOCTL_SET_ADDA_DIRECT:
 			if(cmd_param_len != 2)	return HAL_INVALID;

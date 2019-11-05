@@ -32,7 +32,11 @@
 
 #if (__CONFIG_MBUF_IMPL_MODE == 0)
 
+#if (__CONFIG_MBUF_HEAP_MODE == 1)
+#include "sys/sys_heap.h"
+#else
 #include <stdlib.h>
+#endif
 
 #define MB0_MEM_TRACE_SUM       0 /* trace memory usage sum */
 #define MB0_MEM_TRACE_DETAIL    0 /* trace memory usage detail */
@@ -47,8 +51,13 @@ void mbuf_free(void *ptr);
 
 #else /* (MB0_MEM_TRACE_SUM || MB0_MEM_TRACE_DETAIL) */
 
+#if (__CONFIG_MBUF_HEAP_MODE == 1)
+#define MB_MALLOC(l)    psram_malloc(l)
+#define MB_FREE(p)      psram_free(p)
+#else
 #define MB_MALLOC(l)    malloc(l)
 #define MB_FREE(p)      free(p)
+#endif
 
 #endif /* (MB0_MEM_TRACE_SUM || MB0_MEM_TRACE_DETAIL) */
 

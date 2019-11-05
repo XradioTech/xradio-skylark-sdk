@@ -444,10 +444,31 @@ void* HTTPC_obtain_user_certs()
 		return NULL;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+//
+// Function     : HTTPC_set_ssl_verify_mode
+// Purpose      : set ssl verify mode
+// Parameters   : 0: MBEDTLS_SSL_VERIFY_NONE     1: MBEDTLS_SSL_VERIFY_OPTIONAL
+//                2: MBEDTLS_SSL_VERIFY_REQUIRED 3: MBEDTLS_SSL_VERIFY_UNSET
+// Returns      : void
+// Last updated : 08/21/2017
+//
+///////////////////////////////////////////////////////////////////////////////
 void HTTPC_set_ssl_verify_mode(unsigned char mode)
 {
 	httpc_ssl_verify_mode = mode;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// Function     : HTTPC_get_ssl_verify_mode
+// Purpose      : get ssl verify mode
+// Parameters   : none
+// Returns      : 0: MBEDTLS_SSL_VERIFY_NONE     1: MBEDTLS_SSL_VERIFY_OPTIONAL
+//                2: MBEDTLS_SSL_VERIFY_REQUIRED 3: MBEDTLS_SSL_VERIFY_UNSET
+// Last updated : 08/21/2017
+//
+///////////////////////////////////////////////////////////////////////////////
 
 unsigned char HTTPC_get_ssl_verify_mode()
 {

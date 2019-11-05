@@ -254,9 +254,11 @@ int32_t psram_sbus_dma_write(struct psram_chip *chip, uint32_t page_addr,
 struct psram_chip *psram_open(uint32_t id);
 HAL_Status psram_close(struct psram_chip *chip);
 void psram_info_dump(struct psram_chip *chip);
+size_t psram_GetFreeHeapSize( void );
+
 
 void *psram_malloc( size_t xWantedSize );
-void *psram_realloc( uint8_t *srcaddr,size_t xWantedSize );
+void *psram_realloc( void *pv, size_t xWantedSize );
 void *psram_calloc( size_t xNmemb, size_t xMembSize );
 void psram_free( void *pv );
 

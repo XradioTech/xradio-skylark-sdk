@@ -35,6 +35,7 @@
 #include "cmd_psram.h"
 #include "image/image.h"
 
+#include "driver/chip/hal_dcache.h"
 #include "driver/chip/hal_rtc.h"
 #include "driver/chip/psram/psram.h"
 #include "driver/chip/psram/hal_psramctrl.h"
@@ -1139,6 +1140,15 @@ static enum cmd_status cmd_psram_check_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+__CMD_SRAM_TEXT
+static enum cmd_status cmd_psram_space_exec(char *cmd)
+{
+	extern uint8_t __psram_end__[];
+    printf("psram heap space [%p, %p), total size %u Bytes, free size %u Bytes\n",
+	           __psram_end__, (uint32_t*)((uint32_t)__PSRAM_BASE+(uint32_t)__PSRAM_LENGTH),
+	           (uint32_t)__PSRAM_BASE + (uint32_t)__PSRAM_LENGTH - (uint32_t)__psram_end__, psram_GetFreeHeapSize());
+	return CMD_STATUS_OK;
+}
 
 static const struct cmd_data g_psram_cmds[] = {
 	{ "info",       cmd_info_exec},
@@ -1154,6 +1164,7 @@ static const struct cmd_data g_psram_cmds[] = {
 	{ "flush_clean",cmd_psram_flush_clean_exec },
     { "clean",      cmd_psram_clean_exec },
     { "check",      cmd_psram_check_exec },
+    { "space",      cmd_psram_space_exec },
 };
 
 enum cmd_status cmd_psram_exec(char *cmd)

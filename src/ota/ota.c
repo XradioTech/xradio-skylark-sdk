@@ -71,10 +71,10 @@ static image_seq_t ota_get_update_seq(void)
 		return seq;
 	}
 
-	if ((iop->img_max_size == 0) || (iop->bl_size == 0) ||
+	if ((IMAGE_AREA_SIZE(iop->img_max_size) == 0) || (iop->bl_size == 0) ||
 		(iop->running_seq >= IMAGE_SEQ_NUM)) {
 		OTA_ERR("not init, img_max_size %#x, bl_size %#x, running seq %u\n",
-				iop->img_max_size, iop->bl_size, iop->running_seq);
+				IMAGE_AREA_SIZE(iop->img_max_size), iop->bl_size, iop->running_seq);
 		return seq;
 	}
 
@@ -91,6 +91,12 @@ ota_status_t ota_init(void)
 {
 	ota_memset(&ota_priv, 0, sizeof(ota_priv));
 	ota_priv.iop = image_get_ota_param();
+#if (__CONFIG_OTA_POLICY == 0x01)
+	if (ota_priv.iop->img_xz_max_size == IMAGE_INVALID_SIZE) {
+		OTA_ERR("the compressed image max size is invalid, need set in image.cfg file\n");
+		return OTA_STATUS_ERROR;
+	}
+#endif
 	return OTA_STATUS_OK;
 }
 
@@ -110,7 +116,9 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 	ota_status_t	status;
 	uint32_t		flash;
 	uint32_t		addr;
+#if (__CONFIG_OTA_POLICY == 0x00)
 	uint32_t		bl_size;
+#endif
 	uint32_t		recv_size;
 	uint32_t		img_max_size;
 	uint8_t		   *ota_buf;
@@ -121,9 +129,13 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 
 	flash = iop->flash[seq];
 	addr = iop->addr[seq];
-	img_max_size = iop->img_max_size;
-
-	OTA_DBG("%s(), seq %d, flash %u, addr %#x\n", __func__, seq, flash, addr);
+#if (__CONFIG_OTA_POLICY == 0x00)
+	img_max_size = IMAGE_AREA_SIZE(iop->img_max_size);
+#else
+	img_max_size = IMAGE_AREA_SIZE(iop->img_xz_max_size);
+#endif
+	OTA_DBG("%s(), seq %d, flash %u, addr %#x, size %d\n", __func__, seq,
+			flash, addr, img_max_size);
 	OTA_SYSLOG("OTA: erase flash...\n");
 
 	if (flash_erase(flash, addr, img_max_size) != 0) {
@@ -147,6 +159,7 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 	debug_size = OTA_UPDATE_DEBUG_SIZE_UNIT;
 	ota_priv.get_size = 0;
 
+#if (__CONFIG_OTA_POLICY == 0x00)
 	/* skip bootloader */
 	bl_size = iop->bl_size;
 	while (bl_size > 0) {
@@ -168,6 +181,7 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 	}
 
 	OTA_DBG("%s(), skip bootloader success\n", __func__);
+#endif
 
 	if (HAL_Flash_Open(flash, OTA_FLASH_TIMEOUT) != HAL_OK) {
 		OTA_ERR("open flash %u fail\n", flash);
@@ -185,15 +199,20 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 			OTA_ERR("status %d\n", status);
 			break;
 		}
-		img_max_size -= recv_size;
-		ota_priv.get_size += recv_size;
+		if (recv_size == 0) {
+			OTA_WRN("recv_size %u, status %d, eof_flag %d\n",
+			        recv_size, status, eof_flag);
+		} else {
+			img_max_size -= recv_size;
+			ota_priv.get_size += recv_size;
 
-		if (HAL_Flash_Write(flash, addr, ota_buf, recv_size) != HAL_OK) {
-			OTA_ERR("write flash fail, flash %u, addr %#x, size %#x\n",
-			        flash, addr, recv_size);
-			break;
+			if (HAL_Flash_Write(flash, addr, ota_buf, recv_size) != HAL_OK) {
+				OTA_ERR("write flash fail, flash %u, addr %#x, size %#x\n",
+				        flash, addr, recv_size);
+				break;
+			}
+			addr += recv_size;
 		}
-		addr += recv_size;
 		if (eof_flag) {
 			ret = OTA_STATUS_OK;
 			break;
@@ -219,7 +238,7 @@ ota_err:
 		if (img_max_size == 0) {
 			/* reach max size, but not end, continue trying to check sections */
 			OTA_ERR("download img size %u == %u, but not end\n",
-			        ota_priv.get_size - iop->bl_size, iop->img_max_size);
+					ota_priv.get_size - iop->bl_size, IMAGE_AREA_SIZE(iop->img_max_size));
 		} else {
 			return ret;
 		}
@@ -241,8 +260,8 @@ static ota_status_t ota_update_image(void *url,
 									 ota_update_get_t get_cb)
 {
 	image_seq_t		seq;
-
 	seq = ota_get_update_seq();
+
 	if (seq < IMAGE_SEQ_NUM) {
 		return ota_update_image_process(seq, url, init_cb, get_cb);
 	} else {
@@ -351,7 +370,17 @@ ota_status_t ota_get_verify_data(ota_verify_data_t *data)
 	const image_ota_param_t *iop = ota_priv.iop;
 
 	status = OTA_STATUS_ERROR;
+#ifndef __CONFIG_BOOTLOADER
+	/* in normal ota, need verify the update seq, because the image is download
+     * in update seq.
+     */
 	seq = ota_get_update_seq();
+#else
+	/* in bootloader, need verify the running seq, because the compressd image
+     * is download in update seq, and it will be decompressd in running seq.
+     */
+	seq = iop->running_seq;
+#endif
 	if (seq >= IMAGE_SEQ_NUM) {
 		return status;
 	}
@@ -450,7 +479,17 @@ static ota_status_t ota_verify_image_append(image_seq_t seq,
 	const image_ota_param_t *iop = ota->iop;
 
 	OTA_DBG("%s(), seq %d\n", __func__, seq);
+
+#if (__CONFIG_OTA_POLICY == 0x01)
+#if defined(__CONFIG_BOOTLOADER)
+    size = ota_get_verify_data_pos(seq) - iop->addr[seq];
+#else
+	size = ota->get_size - sizeof(ota_verify_data_t);
+#endif
+#else
 	size = ota->get_size - iop->bl_size - sizeof(ota_verify_data_t);
+#endif
+
 	//If there is no verify data in new image, we will use OTA_VERIFY_NONE to verify it.
 	//In this case, the size will not be use.
 	if (ota_verify_image_append_process(iop->flash[seq],
@@ -620,7 +659,17 @@ ota_status_t ota_verify_image(ota_verify_t verify, uint32_t *value)
 		return OTA_STATUS_ERROR;
 	}
 
+#ifndef __CONFIG_BOOTLOADER
+	/* in normal ota, need verify the update seq, because the image is download
+	 * in update seq.
+	 */
 	seq = ota_get_update_seq();
+#else
+	/* in bootloader, need verify the running seq, because the compressd image
+	 * is download in update seq, and it will be decompressd in running seq.
+	 */
+	seq = ota_priv.iop->running_seq;
+#endif
 	if (seq >= IMAGE_SEQ_NUM) {
 		return OTA_STATUS_ERROR;
 	}
@@ -665,9 +714,16 @@ ota_status_t ota_verify_image(ota_verify_t verify, uint32_t *value)
 		OTA_ERR("verify fail, status %d, verify %d\n", status, verify);
 		return OTA_STATUS_ERROR;
 	}
-
+#if (__CONFIG_OTA_POLICY == 0x01)
+	cfg.seq = ota_get_update_seq();
+	cfg.state = IMAGE_STATE_VERIFIED;
+#elif defined(__CONFIG_BOOTLOADER)
+	cfg.seq = ota_get_update_seq();
+	cfg.state = IMAGE_STATE_UNVERIFIED;
+#else
 	cfg.seq = seq;
 	cfg.state = IMAGE_STATE_VERIFIED;
+#endif
 	return (image_set_cfg(&cfg) == 0 ? OTA_STATUS_OK : OTA_STATUS_ERROR);
 }
 

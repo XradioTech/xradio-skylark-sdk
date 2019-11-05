@@ -1,6 +1,6 @@
-# fast con示例工程
+# fast connect示例工程
 
-> fast con示例工程展示了wlan模块的快速连接相关接口的使用方法。
+> fast connect示例工程展示了wlan模块的快速连接相关接口的使用方法。
 >
 > 本工程中提供以下模块接口使用的示例：
 > 1. 第一次普通连接AP的过程
@@ -15,10 +15,10 @@
 > 2. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板：XR872MD_EVB、XR872MD_IO、XR808MD_EVB_IO
-> 2. 模组：XR872AT_MD01、XR808ST_MD01、XR808CT_MD02、XR808CT_MD01
+> 1. 底板：XR872MD_AI、XR872MD_IO、XR808MD_EVB_IO
+> 2. 模组：XR872AT_MD01、XR808ST_MD01、XR808CT_MD01
 
-> 本工程在基于XR872ET的“XR808ST_MD01”评估板上测试通过。
+> 本工程在基于XR808ST的“XR808ST_MD01+XR808MD_EVB_IO”评估板上测试通过。
 > 若需要在其他适用芯片和评估板上运行本工程，请根据快速指南《XRadio_Quick_Start_Guide-CN》的提示进行相关配置修改。
 
 > XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
@@ -44,8 +44,8 @@
 ## 模块依赖
 
 > 必选项
-> 1.libxrwireless.a：
-> 2.libwlan.a
+> 1.libxrwireless.a： 网络驱动核心模块
+> 2.libwlan.a： 网络层模块
 
 ---
 
@@ -94,8 +94,8 @@
 
 > 1. main()入口：
 > A）初始化系统
-> B）执行fast_con_example()
-> 2. 执行fast_con_example()函数流程：
+> B）执行fast_connect_example()
+> 2. 执行fast_connect_example()函数流程：
 > A）尝试从flash指定位置读取BSS信息
 > B）如果没有读取到数据，执行普通连接流程
 > C）如果读取到了数据，执行快速连接流程

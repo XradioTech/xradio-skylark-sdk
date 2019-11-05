@@ -36,7 +36,11 @@
 
 #include "driver/component/csi_camera/camera.h"
 #include "driver/component/csi_camera/gc0308/drv_gc0308.h"
+#include "driver/component/csi_camera/gc0328c/drv_gc0328c.h"
+
 #include "driver/chip/hal_i2c.h"
+
+#include "driver/chip/psram/psram.h"
 
 #define IMAGE_SENSOR_I2CID 		I2C0_ID
 #define SENSOR_RESET_PIN        GPIO_PIN_21
@@ -46,9 +50,24 @@
 
 #define JPEG_MEMPART_EN			(0)
 #define JPEG_MPART_SIZE			(0x2000) //8k
-#define JPEG_SRAM_SIZE 			(80*1024)
+#define JPEG_SRAM_SIZE 			(180*1024)
+#define JPEG_ONLINE_EN			(0)
 
-#define ALIGN_1K(x)     		(((x) + (1023)) & ~(1023))
+#define JPEG_PSRAM_EN			(1)
+#define JPEG_PSRAM_SIZE			(1024*1024)
+
+#define IMAGE_WIDTH				(640)
+#define IMAGE_HEIGHT			(480)
+
+#if 0
+#define SENSOR_FUNC_INIT	HAL_GC0308_Init
+#define SENSOR_FUNC_DEINIT	HAL_GC0308_DeInit
+#define SENSOR_FUNC_IOCTL	HAL_GC0308_IoCtl
+#else
+#define SENSOR_FUNC_INIT	HAL_GC0328C_Init
+#define SENSOR_FUNC_DEINIT	HAL_GC0328C_DeInit
+#define SENSOR_FUNC_IOCTL	HAL_GC0328C_IoCtl
+#endif
 
 static CAMERA_Cfg camera_cfg = {
 	.jpeg_cfg.jpeg_en = 1,
@@ -56,12 +75,12 @@ static CAMERA_Cfg camera_cfg = {
 	.jpeg_cfg.jpeg_clk  = 0, //no use
 #if JPEG_MEMPART_EN
 	.jpeg_cfg.memPartEn = 1,
-	.jpeg_cfg.memPartNum = JPEG_MEM_BLOCK4, //0->2 part,1->4 part,2->8 part
+	.jpeg_cfg.memPartNum = JPEG_MEM_BLOCK2, //0->2 part,1->4 part,2->8 part
 #else
 	.jpeg_cfg.memPartEn = 0,
 	.jpeg_cfg.memPartNum = 0,
 #endif
-	.jpeg_cfg.jpeg_mode = JPEG_MOD_ONLINE,
+	.jpeg_cfg.jpeg_mode = JPEG_ONLINE_EN ? JPEG_MOD_ONLINE : JPEG_MOD_OFFLINE,
 
 	.csi_cfg.csi_clk = 24000000, // no use
 
@@ -71,13 +90,13 @@ static CAMERA_Cfg camera_cfg = {
 	.sensor_cfg.pwcfg.Reset_Port = SENSOR_RESET_PORT,
 	.sensor_cfg.pwcfg.Pwdn_Pin = SENSOR_POWERDOWN_PIN,
 	.sensor_cfg.pwcfg.Reset_Pin = SENSOR_RESET_PIN,
-	.sensor_cfg.pixel_size.width = 640,
-	.sensor_cfg.pixel_size.height = 480,
+	.sensor_cfg.pixel_size.width = IMAGE_WIDTH,//640,
+	.sensor_cfg.pixel_size.height = IMAGE_HEIGHT,//480,
 	.sensor_cfg.pixel_outfmt = YUV422_YUYV,
 
-	.sensor_func.init = HAL_GC0308_Init,
-	.sensor_func.deinit = HAL_GC0308_DeInit,
-	.sensor_func.ioctl = HAL_GC0308_IoCtl,
+	.sensor_func.init = SENSOR_FUNC_INIT,
+	.sensor_func.deinit = SENSOR_FUNC_DEINIT,
+	.sensor_func.ioctl = SENSOR_FUNC_IOCTL,
 };
 
 static CAMERA_Mgmt mem_mgmt;
@@ -100,7 +119,6 @@ static int fs_deinit()
 		printf("unmount fail\n");
 		return -1;
 	}
-
 	printf("\nunmount success\n");
 
 	return 0;
@@ -133,15 +151,37 @@ static int camera_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt)
 		printf("malloc online_jpeg_mempart_last_buf: %p -> %p\n", mgmt->online_jpeg_mempart_last_buf,
 			mgmt->online_jpeg_mempart_last_buf + 50*1024);
 	} else {
-		addr = (uint8_t*)malloc(JPEG_SRAM_SIZE + 2048);//imgbuf;
-		if (addr == NULL) {
-			printf("malloc fail\n");
-			return -1;
+		if (jpeg_cfg->jpeg_mode == JPEG_MOD_ONLINE) {
+			addr = (uint8_t*)malloc(JPEG_SRAM_SIZE + 2048);//imgbuf;
+			if (addr == NULL) {
+				printf("malloc fail\n");
+				return -1;
+			}
+			memset(addr, 0 , JPEG_SRAM_SIZE + 2048);
+			printf("malloc addr: %p -> %p\n", addr, addr + JPEG_SRAM_SIZE + 2048);
+			mgmt->jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)addr);
+		} else {
+			if (JPEG_PSRAM_EN) {
+				addr = (uint8_t*)psram_malloc(JPEG_PSRAM_SIZE + 2048);//imgbuf;
+				if (addr == NULL) {
+					printf("malloc fail\n");
+					return -1;
+				}
+				memset(addr, 0 , JPEG_PSRAM_SIZE + 2048);
+				printf("malloc addr: %p -> %p\n", addr, addr + JPEG_PSRAM_SIZE + 2048);
+			} else {
+				addr = (uint8_t*)malloc(JPEG_SRAM_SIZE + 2048);//imgbuf;
+				if (addr == NULL) {
+					printf("malloc fail\n");
+						return -1;
+				}
+				memset(addr, 0 , JPEG_SRAM_SIZE + 2048);
+				printf("malloc addr: %p -> %p\n", addr, addr + JPEG_SRAM_SIZE + 2048);
+			}
+			mgmt->yuv_buf = (uint8_t *)ALIGN_16B((uint32_t)addr);
+			mgmt->jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)mgmt->yuv_buf +
+				camera_cfg.sensor_cfg.pixel_size.width * camera_cfg.sensor_cfg.pixel_size.height * 3/2);//after yuv data
 		}
-		memset(addr, 0 , JPEG_SRAM_SIZE + 2048);
-		printf("malloc addr: %p -> %p\n", addr, addr + JPEG_SRAM_SIZE + 2048);
-		mgmt->online_jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)addr);
-		printf("online_jpeg_buf %p\n", mgmt->online_jpeg_buf);
 	}
 
 	mgmt->org_addr = addr;
@@ -152,7 +192,10 @@ static int camera_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt)
 static void camera_mem_destroy()
 {
 	if (mem_mgmt.org_addr) {
-		free(mem_mgmt.org_addr);
+		if (JPEG_PSRAM_EN)
+			psram_free(mem_mgmt.org_addr);
+		else
+			free(mem_mgmt.org_addr);
 		mem_mgmt.org_addr = NULL;
 	}
 
@@ -174,9 +217,8 @@ static int camera_init()
 	if (camera_mem_create(&camera_cfg.jpeg_cfg, &mem_mgmt) != 0)
 		return -1;
 
-	HAL_CAMERA_SetImageBuf(&mem_mgmt);
-
 	/* camera init */
+	camera_cfg.mgmt = &mem_mgmt;
 	if (HAL_CAMERA_Init(&camera_cfg) != HAL_OK) {
 		printf("%s fail, %d\n", __func__, __LINE__);
 		return -1;
@@ -185,13 +227,11 @@ static int camera_init()
 	return 0;
 }
 
-static int camera_get_jpeg_image()
+int camera_get_image()
 {
-	uint32_t fm_size;
-	uint32_t body_size;
 	int res;
-	uint32_t bw;
 	FIL fp;
+	uint32_t bw;
 
 	f_unlink("test.jpg");
 	res = f_open(&fp, "test.jpg", FA_WRITE | FA_CREATE_NEW);
@@ -200,37 +240,67 @@ static int camera_get_jpeg_image()
 		return -1;
 	}
 
-	printf("start to capture one jpeg image...\n");
-
-	fm_size = HAL_CAMERA_CaptureOneImage();
-
-	printf("jpeg image szie: %dbytes\n", fm_size);
-
-	if (fm_size == 0 || fm_size == CAMERA_JPEG_HEADER_LEN) {
-		printf("cap one image failed\n");
+#if (!JPEG_ONLINE_EN)
+	FIL fp_y;
+	f_unlink("test.YUV");
+	res = f_open(&fp_y, "test.YUV", FA_WRITE | FA_CREATE_NEW);
+	if (res != FR_OK) {
+		printf("open file error %d\n", res);
 		return -1;
 	}
+#endif
 
-	uint8_t *addr = mem_mgmt.jpeg_header_buf;
-	/* jpeg header data*/
-	res = f_write(&fp, addr, CAMERA_JPEG_HEADER_LEN, &bw);
-	if (res != FR_OK || bw < CAMERA_JPEG_HEADER_LEN) {
+	printf("start to capture image...\n");
+	CAMERA_OutFmt fmt;
+	fmt = JPEG_ONLINE_EN ? CAMERA_OUT_JPEG : CAMERA_OUT_YUV420;
+
+	uint32_t time = OS_TicksToMSecs(OS_GetTicks());
+	uint32_t size = HAL_CAMERA_CaptureImage(fmt, 1);
+	uint32_t cost = OS_TicksToMSecs(OS_GetTicks()) - time;
+
+	if (size <= 0) {
+		printf("capture image failed\n");
+		return -1;
+	}
+	printf("capture image cost: %dms\n", cost);
+
+	uint8_t *addr;
+
+#if (!JPEG_ONLINE_EN)
+	addr = mem_mgmt.yuv_buf;
+	res = f_write(&fp_y, addr, size, &bw);
+	if (res != FR_OK || bw < size) {
 		printf("write fail(%d), line%d..\n", res, __LINE__);
 		return -1;
 	}
 
-	/* jpeg body data*/
-	body_size = fm_size - CAMERA_JPEG_HEADER_LEN;
-	addr =camera_cfg.jpeg_cfg.memPartEn ?  mem_mgmt.online_jpeg_mempart_last_buf :
-											mem_mgmt.online_jpeg_buf;
-	res = f_write(&fp, addr, body_size, &bw);
-	if (res != FR_OK || bw < body_size) {
-		printf("write fail(%d), line%d..\n", res, __LINE__);
-		return -1;
-	}
-	f_close(&fp);
+	printf("write YUV image ok\n");
+	f_close(&fp_y);
+#endif
 
-	printf("\nget one jpeg image ok\n");
+	if (camera_cfg.jpeg_cfg.jpeg_en) {
+		uint32_t encode_size = HAL_CAMERA_CaptureImage(CAMERA_OUT_JPEG, 0);
+
+		printf("jpeg image szie: %dbytes\n", encode_size);
+
+		addr = mem_mgmt.jpeg_header_buf;
+		/* jpeg header data*/
+		res = f_write(&fp, addr, CAMERA_JPEG_HEADER_LEN, &bw);
+		if (res != FR_OK || bw < CAMERA_JPEG_HEADER_LEN) {
+			printf("write fail(%d), line%d..\n", res, __LINE__);
+			return -1;
+		}
+
+		/* jpeg body data*/
+		addr = camera_cfg.jpeg_cfg.memPartEn ?  mem_mgmt.online_jpeg_mempart_last_buf : mem_mgmt.jpeg_buf;
+		res = f_write(&fp, addr, encode_size, &bw);
+		if (res != FR_OK || bw < encode_size) {
+			printf("write fail(%d), line%d..\n", res, __LINE__);
+			return -1;
+		}
+		f_close(&fp);
+		printf("write jpeg image ok\n");
+	}
 
 	return 0;
 }
@@ -249,12 +319,12 @@ int main(void)
 
 	printf("jpeg demo started\n\n");
 
-	if (fs_init() != 0)
+	if (fs_init() != 0)
 		return -1;
 
 	camera_init();
 
-	camera_get_jpeg_image();
+	camera_get_image();
 
 	camera_deinit();
 

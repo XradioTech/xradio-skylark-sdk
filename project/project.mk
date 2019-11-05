@@ -154,6 +154,10 @@ ifeq ($(__CONFIG_BIN_COMPRESS), y)
   SUFFIX_XZ := _xz
 endif
 
+ifeq ($(__CONFIG_OTA_POLICY), 0x01)
+  SUFFIX_IMG_XZ := _img_xz
+endif
+
 # ----------------------------------------------------------------------------
 # linker script
 # ----------------------------------------------------------------------------
@@ -175,10 +179,11 @@ PROJECT_LD := .project.ld
 # original bin path, files and names
 BIN_PATH := $(ROOT_PATH)/bin/$(PLATFORM_RELATIVE_PATH)
 
+BOOT_BIN_PATH := $(ROOT_PATH)/bin/xradio_v$(__CONFIG_CHIP_ARCH_VER)/boot/$(__CONFIG_CHIP_TYPE)
 BOOT_BIN_NAME := boot_$(__CONFIG_HOSC_TYPE)M.bin
 WLAN_SDD_NAME := wlan_sdd_$(__CONFIG_HOSC_TYPE)M.bin
 
-BIN_FILES := $(BIN_PATH)/$(BOOT_BIN_NAME)
+BIN_FILES := $(BOOT_BIN_PATH)/$(BOOT_BIN_NAME)
 BIN_FILES += $(BIN_PATH)/wlan_bl.bin
 BIN_FILES += $(BIN_PATH)/wlan_fw.bin
 BIN_FILES += $(BIN_PATH)/$(WLAN_SDD_NAME)
@@ -237,6 +242,17 @@ else
   SIGNPACK_GEN_CERT := true
 endif
 
+ifeq ($(__CONFIG_OTA_POLICY), 0x01)
+# xz is a tool used to compress image
+XZ_CHECK ?= none
+XZ_LZMA2_DICT_SIZE ?= 8KiB
+XZ := xz -f -k --no-sparse --armthumb --check=$(XZ_CHECK) \
+         --lzma2=preset=6,dict=$(XZ_LZMA2_DICT_SIZE),lc=3,lp=1,pb=1
+XZ_DEFAULT_IMG := $(IMAGE_NAME).img
+IMAGE_XZ_CFG ?= $(IMAGE_CFG_PATH)/image$(SUFFIX_IMG_XZ).cfg
+BOOTLOADER_LENGTH := $(shell od -An -N4 -j 32 -i $(IMAGE_PATH)/$(XZ_DEFAULT_IMG) | sed 's/ //g')
+endif # __CONFIG_OTA_POLICY
+
 # ----------------------------------------------------------------------------
 # common targets and building rules
 # ----------------------------------------------------------------------------
@@ -266,7 +282,7 @@ all: $(PROJECT).bin size
 
 $(PROJECT).$(ELF_EXT): $(OBJS)
 ifeq ($(__CONFIG_ROM), y)
-	$(Q)$(CP) -t . $(ROM_SYMBOL_FILE)
+	$(Q)$(CC) -E -P -CC $(CC_SYMBOLS) -o $(ROM_SYMBOL_NAME) - < $(ROM_SYMBOL_FILE)
 endif
 	$(Q)$(CC) -E -P -CC $(CC_SYMBOLS) -o $(PROJECT_LD) - < $(LINKER_SCRIPT) && \
 	$(Q)$(CC) $(LD_FLAGS) -T$(PROJECT_LD) $(LIBRARY_PATHS) -o $@ $(OBJS) $(LIBRARIES)
@@ -303,7 +319,7 @@ lib_install_clean:
 ifeq ($(__CONFIG_BOOTLOADER), y)
 
 install:
-	$(Q)$(CP) $(PROJECT).bin $(BIN_PATH)/$(BOOT_BIN_NAME)
+	$(Q)$(CP) $(PROJECT).bin $(BOOT_BIN_PATH)/$(BOOT_BIN_NAME)
 
 build: lib all install
 
@@ -332,6 +348,16 @@ endif
 	$(Q)$(CC) -E -P -CC $(CC_SYMBOLS) -o $(PROJECT_IMG_CFG) - < $(IMAGE_CFG) && \
 	$(SIGNPACK_GEN_CERT) && \
 	$(IMAGE_TOOL) $(IMAGE_TOOL_OPT) -c $(PROJECT_IMG_CFG) -o $(IMAGE_NAME).img
+
+image_xz:
+ifeq ($(__CONFIG_OTA_POLICY), 0x01)
+	cd $(IMAGE_PATH) && \
+	dd if=$(XZ_DEFAULT_IMG) of=$(XZ_DEFAULT_IMG).temp skip=$(BOOTLOADER_LENGTH) bs=1c && \
+	$(Q)$(XZ) $(XZ_DEFAULT_IMG).temp && \
+	mv $(XZ_DEFAULT_IMG).temp.xz image.xz && \
+	rm $(XZ_DEFAULT_IMG).temp && \
+	$(IMAGE_TOOL) $(IMAGE_TOOL_OPT) -c $(IMAGE_XZ_CFG) -o $(IMAGE_NAME)$(SUFFIX_IMG_XZ).img
+endif
 
 image_clean:
 	-cd $(IMAGE_PATH) && \

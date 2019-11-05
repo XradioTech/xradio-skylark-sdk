@@ -7,35 +7,6 @@
 # ----------------------------------------------------------------------------
 include $(ROOT_PATH)/chip.mk
 
-# External high speed crystal oscillator
-#   - 24: 24M
-#   - 40: 40M
-# __CONFIG_HOSC_TYPE ?= 24
-
-# icache and dcache configure, sort by size sum of icache+dcache
-#   - 0x00: icache  0 KB, dcache  0 KB
-#   - 0x01: icache  0 KB, dcache  8 KB
-#   - 0x10: icache  8 KB, dcache  0 KB
-#   - 0x02: icache  0 KB, dcache 16 KB
-#   - 0x11: icache  8 KB, dcache  8 KB
-#   - 0x20: icache 16 KB, dcache  0 KB
-#   - 0x12: icache  8 KB, dcache 16 KB
-#   - 0x21: icache 16 KB, dcache  8 KB
-#   - 0x04: icache  0 KB, dcache 32 KB
-#   - 0x22: icache 16 KB, dcache 16 KB
-#   - 0x40: icache 32 KB, dcache  0 KB
-#   - 0x14: icache  8 KB, dcache 32 KB
-#   - 0x41: icache 32 KB, dcache  8 KB
-ifeq ($(__CONFIG_CHIP_TYPE), xr872)
-ifeq ($(__CONFIG_PSRAM), y)
-  __CONFIG_CACHE_POLICY ?= 0x41
-else
-  __CONFIG_CACHE_POLICY ?= 0x02
-endif
-else ifeq ($(__CONFIG_CHIP_TYPE), xr808)
-  __CONFIG_CACHE_POLICY ?= 0x04
-endif
-
 # redefine int32_t to signed int, but not signed long
 __CONFIG_LIBC_REDEFINE_GCC_INT32_TYPE ?= y
 
@@ -101,6 +72,16 @@ __CONFIG_WIFI_CERTIFIED ?= y
 # XIP
 __CONFIG_XIP ?= y
 
+# psram
+__CONFIG_PSRAM ?= n
+ifeq ($(__CONFIG_PSRAM), y)
+  __CONFIG_PSRAM_CHIP_OPI32 ?= y
+else
+  __CONFIG_PSRAM_CHIP_OPI32 ?= n
+endif
+__CONFIG_PSRAM_CHIP_OPI64 ?= n
+__CONFIG_PSRAM_CHIP_SQPI ?= n
+
 # enable section attribute macros "__xip_xxx", eg. __xip_text
 ifeq ($(__CONFIG_XIP), y)
   __CONFIG_SECTION_ATTRIBUTE_XIP ?= y
@@ -119,7 +100,11 @@ endif
 __CONFIG_SECTION_ATTRIBUTE_SRAM ?= y
 
 # enable section attribute macros "__psram_xxx", eg. __psram_text
-__CONFIG_SECTION_ATTRIBUTE_PSRAM ?= n
+ifeq ($(__CONFIG_PSRAM), y)
+  __CONFIG_SECTION_ATTRIBUTE_PSRAM ?= y
+else
+  __CONFIG_SECTION_ATTRIBUTE_PSRAM ?= n
+endif
 
 # rom
 ifeq ($(__CONFIG_CHIP_ARCH_VER), 1)
@@ -142,9 +127,6 @@ else
   __CONFIG_ROM_XZ ?= n
 endif
 
-# bin compression
-__CONFIG_BIN_COMPRESS ?= n
-
 # enable/disable bootloader, y to enable bootloader and disable some features
 __CONFIG_BOOTLOADER ?= n
 
@@ -154,30 +136,91 @@ __CONFIG_SECURE_BOOT ?= n
 # power manager
 __CONFIG_PM ?= y
 
-# psram
-__CONFIG_PSRAM ?= n
-ifeq ($(__CONFIG_PSRAM), y)
-  __CONFIG_PSRAM_CHIP_OPI32 ?= y
-else
-  __CONFIG_PSRAM_CHIP_OPI32 ?= n
-endif
-__CONFIG_PSRAM_CHIP_OPI64 ?= n
-__CONFIG_PSRAM_CHIP_SQPI ?= n
-
 # OTA
 __CONFIG_OTA ?= n
+
+# ota policy, choose ota mode
+#   - 0x00: ping-pong mode
+#   - 0x01: image compression mode
+__CONFIG_OTA_POLICY ?= 0x00
+
+# bin compression
+__CONFIG_BIN_COMPRESS ?= n
 
 # xplayer
 __CONFIG_XPLAYER ?= n
 
 # JPEG
 __CONFIG_JPEG ?= n
+__CONFIG_JPEG_SHARE_64K ?= n
+
+# mix sram/psram heap manager
+ifeq ($(__CONFIG_MALLOC_USE_STDLIB), y)
+  ifeq ($(__CONFIG_PSRAM), y)
+    ifneq ($(__CONFIG_MALLOC_TRACE), y)
+      __CONFIG_MIX_HEAP_MANAGE ?= y
+    endif
+  endif
+endif
+__CONFIG_MIX_HEAP_MANAGE ?= n
+
+# icache and dcache configure, sort by size sum of icache+dcache
+#   - 0x00: icache  0 KB, dcache  0 KB
+#   - 0x01: icache  0 KB, dcache  8 KB
+#   - 0x10: icache  8 KB, dcache  0 KB
+#   - 0x02: icache  0 KB, dcache 16 KB
+#   - 0x11: icache  8 KB, dcache  8 KB
+#   - 0x20: icache 16 KB, dcache  0 KB
+#   - 0x12: icache  8 KB, dcache 16 KB
+#   - 0x21: icache 16 KB, dcache  8 KB
+#   - 0x04: icache  0 KB, dcache 32 KB
+#   - 0x22: icache 16 KB, dcache 16 KB
+#   - 0x40: icache 32 KB, dcache  0 KB
+#   - 0x14: icache  8 KB, dcache 32 KB
+#   - 0x41: icache 32 KB, dcache  8 KB
+ifeq ($(__CONFIG_CHIP_TYPE), xr872)
+ifeq ($(__CONFIG_PSRAM), y)
+  __CONFIG_CACHE_POLICY ?= 0x41
+else
+  __CONFIG_CACHE_POLICY ?= 0x02
+endif
+else ifeq ($(__CONFIG_CHIP_TYPE), xr808)
+  __CONFIG_CACHE_POLICY ?= 0x04
+endif
+
+# heap usage mode for different module
+#   - mode 0: heap from sram
+#   - mode 1: heap from psram
+ifeq ($(__CONFIG_PSRAM), y)
+__CONFIG_MBUF_HEAP_MODE ?= 1
+__CONFIG_MBEDTLS_HEAP_MODE ?= 1
+__CONFIG_HTTPC_HEAP_MODE ?= 1
+__CONFIG_MQTT_HEAP_MODE ?= 1
+__CONFIG_NOPOLL_HEAP_MODE ?= 1
+__CONFIG_WPA_HEAP_MODE ?= 1
+__CONFIG_UMAC_HEAP_MODE ?= 1
+__CONFIG_LMAC_HEAP_MODE ?= 1
+__CONFIG_CEDARX_HEAP_MODE ?= 1
+__CONFIG_AUDIO_HEAP_MODE ?= 1
+__CONFIG_CODEC_HEAP_MODE ?= 1
+else
+__CONFIG_MBUF_HEAP_MODE := 0
+__CONFIG_MBEDTLS_HEAP_MODE := 0
+__CONFIG_HTTPC_HEAP_MODE := 0
+__CONFIG_MQTT_HEAP_MODE := 0
+__CONFIG_NOPOLL_HEAP_MODE := 0
+__CONFIG_WPA_HEAP_MODE := 0
+__CONFIG_UMAC_HEAP_MODE := 0
+__CONFIG_LMAC_HEAP_MODE := 0
+__CONFIG_CEDARX_HEAP_MODE := 0
+__CONFIG_AUDIO_HEAP_MODE := 0
+__CONFIG_CODEC_HEAP_MODE := 0
+endif
 
 # ----------------------------------------------------------------------------
 # config symbols
 # ----------------------------------------------------------------------------
 CONFIG_SYMBOLS += -D__CONFIG_HOSC_TYPE=$(__CONFIG_HOSC_TYPE)
-CONFIG_SYMBOLS += -D__CONFIG_CACHE_POLICY=$(__CONFIG_CACHE_POLICY)
 
 ifeq ($(__CONFIG_LIBC_REDEFINE_GCC_INT32_TYPE), y)
   CONFIG_SYMBOLS += -D__CONFIG_LIBC_REDEFINE_GCC_INT32_TYPE
@@ -212,6 +255,7 @@ ifeq ($(__CONFIG_LWIP_V1), y)
 endif
 
 CONFIG_SYMBOLS += -D__CONFIG_MBEDTLS_VER=$(__CONFIG_MBEDTLS_VER)
+
 CONFIG_SYMBOLS += -D__CONFIG_MBUF_IMPL_MODE=$(__CONFIG_MBUF_IMPL_MODE)
 
 ifeq ($(__CONFIG_WLAN), y)
@@ -255,6 +299,22 @@ ifeq ($(__CONFIG_XIP), y)
   CONFIG_SYMBOLS += -D__CONFIG_XIP
 endif
 
+ifeq ($(__CONFIG_PSRAM), y)
+  CONFIG_SYMBOLS += -D__CONFIG_PSRAM
+endif
+
+ifeq ($(__CONFIG_PSRAM_CHIP_SQPI), y)
+  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_CHIP_SQPI
+endif
+
+ifeq ($(__CONFIG_PSRAM_CHIP_OPI32), y)
+  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_CHIP_OPI32
+endif
+
+ifeq ($(__CONFIG_PSRAM_CHIP_OPI64), y)
+  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_CHIP_OPI64
+endif
+
 ifeq ($(__CONFIG_SECTION_ATTRIBUTE_XIP), y)
   CONFIG_SYMBOLS += -D__CONFIG_SECTION_ATTRIBUTE_XIP
 endif
@@ -283,10 +343,6 @@ ifeq ($(__CONFIG_ROM_XZ), y)
   CONFIG_SYMBOLS += -D__CONFIG_ROM_XZ
 endif
 
-ifeq ($(__CONFIG_BIN_COMPRESS), y)
-  CONFIG_SYMBOLS += -D__CONFIG_BIN_COMPRESS
-endif
-
 ifeq ($(__CONFIG_BOOTLOADER), y)
   CONFIG_SYMBOLS += -D__CONFIG_BOOTLOADER
 endif
@@ -299,24 +355,14 @@ ifeq ($(__CONFIG_PM), y)
   CONFIG_SYMBOLS += -D__CONFIG_PM
 endif
 
-ifeq ($(__CONFIG_PSRAM), y)
-  CONFIG_SYMBOLS += -D__CONFIG_PSRAM
-endif
-
-ifeq ($(__CONFIG_PSRAM_CHIP_SQPI), y)
-  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_CHIP_SQPI
-endif
-
-ifeq ($(__CONFIG_PSRAM_CHIP_OPI32), y)
-  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_CHIP_OPI32
-endif
-
-ifeq ($(__CONFIG_PSRAM_CHIP_OPI64), y)
-  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_CHIP_OPI64
-endif
-
 ifeq ($(__CONFIG_OTA), y)
   CONFIG_SYMBOLS += -D__CONFIG_OTA
+endif
+
+CONFIG_SYMBOLS += -D__CONFIG_OTA_POLICY=$(__CONFIG_OTA_POLICY)
+
+ifeq ($(__CONFIG_BIN_COMPRESS), y)
+  CONFIG_SYMBOLS += -D__CONFIG_BIN_COMPRESS
 endif
 
 ifeq ($(__CONFIG_XPLAYER), y)
@@ -326,3 +372,25 @@ endif
 ifeq ($(__CONFIG_JPEG), y)
   CONFIG_SYMBOLS += -D__CONFIG_JPEG
 endif
+
+ifeq ($(__CONFIG_JPEG_SHARE_64K), y)
+  CONFIG_SYMBOLS += -D__CONFIG_JPEG_SHARE_64K
+endif
+
+ifeq ($(__CONFIG_MIX_HEAP_MANAGE), y)
+  CONFIG_SYMBOLS += -D__CONFIG_MIX_HEAP_MANAGE
+endif
+
+CONFIG_SYMBOLS += -D__CONFIG_CACHE_POLICY=$(__CONFIG_CACHE_POLICY)
+
+CONFIG_SYMBOLS += -D__CONFIG_MBUF_HEAP_MODE=$(__CONFIG_MBUF_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_MBEDTLS_HEAP_MODE=$(__CONFIG_MBEDTLS_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_HTTPC_HEAP_MODE=$(__CONFIG_HTTPC_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_MQTT_HEAP_MODE=$(__CONFIG_MQTT_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_NOPOLL_HEAP_MODE=$(__CONFIG_NOPOLL_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_WPA_HEAP_MODE=$(__CONFIG_WPA_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_UMAC_HEAP_MODE=$(__CONFIG_UMAC_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_LMAC_HEAP_MODE=$(__CONFIG_LMAC_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_CEDARX_HEAP_MODE=$(__CONFIG_CEDARX_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_AUDIO_HEAP_MODE=$(__CONFIG_AUDIO_HEAP_MODE)
+CONFIG_SYMBOLS += -D__CONFIG_CODEC_HEAP_MODE=$(__CONFIG_CODEC_HEAP_MODE)

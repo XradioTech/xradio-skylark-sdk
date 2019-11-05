@@ -151,8 +151,8 @@ static int csi_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt, SENSOR_Pi
 				}
 				memset(addr, 0 , CSI_JPEG_SRAM_SIZE + 2048);
 				printf("malloc addr: %p -> %p\n", addr, addr + CSI_JPEG_SRAM_SIZE + 2048);
-				mgmt->online_jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)addr);
-				printf("online_jpeg_buf %p\n", mgmt->online_jpeg_buf);
+				mgmt->jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)addr);
+				printf("online_jpeg_buf %p\n", mgmt->jpeg_buf);
 			}
 		} else {//offline mode, the sram space can use limited, so only can get small image,
 			addr = (uint8_t*)malloc(CSI_JPEG_SRAM_SIZE + 2048);//imgbuf;
@@ -162,11 +162,10 @@ static int csi_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt, SENSOR_Pi
 			}
 			memset(addr, 0 , CSI_JPEG_SRAM_SIZE + 2048);
 			printf("malloc addr: %p -> %p\n", addr, addr + CSI_JPEG_SRAM_SIZE + 2048);
-			mgmt->offline_y_buf = (uint8_t *)(((uint32_t)addr & 0xfffffff0) + 16) ;
-			mgmt->offline_uv_buf = (uint8_t *)((((uint32_t)mgmt->offline_y_buf +
-				(pixel_size->width * pixel_size->height))& 0xfffffff8) + 8);
-			mgmt->offline_jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)mgmt->offline_uv_buf +
-				(pixel_size->width * pixel_size->height / 2));//after yuv data
+
+			mgmt->yuv_buf = (uint8_t *)ALIGN_16B((uint32_t)addr);
+			mgmt->jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)mgmt->yuv_buf +
+									pixel_size->width * pixel_size->height * 3/2);
 		}
 
 		mgmt->org_addr = addr;
@@ -205,9 +204,8 @@ enum cmd_status cmd_camera_init_exec(char *cmd)
 	if (csi_mem_create(&cfg.jpeg_cfg, &mem_mgmt, &cfg.sensor_cfg.pixel_size, psram_en) != 0)
 		return CMD_STATUS_FAIL;
 
-	HAL_CAMERA_SetImageBuf(&mem_mgmt);
-
 	/* camera init */
+	cfg.mgmt = &mem_mgmt;
 	if (HAL_CAMERA_Init(&cfg) != HAL_OK) {
 		CMD_ERR("%s init fail\n", cmd);
 		return CMD_STATUS_FAIL;
@@ -221,7 +219,7 @@ enum cmd_status cmd_camera_cap_one_image_exec(char *cmd)
 	uint32_t fm_size;
 	int i;
 
-	fm_size = HAL_CAMERA_CaptureOneImage();
+	fm_size = HAL_CAMERA_CaptureImage(CAMERA_OUT_JPEG, 1);
 
 	printf("fm_szie %d\n", fm_size);
 
@@ -234,15 +232,13 @@ enum cmd_status cmd_camera_cap_one_image_exec(char *cmd)
 		printf("%02x ", mem_mgmt.jpeg_header_buf[i]);
 
 	/* jpeg body data*/
-	for (i = 0; i< fm_size-CAMERA_JPEG_HEADER_LEN; i++) {
+	for (i = 0; i< fm_size; i++) {
 		if(cfg.jpeg_cfg.jpeg_mode == JPEG_MOD_ONLINE) {
 			if (cfg.jpeg_cfg.memPartEn) {
 				printf("%02x ", mem_mgmt.online_jpeg_mempart_last_buf[i]);
 			} else {
-				printf("%02x ", mem_mgmt.online_jpeg_buf[i]);
+				printf("%02x ", mem_mgmt.jpeg_buf[i]);
 			}
-		} else { //offline
-			printf("%02x ", mem_mgmt.offline_jpeg_buf[i]);
 		}
 	}
 
@@ -250,10 +246,8 @@ enum cmd_status cmd_camera_cap_one_image_exec(char *cmd)
 
 	/* yuv420 NV12 data */
 	if(cfg.jpeg_cfg.jpeg_mode == JPEG_MOD_OFFLINE) {
-		for(i = 0;i < cfg.sensor_cfg.pixel_size.width * cfg.sensor_cfg.pixel_size.height; i++)
-			printf("%02x ", mem_mgmt.offline_y_buf[i]);
-		for(i = 0;i <cfg.sensor_cfg.pixel_size.width * cfg.sensor_cfg.pixel_size.height/2; i++)
-			printf("%02x ", mem_mgmt.offline_uv_buf[i]);
+		for(i = 0;i < cfg.sensor_cfg.pixel_size.width * cfg.sensor_cfg.pixel_size.height *3/2; i++)
+			printf("%02x ", mem_mgmt.yuv_buf[i]);
 
 		printf("\n write yuv420 nv12 ok\n");
 	}
@@ -292,14 +286,12 @@ enum cmd_status cmd_camera_cap_video_exec(char *cmd)
 		p = p + CAMERA_JPEG_HEADER_LEN;
 		if(cfg.jpeg_cfg.jpeg_mode == JPEG_MOD_ONLINE) {
 			if (cfg.jpeg_cfg.memPartEn) {
-				memcpy(p, mem_mgmt.online_jpeg_mempart_last_buf, fm_size[i]-CAMERA_JPEG_HEADER_LEN);
+				memcpy(p, mem_mgmt.online_jpeg_mempart_last_buf, fm_size[i]);
 			} else {
-				memcpy(p, mem_mgmt.online_jpeg_buf, fm_size[i]-CAMERA_JPEG_HEADER_LEN);
+				memcpy(p, mem_mgmt.jpeg_buf, fm_size[i]);
 			}
-		} else { //offline
-			memcpy(p, mem_mgmt.offline_jpeg_buf, fm_size[i]-CAMERA_JPEG_HEADER_LEN);
 		}
-		p = p + fm_size[i]-CAMERA_JPEG_HEADER_LEN;
+		p = p + fm_size[i];
 #if 0  /* if you print here, the data may recovered. need quick take data away. */
 	for (i = 0; i< CAMERA_JPEG_HEADER_LEN; i++)
 		printf("%02x ", mem_mgmt.jpeg_header_buf[i]);

@@ -42,6 +42,7 @@
 #include "driver/chip/psram/hal_psramctrl.h"
 
 #include "driver/chip/hal_icache.h"
+#include "driver/chip/hal_dcache.h"
 #include "driver/chip/hal_gpio.h"
 
 #define CONFIG_PSRAM_DMA_USED
@@ -122,39 +123,6 @@
 #define PRC_WAIT_RXDATA_OVER            (PRC_WAIT_DATA_OVER|PRC_WAIT_DMA_DONE)
 #define PRC_WAIT_FINALIZE               BIT(7)
 
-struct psram_ctrl {
-    volatile uint32_t rd_buf_idx;
-    //volatile uint32_t wr_buf_idx;
-    volatile uint32_t Psram_WR_FULL;
-    volatile uint32_t wait;
-
-    OS_Semaphore_t lock;
-    uint32_t status_int;
-    uint32_t inte;
-    uint32_t trans_done;
-    uint32_t dma_done;
-
-    OS_Semaphore_t dmaSem;
-    DMA_ChannelInitParam dmaParam;
-    DMA_Channel dma_ch;
-    uint8_t dma_use;
-    uint8_t ref;
-
-    uint32_t busconfig;
-
-    uint32_t p_type;        /* psram type */
-    uint32_t freq;          /* psram freq */
-    uint8_t rdata_w;
-    struct psram_request *mrq;
-
-#ifdef CONFIG_PM
-    uint8_t suspending;
-    PSRAMCtrl_InitParam pm_sbus_cfg;
-    struct soc_device_driver psramc_drv;
-    struct soc_device psramc_dev;
-#endif
-};
-
 static struct psram_ctrl *_psram_priv;
 
 static void  __attribute__((unused)) PSramCtrl_Reg_All(const int line)
@@ -230,7 +198,7 @@ int32_t HAL_PsramCtrl_ConfigCCMU(uint32_t clk)
     div = (div == 0) ? 1 : div;
 
     if (div > (16 * 8))
-        return 0;
+        return -1;
 
     if (div > 64) {
         div_n = CCM_PERIPH_CLK_DIV_N_8;
@@ -252,7 +220,44 @@ int32_t HAL_PsramCtrl_ConfigCCMU(uint32_t clk)
     PRC_DBG("PSRAM CTRL MCLK:%u MHz clock=%u MHz,src:%x, n:%d, m:%d\n", mclk/1000000,
             mclk/(1<<div_n)/(div_m+1)/1000000, (int)src, (int)div_n, (int)div_m);
 
-    return 1;
+    return 0;
+}
+
+int32_t HAL_PsramCtrl_Clk_With_Dev2Clk(uint32_t clk)
+{
+    uint32_t mclk;
+    uint32_t div;
+    CCM_PeriphClkDivN div_n = 0;
+    CCM_PeriphClkDivM div_m = 0;
+
+    mclk = HAL_GetDev2Clock();
+    div = (mclk + clk - 1) / clk;
+    div = (div == 0) ? 1 : div;
+
+    if (div > (16 * 8))
+        return -1;
+
+    if (div > 64) {
+        div_n = CCM_PERIPH_CLK_DIV_N_8;
+        div_m = (CCM_PeriphClkDivM)((div >> 3) - 1);
+    } else if (div > 32) {
+        div_n = CCM_PERIPH_CLK_DIV_N_4;
+        div_m = (CCM_PeriphClkDivM)((div >> 2) - 1);
+    } else if (div > 16) {
+        div_n = CCM_PERIPH_CLK_DIV_N_2;
+        div_m = (CCM_PeriphClkDivM)((div >> 1) - 1);
+    } else {
+        div_n = CCM_PERIPH_CLK_DIV_N_1;
+        div_m = (CCM_PeriphClkDivM)((div >> 0) - 1);
+    }
+
+    HAL_CCM_PSRAMC_DisableMClock();
+    HAL_CCM_PSRAMC_SetMClock(CCM_AHB_PERIPH_CLK_SRC_DEVCLK, div_n, div_m);
+    HAL_CCM_PSRAMC_EnableMClock();
+    PRC_DBG("Change PSRAM CTRL MCLK:%u MHz clock=%u MHz,src:%x, n:%d, m:%d\n", mclk/1000000,
+            mclk/(1<<div_n)/(div_m+1)/1000000, (int)CCM_AHB_PERIPH_CLK_SRC_DEVCLK, (int)div_n, (int)div_m);
+
+    return 0;
 }
 
 static void PSRAM_CTRL_IRQHandler(void)
@@ -504,6 +509,79 @@ static int32_t __psram_ctrl_request_done(struct psram_ctrl *ctrl)
     return ret;
 }
 
+#define PSRAM_MAGIC_BYTE_DATA (0x5a)
+#define PSRAM_MAGIC_WORD_DATA (0x5aa5a55a)
+static const uint8_t freqArr[] = {192, 160, 137, 120, 96, 80};
+static const uint32_t freqFactorArr[] = {PRCM_DEV2_CLK_FACTOR_192M, PRCM_DEV2_CLK_FACTOR_320M,
+                                PRCM_DEV2_CLK_FACTOR_274M, PRCM_DEV2_CLK_FACTOR_240M,
+                                PRCM_DEV2_CLK_FACTOR_192M, PRCM_DEV2_CLK_FACTOR_320M};
+
+static __always_inline int32_t __psram_wr_check(uint32_t addr)
+{
+    *(volatile uint8_t*)(addr+1) = PSRAM_MAGIC_BYTE_DATA;
+    if( *(volatile uint8_t*)(addr+1) != PSRAM_MAGIC_BYTE_DATA) {
+        return -1;
+    }
+
+    *(volatile uint32_t*)(addr) = PSRAM_MAGIC_WORD_DATA;
+    if(*(volatile uint32_t*)(addr) != PSRAM_MAGIC_WORD_DATA) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int32_t HAL_PsramCtrl_DQS_Delay_Cal_Policy(struct psram_ctrl *ctrl)
+{
+    if(HAL_GET_BIT(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_CAL_SUCCEED))
+        return 0;
+
+    uint8_t baseCal;
+    uint8_t minCal = 0;
+    uint8_t maxCal = 0;
+    HAL_Dcache_SetWriteThrough(2, 1, IDCACHE_START_ADDR, IDCACHE_END_ADDR);
+    for(int i=0; i<ARRAY_SIZE(freqArr); i++) {
+        HAL_PRCM_SetDev2Clock(freqFactorArr[i]);
+        HAL_PsramCtrl_Clk_With_Dev2Clk(freqArr[i]*1000000);
+        ctrl->freq = freqArr[i]*1000000;
+        minCal = 0;
+        maxCal = 0;
+        baseCal = HAL_GET_BIT_VAL(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG,
+                    PSRAMC_CAL_RESULT_VAL_SHIFT, PSRAMC_CAL_RESULT_VAL_MASK) / 4;
+        PRC_DBG("auto result cal=%d\n", baseCal);
+        for(int j=baseCal+1; j<64; j++) {
+            HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
+                    PSRAMC_OVERWR_CAL_VAL(j) | PSRAMC_OVERWR_CAL);
+            HAL_UDelay(10);
+            if(!(__psram_wr_check((uint32_t)__PSRAM_BASE)
+                || __psram_wr_check((uint32_t)__PSRAM_BASE + (uint32_t)__PSRAM_LENGTH - 4))) {
+                if(minCal == 0) {
+                    minCal = j;
+                }
+                maxCal = j;
+            } else {
+                if((maxCal != 0) && (minCal != maxCal)) break;
+                else if(minCal != 0){
+                    minCal = 0;
+                    maxCal = 0;
+                }
+            }
+        }
+        if(maxCal != 0) {
+            HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
+                    PSRAMC_OVERWR_CAL_VAL((minCal + maxCal) / 2) | PSRAMC_OVERWR_CAL);
+            PRC_DBG("DQS_Delay_Cal_Policy: minCal=%d, maxCal=%d, set cal=%d\n", minCal, maxCal, (minCal + maxCal) / 2);
+            return 0;
+        }
+    }
+    HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
+                    PSRAMC_OVERWR_CAL_VAL(baseCal + 1) | PSRAMC_OVERWR_CAL);
+    HAL_UDelay(10);
+    HAL_Dcache_SetWriteThrough(2, 0, 0, 0);
+    PRC_WRN("DQS_Delay_Cal_Policy unsuccessfully, so config the fixed value %d\n", baseCal+1);
+    return -1;
+}
+
 int32_t HAL_PsramCtrl_Set_DQS_Delay_Cal(uint32_t clk)
 {
     uint32_t cal_val;
@@ -519,7 +597,7 @@ int32_t HAL_PsramCtrl_Set_DQS_Delay_Cal(uint32_t clk)
     div = (div == 0) ? 1 : div;
 
     if (div < 2) {
-        PSRAM_CTRL->PSRAM_DQS_DELAY_CFG = (0x20U << 16) | PSRAMC_OVERWR_CAL;
+        PSRAM_CTRL->PSRAM_DQS_DELAY_CFG = PSRAMC_OVERWR_CAL_VAL(0x20);
         HAL_UDelay(500);
         HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL, 0);
         PSRAM_CTRL->PSRAM_DQS_DELAY_CFG = PSRAMC_START_DQS_DELAY_CAL;
@@ -541,8 +619,8 @@ int32_t HAL_PsramCtrl_Set_DQS_Delay_Cal(uint32_t clk)
     } else
         return -1;
 
-    PSRAM_CTRL->PSRAM_DQS_DELAY_CFG = (cal_val << 16) | PSRAMC_OVERWR_CAL;
-
+    HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
+                    PSRAMC_OVERWR_CAL_VAL(cal_val) | PSRAMC_OVERWR_CAL);
     return 0;
 }
 
@@ -1207,7 +1285,7 @@ struct psram_ctrl *HAL_PsramCtrl_Create(uint32_t id, const PSRAMCtrl_InitParam *
         ctrl->rdata_w = cfg->rdata_w;
         _psram_priv = ctrl;
     }
-    PRC_INF("%s @%p\n", __func__, ctrl);
+    PRC_DBG("%s @%p\n", __func__, ctrl);
 
     return ctrl;
 }
@@ -1220,7 +1298,7 @@ HAL_Status HAL_PsramCtrl_Destory(struct psram_ctrl *ctrl)
         _psram_priv = NULL;
         HAL_Free(ctrl);
     }
-    PRC_INF("%s @%p\n", __func__, ctrl);
+    PRC_DBG("%s @%p\n", __func__, ctrl);
 
     return HAL_OK;
 }

@@ -175,20 +175,21 @@ typedef enum {
 #define PRCM_TOPLDO_FORCE_ACTIVE_MASK   (0x1U << PRCM_TOPLDO_FORCE_ACTIVE_SHIFT)
 #define PRCM_TOPLDO_VOLT_SHIFT	        16   /* R/W */
 #define PRCM_TOPLDO_VOLT_MASK		    (0xFU << PRCM_TOPLDO_VOLT_SHIFT)
+#define PRCM_TOPLDO_VOLT_VMASK		    (0xFU)
 typedef enum {
 	PRCM_TOPLDO_VOLT_1V8_DEFAULT =      (0x0U << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_1V4 =              (0x1U << PRCM_TOPLDO_VOLT_SHIFT),
-	PRCM_TOPLDO_VOLT_1V7 =              (0x2U << PRCM_TOPLDO_VOLT_SHIFT),
-	PRCM_TOPLDO_VOLT_1V8 =              (0x3U << PRCM_TOPLDO_VOLT_SHIFT),
-	PRCM_TOPLDO_VOLT_1V9 =              (0x4U << PRCM_TOPLDO_VOLT_SHIFT),
-	PRCM_TOPLDO_VOLT_2V0 =              (0x5U << PRCM_TOPLDO_VOLT_SHIFT),
-	PRCM_TOPLDO_VOLT_2V1 =              (0x6U << PRCM_TOPLDO_VOLT_SHIFT),
+	PRCM_TOPLDO_VOLT_1V5 =              (0x2U << PRCM_TOPLDO_VOLT_SHIFT),
+	PRCM_TOPLDO_VOLT_1V6 =              (0x3U << PRCM_TOPLDO_VOLT_SHIFT),
+	PRCM_TOPLDO_VOLT_1V7 =              (0x4U << PRCM_TOPLDO_VOLT_SHIFT),
+	PRCM_TOPLDO_VOLT_1V9 =              (0x5U << PRCM_TOPLDO_VOLT_SHIFT),
+	PRCM_TOPLDO_VOLT_2V0 =              (0x6U << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_2V4 =              (0x7U << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_2V5 =              (0x8U << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_2V6 =              (0x9U << PRCM_TOPLDO_VOLT_SHIFT),
-	PRCM_TOPLDO_VOLT_2V9 =              (0xAU << PRCM_TOPLDO_VOLT_SHIFT),
+	PRCM_TOPLDO_VOLT_2V8 =              (0xAU << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_3V0 =              (0xBU << PRCM_TOPLDO_VOLT_SHIFT),
-	PRCM_TOPLDO_VOLT_3V1 =              (0xCU << PRCM_TOPLDO_VOLT_SHIFT),
+	PRCM_TOPLDO_VOLT_3V2 =              (0xCU << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_3V3 =              (0xDU << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_3V4 =              (0xEU << PRCM_TOPLDO_VOLT_SHIFT),
 	PRCM_TOPLDO_VOLT_3V6 =              (0xFU << PRCM_TOPLDO_VOLT_SHIFT)
@@ -261,9 +262,10 @@ typedef enum {
 #define PRCM_SW5_EN_BIT                 HAL_BIT(14)
 #define PRCM_SW4_EN_BIT                 HAL_BIT(13)
 
-#define PRCM_SW1_STATUS_BIT	        HAL_BIT(8)	/* R */
-#define PRCM_LDO1_VOLT_SHIFT            4	        /* R/W */
-#define PRCM_LDO1_VOLT_MASK             (0xFU << PRCM_LDO1_VOLT_SHIFT)
+#define PRCM_SW1_STATUS_BIT	            HAL_BIT(8)	/* R */
+#define PRCM_LDO1_VOLT_SHIFT            (4)	        /* R/W */
+#define PRCM_LDO1_VOLT_VMASK            (0xFU)
+#define PRCM_LDO1_VOLT_MASK             (PRCM_LDO1_VOLT_VMASK << PRCM_LDO1_VOLT_SHIFT)
 typedef enum {
 	PRCM_LDO1_VOLT_1125MV	=       (0x0U << PRCM_LDO1_VOLT_SHIFT),
 	PRCM_LDO1_VOLT_1025MV	=       (0x1U << PRCM_LDO1_VOLT_SHIFT),
@@ -1094,10 +1096,12 @@ typedef enum {
 void HAL_PRCM_SetDCDCVoltage(PRCM_DCDCVolt volt);
 void HAL_PRCM_SetLDO1Voltage(PRCM_LDO1Volt volt);
 #elif (__CONFIG_CHIP_ARCH_VER == 2)
+uint32_t HAL_PRCM_GetTOPLDOVoltage();
 void HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDOVolt volt);
 void HAL_PRCM_SetTOPLDOForceActive(uint8_t active);
 void HAL_PRCM_SelectEXTLDOVolt(PRCM_EXTLDOVolt volt);
-void HAL_PRCM_SetLDO1Voltage(PRCM_LDO1Volt volt);
+uint32_t HAL_PRCM_GetLDO1WorkVolt();
+void HAL_PRCM_SetLDO1WorkVolt(PRCM_LDO1Volt volt);
 void HAL_PRCM_SetLDO1Volt(PRCM_LDO1Volt work_volt, PRCM_LDO1RetVolt ret_volt);
 void HAL_PRCM_SetEXTLDOMdoe(PRCM_ExtLDOMode mode);
 #endif
@@ -1141,6 +1145,7 @@ void HAL_PRCM_SetDev2Clock(PRCM_Dev2ClkFactor factor);
 void HAL_PRCM_EnableDev2Clock(void);
 void HAL_PRCM_DisableDev2Clock(void);
 uint32_t HAL_PRCM_GetDev2Clock(void);
+uint32_t HAL_PRCM_SysClkFactor2Hz(uint32_t factor);
 #endif
 void HAL_PRCM_EnableHXTALOUT(uint8_t enable);
 void HAL_PRCM_SetAudioPLLPatternParam(PRCM_AudPLLPatParam param);

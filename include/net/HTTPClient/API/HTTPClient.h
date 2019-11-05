@@ -4,6 +4,7 @@
 
 #include "HTTPClientWrapper.h"
 #include "HTTPClientCommon.h"
+#include "HTTPClientPlatform.h"
 
 #ifdef __cplusplus
 extern "C" {//}

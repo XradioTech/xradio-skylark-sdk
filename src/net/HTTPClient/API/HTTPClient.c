@@ -99,7 +99,7 @@ HTTP_SESSION_HANDLE  HTTPClientOpenRequest (HTTP_CLIENT_SESSION_FLAGS Flags)
 
         // Attempt to allocate the buffer
 
-        pHTTPSession = (P_HTTP_SESSION)malloc(ALIGN(sizeof(HTTP_SESSION)));
+        pHTTPSession = (P_HTTP_SESSION)HTTPC_MALLOC(ALIGN(sizeof(HTTP_SESSION)));
 
         // Did we succeed?
         if(!pHTTPSession)
@@ -127,12 +127,12 @@ HTTP_SESSION_HANDLE  HTTPClientOpenRequest (HTTP_CLIENT_SESSION_FLAGS Flags)
                 nAllocationSize = HTTP_CLIENT_MAX_SEND_RECV_HEADERS;
         }
         // Allocate the headers buffer
-        pHTTPSession->HttpHeaders.HeadersBuffer.pParam = (CHAR*)malloc(ALIGN(nAllocationSize));
+        pHTTPSession->HttpHeaders.HeadersBuffer.pParam = (CHAR*)HTTPC_MALLOC(ALIGN(nAllocationSize));
         // Check the returned pointer
         if(!pHTTPSession->HttpHeaders.HeadersBuffer.pParam)
         {
-                // malloc() error, free the containing structure and exit.
-                free(pHTTPSession);
+                // HTTPC_MALLOC() error, free the containing structure and exit.
+                HTTPC_FREE(pHTTPSession);
                 return 0;
 
         }
@@ -210,12 +210,12 @@ UINT32 HTTPClientCloseRequest (HTTP_SESSION_HANDLE *pSession)
         if(pHTTPSession->HttpHeaders.HeadersBuffer.pParam)
         {
                 // Release the used memory
-                free(pHTTPSession->HttpHeaders.HeadersBuffer.pParam);
+                HTTPC_FREE(pHTTPSession->HttpHeaders.HeadersBuffer.pParam);
         }
         // Close any active socket connection
         HTTPIntrnConnectionClose(pHTTPSession);
         // free the session structure
-        free(pHTTPSession);
+        HTTPC_FREE(pHTTPSession);
 
         pHTTPSession = 0;   // NULL the pointer
         *(pSession) = 0;
@@ -1539,10 +1539,10 @@ UINT32 HTTPIntrnResizeBuffer (P_HTTP_SESSION pHTTPSession,
         // Current buffer size is the sum of the incoming and outgoing headers strings lengths
         nCurrentBufferSize = pHTTPSession->HttpHeaders.HeadersOut.nLength + pHTTPSession->HttpHeaders.HeadersIn.nLength;
         // Allocate a new buffer with the requested buffer size
-        pPtr = (CHAR*)malloc(ALIGN(nNewBufferSize));
+        pPtr = (CHAR*)HTTPC_MALLOC(ALIGN(nNewBufferSize));
         if(!pPtr)
         {
-                // malloc() error
+                // HTTPC_MALLOC() error
                 return HTTP_CLIENT_ERROR_NO_MEMORY;
         }
 
@@ -1559,7 +1559,7 @@ UINT32 HTTPIntrnResizeBuffer (P_HTTP_SESSION pHTTPSession,
                 memset(pPtr,0x00,nNewBufferSize);
         }
 
-        free(pHTTPSession->HttpHeaders.HeadersBuffer.pParam);
+        HTTPC_FREE(pHTTPSession->HttpHeaders.HeadersBuffer.pParam);
 
         pHTTPSession->HttpHeaders.HeadersBuffer.pParam = pPtr;
         pHTTPSession->HttpHeaders.HeadersBuffer.nLength = nNewBufferSize;
@@ -1937,7 +1937,7 @@ UINT32 HTTPIntrnConnectionOpen (P_HTTP_SESSION pHTTPSession)
                 // Connect using TLS or otherwise clear connection
                 if((pHTTPSession->HttpFlags & HTTP_CLIENT_FLAG_SECURE) == HTTP_CLIENT_FLAG_SECURE)
                 { // Is it a TLS connection?
-                        CHAR* HostName = (CHAR *)malloc(pHTTPSession->HttpUrl.UrlHost.nLength+1);
+                        CHAR* HostName = (CHAR *)HTTPC_MALLOC(pHTTPSession->HttpUrl.UrlHost.nLength+1);
                         memset(HostName, 0, pHTTPSession->HttpUrl.UrlHost.nLength+1);
                         memcpy(HostName, pHTTPSession->HttpUrl.UrlHost.pParam, pHTTPSession->HttpUrl.UrlHost.nLength);
                         HC_DBG(("connect using TLS...|%s|..|%s| (%d)\n",
@@ -1948,7 +1948,7 @@ UINT32 HTTPIntrnConnectionOpen (P_HTTP_SESSION pHTTPSession)
                                         (HTTP_SOCKADDR*)&ServerAddress,         // Server address
                                         sizeof(HTTP_SOCKADDR),                  // Length of server address structure
                                         HostName);	                        // Hostname
-                        free(HostName);
+                        HTTPC_FREE(HostName);
                 }
                 else    // Non TLS so..
                 {
@@ -2497,7 +2497,7 @@ UINT32 HTTPIntrnHeadersFind (P_HTTP_SESSION pHTTPSession,CHAR *pHeaderName,
         CHAR           *pHeaderEnd;
 #ifdef HTTPC_LITTLE_STACK
         CHAR           *Header =NULL;
-        if (!(Header = malloc(HTTP_CLIENT_MAX_HEADER_SEARCH_CLUE)))
+        if (!(Header = HTTPC_MALLOC(HTTP_CLIENT_MAX_HEADER_SEARCH_CLUE)))
                 return HTTP_CLIENT_ERROR_NO_MEMORY;
 #else
         CHAR           Header[HTTP_CLIENT_MAX_HEADER_SEARCH_CLUE]; // To-Do: Use pointers insted of fixed length
@@ -2562,7 +2562,7 @@ UINT32 HTTPIntrnHeadersFind (P_HTTP_SESSION pHTTPSession,CHAR *pHeaderName,
         }while(0);
 #ifdef HTTPC_LITTLE_STACK
         if (Header != NULL)
-                free(Header);
+                HTTPC_FREE(Header);
 #endif
         // Could not find the header
         return nRetCode;
@@ -2675,7 +2675,7 @@ UINT32 HTTPIntrnHeadersParse (P_HTTP_SESSION pHTTPSession)
 
 #ifdef HTTPC_LITTLE_STACK
         CHAR           *HTTPToken =NULL;
-        if (!(HTTPToken = malloc(HTTP_CLIENT_MAX_TOKEN_LENGTH)))
+        if (!(HTTPToken = HTTPC_MALLOC(HTTP_CLIENT_MAX_TOKEN_LENGTH)))
                 return HTTP_CLIENT_ERROR_NO_MEMORY;
 #else
         CHAR            HTTPToken[HTTP_CLIENT_MAX_TOKEN_LENGTH];    // Buffer for the parsed HTTP token
@@ -2861,7 +2861,7 @@ UINT32 HTTPIntrnHeadersParse (P_HTTP_SESSION pHTTPSession)
 
 #ifdef HTTPC_LITTLE_STACK
         if (HTTPToken != NULL)
-                free(HTTPToken);
+                HTTPC_FREE(HTTPToken);
 #endif
         return nRetCode;
 }
@@ -2992,7 +2992,7 @@ UINT32 HTTPIntrnHeadersSend(P_HTTP_SESSION pHTTPSession,
                 nAllocationSize = HTTP_CLIENT_MAX_SEND_RECV_HEADERS;
         }
 
-        RequestCmd = (CHAR *)malloc(nAllocationSize);
+        RequestCmd = (CHAR *)HTTPC_MALLOC(nAllocationSize);
 
         // Did we succeed?
         if(!RequestCmd)
@@ -3162,9 +3162,9 @@ UINT32 HTTPIntrnHeadersSend(P_HTTP_SESSION pHTTPSession,
 #endif
                         {
 #ifdef HTTPC_SEND_TOGTHER
-                                pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam = malloc(HTTP_CLIENT_MAX_SEND_RECV_HEADERS);
+                                pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam = HTTPC_MALLOC(HTTP_CLIENT_MAX_SEND_RECV_HEADERS);
                                 if (!(pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam)) {
-                                        HC_ERR(("AUTH malloc failed,%s",__func__));
+                                        HC_ERR(("AUTH HTTPC_MALLOC failed,%s",__func__));
                                         break;
                                 }
                                 pHTTPSession->HttpCredentials.ToSendAuthInfo.nLength = HTTP_CLIENT_MAX_SEND_RECV_HEADERS;
@@ -3175,7 +3175,7 @@ UINT32 HTTPIntrnHeadersSend(P_HTTP_SESSION pHTTPSession,
                                 {
 #ifdef HTTPC_SEND_TOGTHER
                                         HC_ERR(("AUTH perform failed : %lu",nRetCode));
-                                        free(pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam);
+                                        HTTPC_FREE(pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam);
                                         pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam = NULL;
 #endif
                                         break;
@@ -3183,7 +3183,7 @@ UINT32 HTTPIntrnHeadersSend(P_HTTP_SESSION pHTTPSession,
 #ifdef HTTPC_SEND_TOGTHER
                                 nBytes = pHTTPSession->HttpCredentials.ToSendAuthInfo.nLength;
                                 if (pHTTPSession->HttpCounters.nSentHeaderBytes + nBytes >= nAllocationSize) {
-                                        free(pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam);
+                                        HTTPC_FREE(pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam);
                                         pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam = NULL;
                                         HC_ERR(("Request Header is too large.(%d,%d,%d)",(int)(pHTTPSession->HttpCounters.nSentHeaderBytes), (int)nBytes, (int)nAllocationSize));
                                         break;
@@ -3192,7 +3192,7 @@ UINT32 HTTPIntrnHeadersSend(P_HTTP_SESSION pHTTPSession,
                                 strncpy(RequestCmd + pHTTPSession->HttpCounters.nSentHeaderBytes,pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam,nBytes);
                                 pHTTPSession->HttpCounters.nSentHeaderBytes += nBytes;
                                 if (pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam != NULL) {
-                                        free(pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam);
+                                        HTTPC_FREE(pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam);
                                         pHTTPSession->HttpCredentials.ToSendAuthInfo.pParam = NULL;
                                         pHTTPSession->HttpCredentials.ToSendAuthInfo.nLength = 0;
                                 }
@@ -3262,7 +3262,7 @@ UINT32 HTTPIntrnHeadersSend(P_HTTP_SESSION pHTTPSession,
         } while(0);
 #ifdef HTTPC_SEND_TOGTHER
         if (RequestCmd != NULL)
-                free(RequestCmd);
+                HTTPC_FREE(RequestCmd);
 
 #endif
         return nRetCode;     // end of HTTPIntrnSendHeaders()

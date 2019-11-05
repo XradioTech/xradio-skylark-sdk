@@ -35,13 +35,17 @@
 #include "driver/chip/hal_prcm.h"
 #include "driver/chip/hal_uart.h"
 #include "driver/chip/hal_wakeup.h"
+#include "driver/chip/hal_util.h"
 #include "common/framework/net_ctrl.h"
 #include "common/framework/platform_init.h"
+#include "image/fdcm.h"
+#include "image/image.h"
 
 #define TEST_SLEEP          1
 #define TEST_STANDBY        1
 #define TEST_HIBERNATION    1
 #define TEST_STANDBY_DTIM   0
+#define TEST_STANDBY_MIN_SRAM_RETENTION 0
 
 #define WAKEUP_IO_PIN_DEF   (5)
 #define WAKEUP_IO_MODE_DEF  (WKUPIO_WK_MODE_FALLING_EDGE)
@@ -365,5 +369,37 @@ int main(void)
     pm_enter_mode(PM_MODE_HIBERNATION);
 #endif
 
+#if TEST_STANDBY_MIN_SRAM_RETENTION
+    printf("\n\nEnter standby min sram retention mode, setup wakeup source button&timer\n\n");
+    section_header_t sh;
+    register uint32_t entry;
+    if (image_read(IMAGE_BOOT_ID, IMAGE_SEG_HEADER, 0, &sh,
+	               IMAGE_HEADER_SIZE) != IMAGE_HEADER_SIZE) {
+		printf("load section (id: %#08x) header failed\n", IMAGE_BOOT_ID);
+        return -1;
+	}
+
+    if (image_check_header(&sh) == IMAGE_INVALID) {
+		printf("check section (id: %#08x) header failed\n", IMAGE_BOOT_ID);
+        return -1;
+	}
+    /* cache disable */
+    HAL_CCM_BusForcePeriphReset(CCM_BUS_PERIPH_BIT_ICACHE | CCM_BUS_PERIPH_BIT_DCACHE);
+
+    image_read(IMAGE_BOOT_ID, IMAGE_SEG_BODY, 0, (void*)sh.load_addr, sh.body_len);
+    if (image_check_data(&sh, (void*)sh.load_addr, sh.body_len, NULL, 0) == IMAGE_INVALID) {
+		printf("invalid boot bin body\n");
+        return -1;
+	}
+    pm_wakeup_timer_init();
+    pm_wakeup_button_init();
+    entry = (uint32_t)sh.entry;
+    #if (defined(__CONFIG_CPU_CM4F) || defined(__CONFIG_CPU_CM3))
+    entry |= 0x1; /* set thumb bit */
+    #endif
+    pm_standby_set_resume_entry(entry);
+    pm_standby_sram_retention_only(PM_SRAM_3);
+    pm_enter_mode(PM_MODE_STANDBY);
+#endif
     return 0;
 }

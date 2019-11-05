@@ -33,6 +33,11 @@
 
 #include "ac107.h"
 
+#if (__CONFIG_CODEC_HEAP_MODE == 1)
+#include "sys/sys_heap.h"
+#else
+#include <stdlib.h>
+#endif
 
 //Debug config
 #define AC107_DBG_EN				0
@@ -47,8 +52,13 @@
 #define AC107_DEFAULT_RECORD_GAIN	VOLUME_GAIN_0dB
 
 //Interface define
+#if (__CONFIG_CODEC_HEAP_MODE == 1)
+#define AC107_MALLOC             	psram_malloc
+#define AC107_FREE               	psram_free
+#else
 #define AC107_MALLOC             	HAL_Malloc
 #define AC107_FREE               	HAL_Free
+#endif
 #define AC107_MEMCPY             	HAL_Memcpy
 #define AC107_MEMSET             	HAL_Memset
 
@@ -343,7 +353,7 @@ static void ac107_hw_init(struct ac107_i2c_config *i2c_cfg)
 
 static void ac107_set_amic(bool enable)
 {
-	AC107_ALWAYS("Route(cap): main mic %s\n",enable ? "Enable" : "Disable");
+	AC107_ALWAYS("Route(cap): amic %s\n",enable ? "Enable" : "Disable");
 
 	/* Analog voltage enable/disable */
 	ac107_multi_chips_update_bits(PWR_CTRL1, 0x1<<VREF_ENABLE, !!enable<<VREF_ENABLE);
@@ -591,7 +601,7 @@ static int ac107_dai_set_volume(Audio_Device device, uint16_t volume)
 		case AUDIO_IN_DEV_AMIC:
 			if(vol_set_flag == VOLUME_SET_LEVEL){
 				if (vol_set_value > VOLUME_LEVEL31){
-					AC107_ERR("Invalid Amic volume level: %d!\n",vol_set_value);
+					AC107_ERR("Invalid amic volume level: %d!\n",vol_set_value);
 					return HAL_INVALID;
 				}
 				reg_val = vol_set_value;
@@ -605,7 +615,7 @@ static int ac107_dai_set_volume(Audio_Device device, uint16_t volume)
 					}
 				}
 				if(i == HAL_ARRAY_SIZE(ac107_pga_gain)){
-					AC107_ERR("Invalid main mic volume gain: %d!\n",vol_set_value);
+					AC107_ERR("Invalid amic volume gain: %d!\n",vol_set_value);
 					return HAL_INVALID;
 				}
 			}
@@ -625,10 +635,9 @@ static int ac107_dai_set_volume(Audio_Device device, uint16_t volume)
 	return HAL_OK;
 }
 
-__nonxip_text
 static int ac107_dai_set_route(Audio_Device device, Audio_Dev_State state)
 {
-	//AC107_DBG("--->%s\n",__FUNCTION__);
+	AC107_DBG("--->%s\n",__FUNCTION__);
 	bool enable = (state==AUDIO_DEV_EN) ? 1 : 0;
 
 	switch(device){
@@ -639,7 +648,7 @@ static int ac107_dai_set_route(Audio_Device device, Audio_Dev_State state)
 			ac107_set_dmic(enable);
 			break;
 		default:
-			//AC107_ERR("Invalid Audio Device-[0x%08x]!\n",device);
+			AC107_ERR("Invalid Audio Device-[0x%08x]!\n",device);
 			return HAL_INVALID;
 	}
 
@@ -703,7 +712,7 @@ static int ac107_dai_hw_params(Audio_Stream_Dir dir, struct pcm_config *pcm_cfg)
 	for(i=0; i<HAL_ARRAY_SIZE(ac107_bclk_div); i++){
 		if(ac107_bclk_div[i].real_val == bclk_div){
 			ac107_multi_chips_update_bits(I2S_BCLK_CTRL, 0xf<<BCLKDIV, ac107_bclk_div[i].reg_val<<BCLKDIV);
-			AC107_DBG("AC107 set BCLK_DIV_[%u]\n\n",bclk_div);
+			AC107_DBG("AC107 set BCLK_DIV_[%u]\n",bclk_div);
 			break;
 		}
 	}
@@ -773,7 +782,7 @@ static int ac107_codec_reg_read(uint32_t reg)
 
 	ret = ac107_read(reg, &reg_val, &ac107_priv->ac107_i2c_cfg[0]);
 	if(ret != 1){
-		return ret;
+		return HAL_ERROR;
 	}
 
 	return reg_val;
@@ -882,6 +891,11 @@ HAL_Status ac107_pdm_init(Audio_Device device, uint16_t volume, uint32_t sample_
 	int ret=0;
 	struct pcm_config pcm_cfg;
 
+	if(ac107_priv == NULL){
+		AC107_ERR("AC107 hasn't been registered!\n");
+		return HAL_ERROR;
+	}
+
 	pcm_cfg.rate = sample_rate;
 	ac107_priv->pdm_en = true;
 
@@ -907,6 +921,7 @@ HAL_Status ac107_codec_register(void)
 	const uint8_t ac107_i2c_addr[] = {0x36, 0x37, 0x38, 0x39};
 	struct ac107_i2c_config ac107_i2c_cfg_temp[I2C_NUM * HAL_ARRAY_SIZE(ac107_i2c_addr)];
 
+	/* Init I2C and wait to be stable */
 	I2C_InitParam i2c_param;
 	i2c_param.addrMode = I2C_ADDR_MODE_7BIT;
 	i2c_param.clockFreq = 400000;
@@ -915,6 +930,7 @@ HAL_Status ac107_codec_register(void)
 			AC107_ERR("I2C-[%d] init Fail...\n",i);
 		}
 	}
+	HAL_MSleep(20);
 
 	/* Auto detect AC107 */
 	for(i2c_id=0; i2c_id<I2C_NUM-1; i2c_id++){

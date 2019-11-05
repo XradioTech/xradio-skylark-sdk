@@ -56,11 +56,22 @@ struct audioContext {
     short *channel_4_data;
 };
 
+extern HAL_Status ac107_pdm_init(Audio_Device device, uint16_t volume, uint32_t sample_rate);
+extern HAL_Status ac107_pdm_deinit(void);
+
 static int _audio_record_start(struct audioContext *pAudio)
 {
     int ret = 0;
+    HAL_Status status;
 
     memset(pAudio, 0, sizeof(*pAudio));
+
+    /* start ac107, pdm mode */
+    status = ac107_pdm_init(AUDIO_IN_DEV_AMIC, 31, SAMPLE_RATE_OF_RECORD);
+    if (status != HAL_OK) {
+        printf("ac107 init fail.\n");
+        return -1;
+    }
 
     printf("here we record %d channels. also, we can record 1/2/4 channels\n", SAMPLE_CHANNELS);
 
@@ -68,6 +79,10 @@ static int _audio_record_start(struct audioContext *pAudio)
     audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_ROUTE, AUDIO_IN_DEV_AMIC, 1);
     audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_ROUTE, AUDIO_IN_DEV_LINEIN, 1);
     audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_ROUTE, AUDIO_IN_DEV_DMIC, 1);
+
+    /* set volume of amic and linein */
+    audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_VOLUME_LEVEL, AUDIO_IN_DEV_AMIC, 3);
+    audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_VOLUME_LEVEL, AUDIO_IN_DEV_LINEIN, 7);
 
     pAudio->pcm_cfg.channels = SAMPLE_CHANNELS;
     pAudio->pcm_cfg.format = PCM_FORMAT_S16_LE;
@@ -117,6 +132,7 @@ err2:
     free(pAudio->read_data);
     snd_pcm_close(AUDIO_CARD_ID, PCM_IN);
 err1:
+    ac107_pdm_deinit();
     return -1;
 }
 
@@ -150,6 +166,7 @@ static void _audio_record_stop(struct audioContext *pAudio)
     free(pAudio->channel_1_data);
     free(pAudio->read_data);
     snd_pcm_close(AUDIO_CARD_ID, PCM_IN);
+    ac107_pdm_deinit();
 }
 
 static void record_task(void *arg)

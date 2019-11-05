@@ -170,11 +170,11 @@ static int __Read(CaptureCtrl* c, void* pData, int nDataSize)
 
 static const struct CaptureControlOpsS mCaptureControlOps =
 {
-    .destroy   =     __Release,
-    .setFormat =     __SetFormat,
-    .start     =     __Start,
-    .stop      =     __Stop,
-    .read      =     __Read,
+    .cdxDestroy   =     __Release,
+    .cdxSetFormat =     __SetFormat,
+    .cdxStart     =     __Start,
+    .cdxStop      =     __Stop,
+    .cdxRead      =     __Read,
 };
 
 CaptureCtrl* CaptureDeviceCreate()

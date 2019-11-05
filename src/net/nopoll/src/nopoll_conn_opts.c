@@ -70,13 +70,8 @@ noPollConnOpts * nopoll_conn_opts_new (void)
 	result->mutex        = nopoll_mutex_create ();
 	result->refs         = 1;
 
-#if defined(NOPOLL_MBEDTLS)
-	/* by default, enable ssl peer verification */
-	result->disable_ssl_verify = nopoll_false;
-#else
 	/* by default, disable ssl peer verification */
 	result->disable_ssl_verify = nopoll_true;
-#endif
 
 	return result;
 }

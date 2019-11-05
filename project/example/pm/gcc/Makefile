@@ -61,12 +61,12 @@ OBJS := $(addsuffix .o,$(SRCS))
 # linker script file
 #   - relative to "./"
 #   - define your own "LINKER_SCRIPT" to override the default one
-# LINKER_SCRIPT :=
+LINKER_SCRIPT := project.ld
 
 # image config file
 #   - relative to "../image/$(__CONFIG_CHIP_TYPE)/", eg. "../image/xr872/"
 #   - define your own "IMAGE_CFG" to override the default one
-# IMAGE_CFG :=
+IMAGE_CFG := image.cfg
 
 # image name, default to xr_system
 # IMAGE_NAME :=

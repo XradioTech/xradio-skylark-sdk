@@ -103,6 +103,7 @@ typedef enum  {
 	SENSOR_SET_CLK_POL    = 0,
     SENSOR_SET_OUTPUT_FMT,
     SENSOR_SET_PIXEL_SIZE,
+    SENSOR_SET_SUBSAMP,
 
         /* TODO ... */
 } SENSOR_IoctrlCmd;

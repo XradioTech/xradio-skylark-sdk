@@ -145,6 +145,35 @@ extern "C" {
 
 #define IRTX_24M_NEC_CYCLE_MS   (110)
 #define IRTX_24M_NEC_IDC_VALUE  ((IRTX_24M_NEC_CYCLE_MS*1000)/128/IRTX_24M_TS_US + 1)
+
+#define IRRX_40M_ACTIVE_T       (0)             /* ActionTreshold, Active Threshold */
+#define IRRX_40M_ACTIVE_T_C     (1)             /* SampleClock, Active Threshold Control, same with IRRX_ATHC_CLOCKUNIT_128 */
+#define IRRX_40M_L1_MIN         (60)            /* 60*51.2 = ~3.0ms, Lead1(9.0ms) Lead1R(4.5ms) > IR_L1_MIN */
+#define IRRX_40M_L0_MIN         (34)            /* 34*51.2 = ~1.7ms, Lead0(4.5ms) Lead0R(2.25ms)> IR_L0_MIN */
+#define IRRX_40M_PMAX           (22)            /* 22*51.2 = ~1126us ~= 563*2, Pluse < IRRX_PMAX */
+#define IRRX_40M_DMID           (22)            /* 22*51.2 = ~1126us ~= 563*2, D1 > IRRX_DMID, D0 =< IRRX_DMID */
+#define IRRX_40M_DMAX           (45)            /* 45*51.2 = ~2304us ~= 576*4, D < IRRX_DMAX */
+
+#define IRTX_40M_TS_US          (51)            /* Ts frome IRTX_SAMPLE */
+                                                /* IRTX_9MS_NUM 0xD1, 209*Ts=8924.3uS */
+                                                /* IRTX_9MS_NUM1 127*Ts=5422.9uS */
+                                                /* IRTX_9MS_NUM2 81*Ts=3458.7uS */
+                                                /* IRTX_4P5MS_NUM 0x69, 105*Ts=4483.5uS */
+                                                /* IRTX_560US_NUM 0x0D, 13*Ts=555.1uS */
+                                                /* IRTX_1680US_NUM 0x27, 39*Ts=1665.3uS */
+
+#define IRTX_40M_9MS_NUM        (9000/IRTX_40M_TS_US)
+#define IRTX_40M_9MS_NUM1       (0x7f)
+#define IRTX_40M_9MS_NUM2       (IRTX_40M_9MS_NUM-IRTX_40M_9MS_NUM1)
+#define IRTX_40M_4P5MS_NUM      (4500/IRTX_40M_TS_US)
+#define IRTX_40M_4P5MS_NUM1     (IRTX_40M_4P5MS_NUM)
+#define IRTX_40M_2P25MS_NUM     (IRTX_40M_4P5MS_NUM/2)
+#define IRTX_40M_560US_NUM      (560/IRTX_40M_TS_US)
+#define IRTX_40M_1680US_NUM     (1680/IRTX_40M_TS_US)
+
+#define IRTX_40M_NEC_CYCLE_MS   (110)
+#define IRTX_40M_NEC_IDC_VALUE  ((IRTX_40M_NEC_CYCLE_MS*1000)/256/IRTX_40M_TS_US + 1)
+
 #endif
 
 /**

@@ -245,7 +245,7 @@ read_data:
 		mbedtls_printf(" %d bytes read\n", ret);
 		//mbedtls_printf("%s\n", (char *)buf);
 		length += ret;
-		if (ret >= mbedtls_strlen(CLIENT_DATA)) {
+		if (ret >= strlen(CLIENT_DATA)) {
 			mbedtls_printf("Read data success\n");
 			break;
 		} else {
@@ -254,7 +254,7 @@ read_data:
 			goto read_data;
 		}
 	} while (1);
-	if ((ret = mbedtls_strncmp(CLIENT_DATA, (char *)buf, mbedtls_strlen(CLIENT_DATA))) != 0) {
+	if ((ret = strncmp(CLIENT_DATA, (char *)buf, strlen(CLIENT_DATA))) != 0) {
 		mbedtls_string_mismatch = -1;
 		goto exit;
 	} else

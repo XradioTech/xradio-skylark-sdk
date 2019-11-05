@@ -26,6 +26,7 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+  .extern g_standby_entry
 
   .syntax unified
 #ifdef __CONFIG_CPU_CM4F
@@ -95,7 +96,12 @@ __cpu_suspend:
   STR R0, [R1]
 
   /* set resume address in thumb state */
+  LDR R1, =g_standby_entry
+  LDR R0, [R1]
+  CMP R0, #0
+  BNE entry
   LDR R0, =resume
+entry:
   ORR.W R0, R0, #1
   LDR R1, =GPRCM_CPUA_BOOT_ADDR
   ISB
