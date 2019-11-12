@@ -35,3 +35,5 @@ XRADIO Skylark SDK supports XR872/XR808 series wireless MCUs.
 
 - SDK: https://github.com/XradioTech/xradio-skylark-sdk.git
 - WiKi: https://github.com/XradioTech/xradiotech-wiki.git
+- DOC: https://docs.xradiotech.com
+
