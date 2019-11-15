@@ -62,8 +62,8 @@ static const GPIO_PinMuxParam g_pinmux_uart2[] = {
 
 __xip_rodata
 static const GPIO_PinMuxParam g_pinmux_dmic[] = {
-//	{ GPIO_PORT_A, GPIO_PIN_10, { GPIOA_P10_F4_DMIC_CLK,  GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
-//	{ GPIO_PORT_A, GPIO_PIN_11, { GPIOA_P11_F4_DMIC_DATA, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
+	{ GPIO_PORT_A, GPIO_PIN_21, { GPIOA_P21_F3_DMIC_CLK,  GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
+	{ GPIO_PORT_A, GPIO_PIN_22, { GPIOA_P22_F3_DMIC_DATA, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
 };
 
 __xip_rodata
@@ -87,8 +87,8 @@ static const GPIO_PinMuxParam g_pinmux_irtx[] = {
 
 __xip_rodata
 static const GPIO_PinMuxParam g_pinmux_i2c0[] = {
-	{ GPIO_PORT_A, GPIO_PIN_4,  { GPIOA_P4_F4_I2C0_SCL,   GPIO_DRIVING_LEVEL_1, GPIO_PULL_UP } },
-	{ GPIO_PORT_A, GPIO_PIN_5,  { GPIOA_P5_F4_I2C0_SDA,   GPIO_DRIVING_LEVEL_1, GPIO_PULL_UP } },
+	{ GPIO_PORT_A, GPIO_PIN_19,  { GPIOA_P19_F3_I2C0_SCL,   GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
+	{ GPIO_PORT_A, GPIO_PIN_20,  { GPIOA_P20_F3_I2C0_SDA,   GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
 };
 
 __xip_rodata
@@ -106,7 +106,6 @@ static const GPIO_PinMuxParam g_pinmux_adc[] = {
 	{ GPIO_PORT_A, GPIO_PIN_14, { GPIOA_P14_F2_ADC_CH4, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
 	{ GPIO_PORT_A, GPIO_PIN_15, { GPIOA_P15_F2_ADC_CH5, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
 	{ GPIO_PORT_A, GPIO_PIN_16, { GPIOA_P16_F2_ADC_CH6, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
-//	{ GPIO_PORT_A, GPIO_PIN_17, { GPIOA_P17_F2_ADC_CH7, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
 };
 
 __xip_rodata
@@ -190,9 +189,9 @@ static const GPIO_PinMuxParam g_pinmux_pwm[] = {
 
 __xip_rodata
 static const GPIO_PinMuxParam g_pinmux_sd0[BOARD_SD0_DATA_BITS + 2] = {
-	{ GPIO_PORT_A, GPIO_PIN_0,  { GPIOA_P0_F3_SD_CMD,     GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* CMD */
-	{ GPIO_PORT_A, GPIO_PIN_2,  { GPIOA_P2_F3_SD_CLK,     GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* CLK */
-	{ GPIO_PORT_A, GPIO_PIN_1,  { GPIOA_P1_F3_SD_DATA0,   GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* D0 */
+	{ GPIO_PORT_B, GPIO_PIN_16,  { GPIOB_P16_F3_SD_CMD,     GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* CMD */
+	{ GPIO_PORT_B, GPIO_PIN_18,  { GPIOB_P18_F3_SD_CLK,     GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* CLK */
+	{ GPIO_PORT_B, GPIO_PIN_17,  { GPIOB_P17_F3_SD_DATA0,   GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* D0 */
 //	{ GPIO_PORT_A, GPIO_PIN_3,  { GPIOA_P3_F3_SD_DATA1,   GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* D1 */
 //	{ GPIO_PORT_A, GPIO_PIN_4,  { GPIOA_P4_F3_SD_DATA2,   GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* D2 */
 //	{ GPIO_PORT_A, GPIO_PIN_5,  { GPIOA_P5_F3_SD_DATA3,   GPIO_DRIVING_LEVEL_2, GPIO_PULL_UP } },	/* D3 */
@@ -213,44 +212,6 @@ static const HAL_SDCGPIOCfg g_sd0_cfg = {
 	.detect_delay    = BOARD_SD0_DET_DELAY
 };
 
-
-#define BOARD_PA_PORT    		GPIO_PORT_A
-#define BOARD_PA_PIN     		GPIO_PIN_22
-#define BOARD_PA_ON_DELAY     	150
-
-__xip_rodata
-static const GPIO_PinMuxParam g_pinmux_pa_switch[] = {
-	{ BOARD_PA_PORT, BOARD_PA_PIN, { GPIOx_Pn_F1_OUTPUT,   GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
-};
-
-__xip_rodata
-static const Pa_Switch_Ctl pa_switch_ctl = {
-	.on_state  = GPIO_PIN_HIGH,
-	.on_delay  = BOARD_PA_ON_DELAY,
-	.pin_param = g_pinmux_pa_switch,
-	.pin_param_cnt = HAL_ARRAY_SIZE(g_pinmux_pa_switch),
-};
-
-
-__xip_rodata const static struct snd_card_board_config xradio_internal_codec_snd_card = {
-	.card_num = SND_CARD_0,
-	.card_name = HAL_SND_CARD_NAME(XRADIO_INTERNAL_CODEC_NAME, SND_CARD_SUFFIX),
-	.codec_link = XRADIO_CODEC_INTERNAL,
-	.platform_link = XRADIO_PLATFORM_NULL,
-
-	.pa_switch_ctl = &pa_switch_ctl,
-
-	.codec_sysclk_src = SYSCLK_SRC_PLL,
-	.codec_pllclk_src = 0,	//xradio_internal_codec not use
-	.codec_pll_freq_in = 0,	//xradio_internal_codec not use
-	.i2s_fmt = 0,			//xradio_internal_codec not use
-};
-
-const static struct snd_card_board_config *snd_cards_board_cfg[] = {
-	&xradio_internal_codec_snd_card,
-};
-
-
 __xip_rodata
 static const GPIO_PinMuxParam g_pinmux_csi[] = {
 	{ GPIO_PORT_A, GPIO_PIN_0,  { GPIOA_P0_F5_CSI_D0,     GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
@@ -269,34 +230,84 @@ static const GPIO_PinMuxParam g_pinmux_csi[] = {
 
 /* do not set const */
 static ad_button g_ad_buttons[] = {
-	{.name = "mode", .mask = KEY0, .channel = ADC_CHANNEL_0, .value = 815, .debounce_time = 50},
-	{.name = "wechat", .mask = KEY1, .channel = ADC_CHANNEL_0, .value = 1515, .debounce_time = 50},
-	{.name = "voice", .mask = KEY2, .channel = ADC_CHANNEL_0, .value = 2250, .debounce_time = 50},
-	{.name = "next", .mask = KEY3, .channel = ADC_CHANNEL_0, .value = 3560, .debounce_time = 50},
-	{.name = "prev", .mask = KEY4, .channel = ADC_CHANNEL_0, .value = 3755, .debounce_time = 50},
-	{.name = "prev+next", .mask = KEY3 | KEY4, .channel = ADC_CHANNEL_0, .value = 2800, .debounce_time = 50},
+	{.name = "play+pause",    .mask = KEY1, .channel = ADC_CHANNEL_6, .value = 704,  .debounce_time = 50},
+	{.name = "pre+vol_up",    .mask = KEY2, .channel = ADC_CHANNEL_6, .value = 1343, .debounce_time = 50},
+	{.name = "next+vol_down", .mask = KEY3, .channel = ADC_CHANNEL_6, .value = 1933, .debounce_time = 50},
+	{.name = "mode",          .mask = KEY4, .channel = ADC_CHANNEL_6, .value = 2572, .debounce_time = 50},
+	{.name = "ai",            .mask = KEY5, .channel = ADC_CHANNEL_6, .value = 3244, .debounce_time = 50},
 };
 
 __xip_rodata
 static const gpio_button g_gpio_buttons[] = {
-//	{.name = "play", .mask = KEY4, .active_low = 1, { GPIO_PORT_A, GPIO_PIN_7,  { GPIOA_P7_F6_EINTA7, GPIO_DRIVING_LEVEL_1, GPIO_PULL_UP } }, .debounce_time = 50},
 };
 
 __xip_rodata
 static const matrix_button g_matrix_buttons_row[] = {
-	{.name = "row1", { GPIO_PORT_A, GPIO_PIN_8,	{ GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
-	{.name = "row2", { GPIO_PORT_A, GPIO_PIN_9, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
-	{.name = "row3", { GPIO_PORT_A, GPIO_PIN_10, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
-	{.name = "row4", { GPIO_PORT_A, GPIO_PIN_11, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+	{.name = "row1", { GPIO_PORT_A, GPIO_PIN_0,	{ GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+	{.name = "row2", { GPIO_PORT_A, GPIO_PIN_1, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+	{.name = "row3", { GPIO_PORT_A, GPIO_PIN_2, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+	{.name = "row4", { GPIO_PORT_A, GPIO_PIN_3, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
 };
 
 __xip_rodata
 static const matrix_button g_matrix_buttons_col[] = {
 	{.name = "col1", { GPIO_PORT_A, GPIO_PIN_4, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
 	{.name = "col2", { GPIO_PORT_A, GPIO_PIN_5, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
-	{.name = "col3", { GPIO_PORT_A, GPIO_PIN_21, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
-	{.name = "col4", { GPIO_PORT_A, GPIO_PIN_22, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
+	{.name = "col3", { GPIO_PORT_A, GPIO_PIN_6, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
+	{.name = "col4", { GPIO_PORT_A, GPIO_PIN_7, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
 };
+
+#define BOARD_PA_PORT           GPIO_PORT_A
+#define BOARD_PA_PIN            GPIO_PIN_23
+#define BOARD_PA_ON_DELAY       150
+
+__xip_rodata
+static const GPIO_PinMuxParam g_pinmux_pa_switch[] = {
+	{ BOARD_PA_PORT, BOARD_PA_PIN, { GPIOx_Pn_F1_OUTPUT,   GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE } },
+};
+
+__xip_rodata
+static const Pa_Switch_Ctl pa_switch_ctl = {
+	.on_state  = GPIO_PIN_HIGH,
+	.on_delay  = BOARD_PA_ON_DELAY,
+	.pin_param = g_pinmux_pa_switch,
+	.pin_param_cnt = HAL_ARRAY_SIZE(g_pinmux_pa_switch),
+};
+
+__xip_rodata const static struct snd_card_board_config xradio_internal_codec_snd_card = {
+	.card_num = SND_CARD_0,
+	.card_name = HAL_SND_CARD_NAME(XRADIO_INTERNAL_CODEC_NAME, SND_CARD_SUFFIX),
+	.codec_link = XRADIO_CODEC_INTERNAL,
+	.platform_link = XRADIO_PLATFORM_NULL,
+
+	.pa_switch_ctl = &pa_switch_ctl,
+
+	.codec_sysclk_src = SYSCLK_SRC_PLL,
+	.codec_pllclk_src = 0,	//xradio_internal_codec not use
+	.codec_pll_freq_in = 0,	//xradio_internal_codec not use
+	.i2s_fmt = 0,			//xradio_internal_codec not use
+};
+
+/*
+__xip_rodata const static struct snd_card_board_config ac107_codec_snd_card = {
+	.card_num = SND_CARD_1,
+	.card_name = HAL_SND_CARD_NAME(AC107_CODEC_NAME, SND_CARD_SUFFIX),
+	.codec_link = XRADIO_CODEC_AC107,
+	.platform_link = XRADIO_PLATFORM_I2S,
+
+	.pa_switch_ctl = NULL,
+
+	.codec_sysclk_src = SYSCLK_SRC_MCLK,
+	.codec_pllclk_src = 0,
+	.codec_pll_freq_in = 0,
+	.i2s_fmt = DAIFMT_CBS_CFS | DAIFMT_I2S | DAIFMT_NB_NF,
+};
+*/
+const static struct snd_card_board_config *snd_cards_board_cfg[] = {
+	&xradio_internal_codec_snd_card,
+	//&ac107_codec_snd_card,
+};
+
 struct board_pinmux_info {
 	const GPIO_PinMuxParam *pinmux;
 	uint32_t count;

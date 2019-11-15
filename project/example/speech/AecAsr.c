@@ -36,9 +36,16 @@
 #include "audio/manager/audio_manager.h"
 #include "debug.h"
 #include "output.h"
+#include "driver/chip/psram/psram.h"
+
+#define USE_TASK_TO_RECORD
 
 #define AEC_SUPPORT
 #define ASR_SUPPORT
+
+#ifdef USE_TASK_TO_RECORD
+#include "pcmFifo.h"
+#endif
 
 #ifdef AEC_SUPPORT
 //TODO:add head file of aec algorithm
@@ -77,6 +84,20 @@ struct audioContext {
 	short *AecRef;
 	short *LOut;
 };
+
+#ifdef USE_TASK_TO_RECORD
+
+struct recordContext {
+	int record_run;
+	OS_Thread_t record_thread;
+	struct PcmFifoS *recordFifo;
+	void *recordData;
+	unsigned int recordLen;
+};
+
+static struct recordContext rdContext;
+
+#endif
 
 static OS_Thread_t aec_thread;
 static int aec_run;
@@ -126,6 +147,101 @@ static void Aec_Deinit(struct AecContext *pAec)
 }
 #endif
 
+#ifdef USE_TASK_TO_RECORD
+
+static void record_task(void *arg)
+{
+	while (rdContext.record_run) {
+		snd_pcm_read(AUDIO_CARD_ID, rdContext.recordData, rdContext.recordLen);
+		PcmFifoLock(rdContext.recordFifo);
+		PcmFifoIn(rdContext.recordFifo, rdContext.recordData, rdContext.recordLen, 1);
+		PcmFifoUnlock(rdContext.recordFifo);
+	}
+
+	OS_ThreadDelete(&rdContext.record_thread);
+}
+
+static int record_task_start()
+{
+	memset(&rdContext, 0, sizeof(rdContext));
+
+	rdContext.recordLen = SAMPLE_10MS * SAMPLE_SIZE * 4;
+	rdContext.recordData = psram_malloc(rdContext.recordLen);
+	if (rdContext.recordData == NULL) {
+		printf("malloc fail.\n");
+		return -1;
+	}
+
+	rdContext.recordFifo = pcm_fifo_create(8 * 1024);
+	if (rdContext.recordFifo == NULL) {
+		printf("pcm fifo for record task create fail.\n");
+		goto err0;
+	}
+	PcmFifoControl(rdContext.recordFifo, SAVE_PCM_DATA, NULL);
+
+	rdContext.record_run = 1;
+	if (OS_ThreadCreate(&rdContext.record_thread,
+                        "record_task",
+                        record_task,
+                        NULL,
+                        OS_PRIORITY_ABOVE_NORMAL,
+                        1 * 1024) != OS_OK) {
+		printf("thread create error\n");
+		goto err1;
+	}
+
+	return 0;
+
+err1:
+	pcm_fifo_destroy(rdContext.recordFifo);
+	rdContext.recordFifo = NULL;
+err0:
+	psram_free(rdContext.recordData);
+	rdContext.recordData = NULL;
+	rdContext.record_run = 0;
+	return -1;
+}
+
+static int record_task_get_data(void *buffer, unsigned int len)
+{
+	int readLen = 0;
+	int validLen;
+
+	while (rdContext.record_run) {
+		PcmFifoLock(rdContext.recordFifo);
+		validLen = PcmFifoValid(rdContext.recordFifo);
+		if (validLen >= len) {
+			PcmFifoOut(rdContext.recordFifo, buffer, len);
+			PcmFifoUnlock(rdContext.recordFifo);
+			readLen = len;
+			break;
+		} else {
+			PcmFifoUnlock(rdContext.recordFifo);
+			OS_MSleep(2);  /* for 16000hz, 1 channel, 1s will produce 32k data */
+			continue;
+		}
+	}
+	return readLen;
+}
+
+static int record_task_stop()
+{
+	rdContext.record_run = 0;
+	while (OS_ThreadIsValid(&rdContext.record_thread)) {
+		OS_MSleep(10);
+	}
+
+	pcm_fifo_destroy(rdContext.recordFifo);
+	rdContext.recordFifo = NULL;
+
+	psram_free(rdContext.recordData);
+	rdContext.recordData = NULL;
+
+	return 0;
+}
+
+#endif
+
 extern HAL_Status ac107_pdm_init(Audio_Device device, uint16_t volume, uint32_t sample_rate);
 extern HAL_Status ac107_pdm_deinit(void);
 
@@ -166,33 +282,40 @@ static int audio_record_start(struct audioContext *pAudio)
 	}
 
 	pAudio->ReadLen = SAMPLE_10MS * SAMPLE_SIZE * 4;
-	pAudio->ReadData = (void *)malloc(pAudio->ReadLen);
+	pAudio->ReadData = (void *)psram_malloc(pAudio->ReadLen);
 	if (pAudio->ReadData == NULL) {
 		goto err2;
 	}
 
-	pAudio->AecRef = (short *)malloc(SAMPLE_10MS * SAMPLE_SIZE);
+	pAudio->AecRef = (short *)psram_malloc(SAMPLE_10MS * SAMPLE_SIZE);
 	if (pAudio->AecRef == NULL) {
 		goto err2;
 	}
 
-	pAudio->MicSig = (short *)malloc(SAMPLE_10MS * SAMPLE_SIZE * 2);
+	pAudio->MicSig = (short *)psram_malloc(SAMPLE_10MS * SAMPLE_SIZE * 2);
 	if (pAudio->MicSig == NULL) {
 		goto err2;
 	}
 
-	pAudio->LOut = (short *)malloc(SAMPLE_10MS * SAMPLE_SIZE);
+	pAudio->LOut = (short *)psram_malloc(SAMPLE_10MS * SAMPLE_SIZE);
 	if (pAudio->LOut == NULL) {
 		goto err2;
 	}
 
+#ifdef USE_TASK_TO_RECORD
+	ret = record_task_start();
+	if (ret != 0) {
+		goto err2;
+	}
+#endif
+
 	return 0;
 
 err2:
-	free(pAudio->LOut);
-	free(pAudio->MicSig);
-	free(pAudio->AecRef);
-	free(pAudio->ReadData);
+	psram_free(pAudio->LOut);
+	psram_free(pAudio->MicSig);
+	psram_free(pAudio->AecRef);
+	psram_free(pAudio->ReadData);
 	snd_pcm_close(AUDIO_CARD_ID, PCM_IN);
 err1:
 	ac107_pdm_deinit();
@@ -204,9 +327,14 @@ static int audio_get_micsig_aecref(struct audioContext *pAudio)
 	int i;
 	int ret;
 
+#ifdef USE_TASK_TO_RECORD
+	ret = record_task_get_data(pAudio->ReadData, pAudio->ReadLen);
+#else
 	ret = snd_pcm_read(AUDIO_CARD_ID, pAudio->ReadData, pAudio->ReadLen);
+#endif
+
 	if (ret != pAudio->ReadLen) {
-		printf("snd_pcm_read fail.\n");
+		printf("get record data fail.\n");
 		return -1;
 	}
 
@@ -221,10 +349,14 @@ static int audio_get_micsig_aecref(struct audioContext *pAudio)
 
 static void audio_record_stop(struct audioContext *pAudio)
 {
-	free(pAudio->LOut);
-	free(pAudio->MicSig);
-	free(pAudio->AecRef);
-	free(pAudio->ReadData);
+#ifdef USE_TASK_TO_RECORD
+	record_task_stop();
+#endif
+
+	psram_free(pAudio->LOut);
+	psram_free(pAudio->MicSig);
+	psram_free(pAudio->AecRef);
+	psram_free(pAudio->ReadData);
 	snd_pcm_close(AUDIO_CARD_ID, PCM_IN);
 	ac107_pdm_deinit();
 }
@@ -328,7 +460,7 @@ int aec_asr_start()
                         "aec_task",
                         aec_asr_task,
                         NULL,
-                        OS_THREAD_PRIO_APP,
+                        OS_PRIORITY_ABOVE_NORMAL,
                         AEC_THREAD_STACK_SIZE) != OS_OK) {
 		printf("thread create error\n");
 		return -1;

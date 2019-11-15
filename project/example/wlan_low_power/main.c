@@ -44,6 +44,12 @@
 #include "net/wlan/wlan_ext_req.h"
 #include "net/wlan/wlan_defs.h"
 
+/* set dcdc mode*/
+#define WLAN_LOW_POWER_USE_DCDC_MODE		1
+
+/* set dtim*/
+#define WLAN_LOW_POWER_LISTEN_INTERVAL		8
+
 void wlp_pup_pa23(void)
 {
 	char port;
@@ -277,7 +283,7 @@ void wlp_set_listen_interval(void)
 	int ret;
 	uint32_t listen_interval;
 
-	listen_interval = 8;
+	listen_interval = WLAN_LOW_POWER_LISTEN_INTERVAL;
 
 	ret = wlan_ext_request(g_wlan_netif,
 		WLAN_EXT_CMD_SET_LISTEN_INTERVAL, listen_interval);
@@ -344,7 +350,7 @@ void wlp_set_ps_mode_with_little_change_time(void)
 
 void wlp_goto_standby(void)
 {
-	HAL_Wakeup_SetTimer_Sec(120);
+	HAL_Wakeup_SetTimer_Sec(240);
 
 	pm_enter_mode(PM_MODE_STANDBY);
 
@@ -385,6 +391,7 @@ int main(void)
 	printf("\n");
 
 	OS_Sleep(2);
+#if (WLAN_LOW_POWER_USE_DCDC_MODE)
 	/* use DC-DC mode */
 	printf("use DC-DC mode:\n\n");
 
@@ -399,9 +406,16 @@ int main(void)
 
 	wlp_set_ldo_to_low_volt();
 
+#else
+
+	printf("use default LDO mode\n\n");
+
+#endif
+
 	printf("\n");
 
 	OS_Sleep(2);
+
 	/* connect AP */
 	printf("connect ap:\n\n");
 	wlp_connect_ap();
@@ -444,7 +458,7 @@ int main(void)
 	printf("\tlisten interval determine the max value of wlan wakeup period when mcu in standby mode\n");
 	printf("\tif listen interval is 0, wlan wakeup period will equal to dtim period\n\n");
 
-	printf("\tset dtim period to 1 and set listen interval to 8 in this example.\n");
+	printf("\tset dtim period to 1 and set listen interval to %d in this example.\n", WLAN_LOW_POWER_LISTEN_INTERVAL);
 	wlp_set_dtim_period();
 	wlp_set_listen_interval();
 
@@ -470,7 +484,7 @@ int main(void)
 	printf("\nset mcu into standby mode:\n\n");
 	printf("\tin this mode, use DC current Analyzer to measure the power.\n\n");
 
-	printf("\tset wakeup timer and goto standby, will wakeup after 120s.\n\n");
+	printf("\tset wakeup timer and goto standby, will wakeup after 240s.\n\n");
 	printf("\tplease measure power now.\n\n\n");
 	wlp_goto_standby();
 
@@ -481,7 +495,7 @@ int main(void)
 	OS_Sleep(2);
 	/* pm cmd info */
 	printf("\npm cmd info:\n\n");
-	printf("\tuse cmd \"pm wk_timer 120\" to set wakeup timer\n");
+	printf("\tuse cmd \"pm wk_timer 240\" to set wakeup timer\n");
 	printf("\tuse cmd \"pm standby\" to goto standby mode again.\n\n");
 
 	return 0;

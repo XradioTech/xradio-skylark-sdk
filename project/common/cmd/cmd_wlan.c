@@ -667,6 +667,21 @@ enum cmd_status cmd_wlan_sta_exec(char *cmd)
 		ret = wlan_sta_enable();
 	} else if (cmd_strcmp(cmd, "disable") == 0) {
 		ret = wlan_sta_disable();
+	} else if (cmd_strcmp(cmd, "ap_ssid_psk") == 0) {
+		wlan_ssid_psk_t ap_ssid_psk;
+		cmd_memset(&ap_ssid_psk, 0, sizeof(wlan_ssid_psk_t));
+		ret = wlan_sta_get_ap_ssid_psk(&ap_ssid_psk);
+		if (ret == 0) {
+			CMD_LOG(1, "connected ap ssid %.32s, pwd %s\n",
+			        ap_ssid_psk.ssid, ap_ssid_psk.passphrase);
+			if (ap_ssid_psk.psk_valid) {
+				int i;
+				CMD_LOG(1, "psk: ");
+				for (i = 0; i < WLAN_PSK_HEX_LEN; i++)
+					CMD_LOG(1, "%02x", ap_ssid_psk.psk[i]);
+				CMD_LOG(1, "\n");
+			}
+		}
 	} else if (cmd_strcmp(cmd, "scan once") == 0) {
 		ret = wlan_sta_scan_once();
 	} else if (cmd_strcmp(cmd, "scan result_num") == 0) {
@@ -1115,6 +1130,15 @@ enum cmd_status cmd_wlan_ap_exec(char *cmd)
 		ret = wlan_ap_get_scan_result_num(&num);
 		if (ret == 0)
 			CMD_LOG(1, "scan result num: %d\n", num);
+	} else if (cmd_strncmp(cmd, "bss max count ", 14) == 0) {
+		int count;
+		if (cmd_wpas_parse_int(cmd + 14, 1, CMD_WLAN_MAX_BSS_CNT, &count) != 0) {
+			ret = -2;
+			goto out;
+		}
+		ret = wlan_ap_scan_bss_max_count((uint8_t)count);
+		if (ret == 0)
+			CMD_LOG(1, "ap scan bss max count: %d\n", count);
 	} else {
 		CMD_ERR("unknown cmd '%s'\n", cmd);
 		return CMD_STATUS_ACKED;

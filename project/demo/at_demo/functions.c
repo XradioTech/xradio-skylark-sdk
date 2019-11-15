@@ -59,12 +59,15 @@
 #include "driver/chip/hal_gpio.h"
 #include "net/wlan/wlan_ext_req.h"
 #include "lwip/dns.h"
+#include "ap_socket.h"
+
+#include "ota/ota.h" 
 
 #include "atcmd.h"
 #include "driver/chip/hal_wakeup.h"
 
 extern void set_reconnect_enable(void);
-extern int at_uart_reinit(at_serial_para_t *para);
+//extern int at_uart_reinit(at_serial_para_t *para);
 
 #define FUN_DEBUG_ON	0
 
@@ -87,8 +90,8 @@ extern int at_uart_reinit(at_serial_para_t *para);
 //#define CONFIG_FDCM_ADDR	0x120000UL
 //#define CONFIG_FDCM_SIZE	0x10000UL
 
-#define CONFIG_FDCM_ADDR	(0x100000UL - 0x2000UL)
-#define CONFIG_FDCM_SIZE	(0x100000UL - 0x1000UL)
+#define CONFIG_FDCM_ADDR	(0x100000UL - 0x3000UL)
+#define CONFIG_FDCM_SIZE	(0x1000UL)
 
 
 #define CONFIG_CONTAINNER_SIZE sizeof(config_containner_t)
@@ -127,6 +130,11 @@ typedef struct {
 } network_t;
 
 typedef struct {
+    s32 mode; //0:no connections 1: sta connections 2:ap connections
+} system_status_t;
+
+
+typedef struct {
     u32 flag;
     s32 offset;
     s32 cnt;
@@ -158,6 +166,9 @@ static OS_Mutex_t g_server_mutex;
 static server_arg_t g_server_arg;
 static server_net_t g_server_net;
 static server_ctrl_t g_server_ctrl;
+//static system_status_t g_status;
+static u32 g_errorcode = 0;
+static network_t networks;
 
 static u32 g_server_enable = 0;
 static OS_Semaphore_t g_server_sem;
@@ -171,8 +182,6 @@ enum atc_cwjap_cur_type {
     ATC_CWJAP_CUR_SSID_NOMATCH = '3',
 
 };
-
-static u32 g_errorcode = 0;
 
 static AT_ERROR_CODE callback(AT_CALLBACK_CMD cmd, at_callback_para_t *para, at_callback_rsp_t *rsp);
 
@@ -214,6 +223,7 @@ static AT_ERROR_CODE cwdhcp_cur(at_callback_para_t *para, at_callback_rsp_t *rsp
 static AT_ERROR_CODE cipstamac_cur(at_callback_para_t *para, at_callback_rsp_t *rsp);
 static AT_ERROR_CODE cipsta_cur(at_callback_para_t *para, at_callback_rsp_t *rsp);
 static AT_ERROR_CODE cwhostname(at_callback_para_t *para, at_callback_rsp_t *rsp);
+static AT_ERROR_CODE set_apcfg(at_callback_para_t *para, at_callback_rsp_t *rsp);
 
 
 static AT_ERROR_CODE cipstatus(at_callback_para_t *para, at_callback_rsp_t *rsp);
@@ -221,6 +231,8 @@ static AT_ERROR_CODE cipdomain(at_callback_para_t *para, at_callback_rsp_t *rsp)
 static AT_ERROR_CODE cipstart(at_callback_para_t *para, at_callback_rsp_t *rsp);
 static AT_ERROR_CODE cipsendbuf(at_callback_para_t *para, at_callback_rsp_t *rsp);
 static AT_ERROR_CODE cipclose(at_callback_para_t *para, at_callback_rsp_t *rsp);
+static AT_ERROR_CODE tcpserver(at_callback_para_t *para, at_callback_rsp_t *rsp);
+static AT_ERROR_CODE tcpservermaxconn(at_callback_para_t *para, at_callback_rsp_t *rsp);
 static AT_ERROR_CODE cipmux(at_callback_para_t *para, at_callback_rsp_t *rsp);
 static AT_ERROR_CODE cipmode(at_callback_para_t *para, at_callback_rsp_t *rsp);
 static AT_ERROR_CODE cipdns_cur(at_callback_para_t *para, at_callback_rsp_t *rsp);
@@ -273,11 +285,14 @@ static const callback_handler_t callback_tbl[] = {
     {ACC_CIPSTAMAC_CUR,	cipstamac_cur},
     {ACC_CIPSTA_CUR,		cipsta_cur},
     {ACC_CWHOSTNAME,		cwhostname},
+    {ACC_APCFG,			set_apcfg},
 
     {ACC_CIPDOMAIN,		cipdomain},
     {ACC_CIPSTART,			cipstart},
     {ACC_CIPSENDBUF,		cipsendbuf},
     {ACC_CIPCLOSE,			cipclose},
+    {ACC_TCPSERVER,			tcpserver},
+    {ACC_TCPSERVERMAXCONN,	tcpservermaxconn},
     {ACC_CIPMUX,			cipmux},
     {ACC_CIPMODE,			cipmode},
     {ACC_CIPDNS_CUR,		cipdns_cur},
@@ -367,8 +382,6 @@ static const at_config_t default_cfg = {
     .ip_sockd_timeout = 250,
 };
 
-static network_t networks;
-
 static __always_inline int server_is_isr_context(void)
 {
     return __get_IPSR();
@@ -403,6 +416,7 @@ u32 at_get_errorcode(void)
 {
     return g_errorcode;
 }
+
 s32 at_cmdline(char *buf, u32 size)
 {
     u32 i;
@@ -422,7 +436,7 @@ s32 at_cmdline(char *buf, u32 size)
     return -1;
 }
 
-static u8 queue_buf[1024];
+static u8 queue_buf[1024+4];
 
 void occur(uint32_t evt, uint32_t data, void *arg);
 
@@ -431,7 +445,6 @@ static void at_wakeup_pin_irq_cb(void *arg)
 {
 	printf("SYSTE wake up!\r\n");
 }
-
 
 static int wkgpio_pins[] = {GPIO_PIN_4,GPIO_PIN_5,GPIO_PIN_6,GPIO_PIN_7,GPIO_PIN_7,\
 						GPIO_PIN_19,GPIO_PIN_20,GPIO_PIN_21,GPIO_PIN_22,GPIO_PIN_23};
@@ -512,7 +525,7 @@ static AT_ERROR_CODE callback(AT_CALLBACK_CMD cmd, at_callback_para_t *para, at_
 {
     s32 i;
 
-     FUN_DEBUG("callback cmd = %d\n",cmd);
+    FUN_DEBUG("callback cmd = %d\n",cmd);
 
     for (i = 0; i < TABLE_SIZE(callback_tbl); i++) {
         if (cmd == callback_tbl[i].cmd) {
@@ -580,11 +593,13 @@ static AT_ERROR_CODE act(at_callback_para_t *para, at_callback_rsp_t *rsp)
 static AT_ERROR_CODE reset(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     AT_ERROR_CODE aec = AEC_OK;
-
-	at_dump("System reboot...\n");
-
+	
+	at_dump("\r\nOK\r\n");
+	
+	OS_MSleep(2);
+	
     HAL_WDG_Reboot();
-
+	
     return aec;
 }
 
@@ -1058,10 +1073,6 @@ static void sockon_task(void *arg)
 	AT_ERROR_CODE ret;
 	int OS_ret;
 	at_sockontask_para_t sockpara;
-
-    OS_queue_sockon_handler = xQueueCreate(10, sizeof(at_sockontask_para_t));
-	if(OS_queue_sockon_handler == NULL)
-		FUN_DEBUG("------>%s xQueueCreate ERROR\n",__func__);
 
 	while(1)
 	{
@@ -1934,6 +1945,7 @@ static AT_ERROR_CODE uart_def(at_callback_para_t * para, at_callback_rsp_t * rsp
 {
     FUN_DEBUG("----->\n");
 
+#if 0
 	at_serial_para_t at_para;
 
 	at_para.baudrate = para->u.uart.uartBaud;
@@ -1947,8 +1959,8 @@ static AT_ERROR_CODE uart_def(at_callback_para_t * para, at_callback_rsp_t * rsp
 	printf("at_para.parity = %d\r\n",para->u.uart.parity);
 	printf("at_para.stopBit = %d\r\n",para->u.uart.stopBit);
 	printf("at_para.hwfc = %d\r\n",para->u.uart.hwfc);
-	at_uart_reinit(&at_para);
-
+	//at_uart_reinit(&at_para);
+#endif
     return AEC_OK;
 }
 
@@ -2004,14 +2016,19 @@ enum wlan_mode {
 static AT_ERROR_CODE cwmode_cur(at_callback_para_t * para, at_callback_rsp_t * rsp)
 {
     FUN_DEBUG("----->\n");
-
+	
     if(para->u.wifiMode.mode < 0 || para->u.wifiMode.mode > 4) {
         printf("The mode is not support \r\n");
         return AEC_CMD_ERROR;
-    } else {
-        net_switch_mode(para->u.wifiMode.mode );
-    }
-
+    } else{
+		net_switch_mode(para->u.wifiMode.mode );
+		if(para->u.wifiMode.mode == 0){
+		
+		}else{
+		
+		}
+	}
+	
     return AEC_OK;
 }
 
@@ -2021,13 +2038,13 @@ static AT_ERROR_CODE cwjap_cur(at_callback_para_t * para, at_callback_rsp_t * rs
 {
     uint32_t wep_open_connect_timeout_ms = 15500;
     uint32_t timeout = OS_GetTicks() + OS_TicksToMSecs(wep_open_connect_timeout_ms);
-
+	
 	memset(cur_ssid,0,SYSINFO_SSID_LEN_MAX*sizeof(char));
 	memset(cur_psk,0,SYSINFO_PSK_LEN_MAX*sizeof(char));
 	memcpy(cur_ssid,para->u.joinParam.ssid,strlen(para->u.joinParam.ssid));
 	memcpy(cur_psk,para->u.joinParam.pwd,strlen(para->u.joinParam.pwd));
     FUN_DEBUG("----->\n");
-
+	
     if(para->u.joinParam.ssid == NULL) {
         printf("The ssid is NULL");
         return AEC_CMD_ERROR;
@@ -2040,10 +2057,10 @@ static AT_ERROR_CODE cwjap_cur(at_callback_para_t * para, at_callback_rsp_t * rs
             printf("The ssid = %s, pwd = %s", para->u.joinParam.ssid, para->u.joinParam.pwd);
             wlan_sta_set((unsigned char*)para->u.joinParam.ssid, strlen(para->u.joinParam.ssid), (unsigned char*)para->u.joinParam.pwd);
         }
-
+		
         wlan_sta_enable();
         wlan_sta_connect();
-
+		
     }
     while (OS_TimeBeforeEqual(OS_GetTicks(), timeout)) {
         if (g_wlan_netif && netif_is_link_up(g_wlan_netif)
@@ -2065,7 +2082,7 @@ static AT_ERROR_CODE cwjap_info(at_callback_para_t * para, at_callback_rsp_t * r
 	struct sysinfo *_sysinfo = NULL;
 	wlan_ext_signal_t signal;
 	_sysinfo = sysinfo_get();
-
+	
     FUN_DEBUG("----->\n");
 
 	ap = malloc(sizeof(wlan_sta_ap_t));
@@ -2080,12 +2097,12 @@ static AT_ERROR_CODE cwjap_info(at_callback_para_t * para, at_callback_rsp_t * r
 			return AEC_OK;
 		}
 		wlan_ext_request(g_wlan_netif, WLAN_EXT_CMD_GET_SIGNAL, (int)(&signal));
-
+		
 		at_dump("+CWJAP:\"%s\",\"%02x:%02x:%02x:%02x:%02x:%02x\",%d,%d,\"%02x:%02x:%02x:%02x:%02x:%02x\"\r\n", \
 			ap->ssid.ssid,ap->bssid[0],ap->bssid[1],ap->bssid[2],ap->bssid[3],ap->bssid[4],ap->bssid[5],\
 			ap->channel, (signal.noise + (signal.rssi/2)),\
 			_sysinfo->mac_addr[0],_sysinfo->mac_addr[1],_sysinfo->mac_addr[2],_sysinfo->mac_addr[3],_sysinfo->mac_addr[4],_sysinfo->mac_addr[5]);
-
+			
 			free(ap);
 			return AEC_OK;
 	}
@@ -2159,7 +2176,27 @@ static AT_ERROR_CODE cwhostname(at_callback_para_t * para, at_callback_rsp_t * r
     return AEC_OK;
 }
 
-//add for xr809
+static AT_ERROR_CODE set_apcfg(at_callback_para_t * para, at_callback_rsp_t * rsp)
+{
+    FUN_DEBUG("----->\n");
+	
+	int ssid_len;
+	
+	ssid_len = strlen(para->u.apcfgParam.ssid);
+
+	printf("para->u.apcfgParam.ssid=%s,para->u.apcfgParam.psk=%s\r\n",para->u.apcfgParam.ssid,para->u.apcfgParam.psk);
+	
+	net_switch_mode(WLAN_MODE_HOSTAP);
+	wlan_ap_disable();
+	wlan_ap_set((uint8_t *)para->u.apcfgParam.ssid,ssid_len, (uint8_t *)para->u.apcfgParam.psk);
+	wlan_ap_enable();
+	
+	return AEC_OK;
+
+}
+
+
+//add for xr808
 static AT_ERROR_CODE cipstatus(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     uint16_t net_event;
@@ -2254,7 +2291,6 @@ static AT_ERROR_CODE cipdomain(at_callback_para_t *para, at_callback_rsp_t *rsp)
         return AEC_CMD_FAIL;
     }
 
-
     for(int i=0; server->h_addr_list[i]; i++) {
         printf("IP addr %d: %s\n", i+1, inet_ntoa( *(struct in_addr*)server->h_addr_list[i]));
     }
@@ -2262,6 +2298,8 @@ static AT_ERROR_CODE cipdomain(at_callback_para_t *para, at_callback_rsp_t *rsp)
 	at_dump("+IPDNS:\"%s\"\n",inet_ntoa( *(struct in_addr*)server->h_addr_list[0]));
     return AEC_OK;
 }
+
+
 
 #define SOCKET_TASK_STACK_SIZE (8*1024)
 static OS_Thread_t socket_task_handler[5];
@@ -2364,7 +2402,6 @@ void socket0_task(void *pvParameters)
         memset(socket_cache[id].buffer, 0, SOCKET_CACHE_BUFFER_SIZE);
         rc = select(networks.connect[id].fd + 1, &frset, NULL, NULL, &tv);
         if (rc > 0) {
-			at_dump("size test %d\r\n", rc);
             if (networks.connect[id].protocol == 0) { /* TCP */
                 rc = recv(networks.connect[id].fd, socket_cache[id].buffer, SOCKET_CACHE_BUFFER_SIZE, 0);
             } else if (networks.connect[id].protocol == 1) { /* UDP */
@@ -2428,14 +2465,17 @@ static AT_ERROR_CODE cipstart(at_callback_para_t *para, at_callback_rsp_t *rsp)
     FUN_DEBUG("----->\n");
 	static int is_sockon_task_create = 0;
     OS_Status ret = OS_OK;
-
+	
 	memset(&sockontask_data,0,sizeof(at_sockontask_para_t));
 	memcpy(&sockontask_data.para,para,sizeof(at_callback_para_t));
 	memcpy(&sockontask_data.rsp,rsp,sizeof(at_callback_rsp_t));
-
+	
 	if(0 == is_sockon_task_create)
 	{
 		is_sockon_task_create = 1;
+		OS_queue_sockon_handler = xQueueCreate(10, sizeof(at_sockontask_para_t));
+		if(OS_queue_sockon_handler == NULL)
+			FUN_DEBUG("------>%s xQueueCreate ERROR\n",__func__);
 		ret = OS_ThreadCreate(&OS_Thread_sockon_handler,
 							"sockon_task",
 							sockon_task,
@@ -2486,10 +2526,136 @@ static AT_ERROR_CODE cipclose(at_callback_para_t *para, at_callback_rsp_t *rsp)
     return AEC_OK;
 }
 
+static AT_ERROR_CODE tcpservermaxconn(at_callback_para_t *para, at_callback_rsp_t *rsp)
+{
+    FUN_DEBUG("----->\n");
+		
+    return AEC_OK;
+}
+
+
+static AT_ERROR_CODE tcpserver(at_callback_para_t *para, at_callback_rsp_t *rsp)
+{
+    FUN_DEBUG("----->\n");
+	s16 port;
+	s32 protocol;
+
+	port = para->u.tcp_server.port;
+	protocol = 0;//tcp
+
+	if (port > 0) {
+		if (!g_server_enable) {
+			g_server_arg.port = para->u.tcp_server.port;
+			g_server_arg.protocol = 0;
+			memset(&socket_cache[MAX_SOCKET_NUM], 0 ,sizeof(socket_cache_t));
+
+			if (protocol == 0) { /* TCP */
+				server_mutex_lock();
+				g_server_net.flag = 0;
+				g_server_net.sock_fd = -1;
+				g_server_net.conn_fd = -1;
+				server_mutex_unlock();
+
+				if (OS_SemaphoreCreate(&g_server_sem, 1, 1) != OS_OK) {
+					FUN_DEBUG("create semaphore failed\n");
+
+					return AEC_UNDEFINED;
+				}
+
+				if (OS_ThreadCreate(&g_server_thread,
+				                    "",
+				                    server_task,
+				                    &g_server_arg,
+				                    OS_PRIORITY_NORMAL,
+				                    SERVER_THREAD_STACK_SIZE) != OS_OK) {
+					FUN_DEBUG("create server task failed\n");
+
+					return AEC_UNDEFINED;
+				}
+
+				memset(&g_server_ctrl, 0, sizeof(g_server_ctrl));
+			}
+			else if (protocol == 1) { /* UDP */
+				struct sockaddr_in	address;
+				int rc;
+				int fd;
+
+				fd = socket(AF_INET, SOCK_DGRAM, 0);
+				if (fd < 0) {
+					return AEC_SOCKET_FAIL;
+				}
+
+				memset(&address, 0, sizeof(address));
+				address.sin_family = AF_INET;
+				address.sin_addr.s_addr =htonl(INADDR_ANY);
+				address.sin_port = htons(port);
+				/* for receive */
+				rc = bind(fd, (struct sockaddr *)&address, sizeof(address));
+				if (rc < 0) {
+					closesocket(fd);
+					return AEC_BIND_FAIL;
+				}
+
+				server_mutex_lock();
+				g_server_net.flag = 1;
+				g_server_net.sock_fd = -1;
+				g_server_net.conn_fd = fd;
+				server_mutex_unlock();
+			}
+
+			g_server_enable = 1;
+
+			return AEC_OK;
+		}
+	}
+	else if (g_server_enable) {
+		u32 flag;
+		s32 sock_fd,conn_fd;
+
+		server_mutex_lock();
+		flag = g_server_net.flag;
+		sock_fd = g_server_net.sock_fd;
+		conn_fd = g_server_net.conn_fd;
+		server_mutex_unlock();
+
+		if (g_server_arg.protocol == 0) { /* TCP */
+			if (sock_fd != -1) {
+				FUN_DEBUG("close fd = %d\n", sock_fd);
+				closesocket(sock_fd);
+			}
+
+			if (flag) {
+				FUN_DEBUG("close fd = %d\n", conn_fd);
+				closesocket(conn_fd);
+			}
+
+			OS_SemaphoreDelete(&g_server_sem);
+			OS_ThreadDelete(&g_server_thread);
+
+		}
+		else if (g_server_arg.protocol == 1) { /* UDP */
+			if (flag) {
+				FUN_DEBUG("close fd = %d\n", conn_fd);
+				closesocket(conn_fd);
+			}
+		}
+
+		g_server_enable = 0;
+
+		return AEC_OK;
+	}
+
+	return AEC_UNDEFINED;
+
+
+
+    return AEC_OK;
+}
+
+
 static AT_ERROR_CODE cipmux(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     FUN_DEBUG("----->\n");
-
 
     return AEC_OK;
 }
@@ -2591,10 +2757,8 @@ static AT_ERROR_CODE sysiosetcfg(at_callback_para_t *para, at_callback_rsp_t *rs
 		return AEC_PARA_ERROR;
 
 	para->u.setgpio_para.ID -= para->u.setgpio_para.ID;
-	if(para->u.setgpio_para.driving <= 3)
-		BoardGPIO[para->u.setgpio_para.ID].GPIOPara.driving = para->u.setgpio_para.driving;
-	else
-		return AEC_PARA_ERROR;
+
+	BoardGPIO[para->u.setgpio_para.ID].GPIOPara.driving = GPIO_DRIVING_LEVEL_1;
 
 	if(para->u.setgpio_para.mode <= 1)
 		BoardGPIO[para->u.setgpio_para.ID].GPIOPara.mode = para->u.setgpio_para.mode;
@@ -2682,39 +2846,49 @@ static AT_ERROR_CODE sysreadgpio(at_callback_para_t *para, at_callback_rsp_t *rs
     return AEC_OK;
 }
 
+#if 0
+static AT_ERROR_CODE deleteap(at_callback_para_t *para, at_callback_rsp_t *rsp)
+{
+	if(para->u.deleteap_para.apnum > SYSINFO_HISTORY_AP_MAX)
+		return AEC_PARA_ERROR;
 
+	if(delete_history_ap(para->u.deleteap_para.apnum) == -1)
+	{
+		return AEC_CMD_FAIL;
+	}
+	else
+		return AEC_OK;
+}
+#endif
 
+int OTA_start = 0;
 void occur(uint32_t evt, uint32_t data, void *arg)
 {
     int idx = EVENT_SUBTYPE(evt);
-	struct sysinfo *sysinfo = sysinfo_get();
-
     switch (idx) {
     case NET_CTRL_MSG_WLAN_CONNECTED:
         net_evevt_state = NET_CTRL_MSG_WLAN_CONNECTED;
-        at_dump("+EVT:2\n");
+		if(OTA_start == 0)
+        	at_dump("+EVT:2\n");
         break;
     case NET_CTRL_MSG_WLAN_DISCONNECTED:
         net_evevt_state = NET_CTRL_MSG_WLAN_DISCONNECTED;
-		at_dump("+EVT:3\n");
+		if(OTA_start == 0)
+			at_dump("+EVT:3\n");
         break;
     case NET_CTRL_MSG_WLAN_SCAN_SUCCESS:
         break;
     case NET_CTRL_MSG_WLAN_CONNECT_FAILED:
         break;
     case NET_CTRL_MSG_NETWORK_UP:
+		if(net_evevt_state == NET_CTRL_MSG_NETWORK_UP)
+			return;
         net_evevt_state = NET_CTRL_MSG_NETWORK_UP;
-        at_dump("+EVT:4\n");
-
-		sysinfo->wlan_sta_param.ssid_len = strlen(cur_ssid);
-		memset(sysinfo->wlan_sta_param.ssid,0,strlen((char *)sysinfo->wlan_sta_param.ssid));
-		memset(sysinfo->wlan_sta_param.psk,0,strlen((char *)sysinfo->wlan_sta_param.psk));
-		strcpy((char*)sysinfo->wlan_sta_param.ssid,cur_ssid);
-		strcpy((char*)sysinfo->wlan_sta_param.psk,cur_psk);
-
+		if(OTA_start == 0)
+        	at_dump("+EVT:4\n");
         break;
     case NET_CTRL_MSG_NETWORK_DOWN:
-
+		
         break;
     case NET_CTRL_MSG_WLAN_SCAN_FAILED:
     case NET_CTRL_MSG_WLAN_4WAY_HANDSHAKE_FAILED:
@@ -2723,9 +2897,9 @@ void occur(uint32_t evt, uint32_t data, void *arg)
         break;
     }
 
-
     if(idx >= 0 && idx < TABLE_SIZE(event)) {
         if (at_event(idx)) {
+			if(OTA_start == 0)
             at_dump("msg:%d\r\n%s\r\n", idx, event[idx]);
         }
     } else {
@@ -2735,5 +2909,31 @@ void occur(uint32_t evt, uint32_t data, void *arg)
 }
 
 
+OS_Thread_t ap_task_ctrl_thread;
+static int create_port;
+void tcp_server_task(void *pvParameters)
+{
+	while (1) {
+		ap_socket_task(create_port);
+	}
+}
 
+void ap_server_task(int port) 
+{
+	create_port = port;
+	
+	if (OS_ThreadCreate(&ap_task_ctrl_thread,
+						"tcp_server_task",
+						tcp_server_task,
+						NULL,
+						OS_THREAD_PRIO_APP,
+						(2 * 1024)) != OS_OK) {
+		printf("thread create error\n");
+	}
+}
+
+void ap_task_delete(void)
+{
+	OS_ThreadDelete(&ap_task_ctrl_thread);
+}
 

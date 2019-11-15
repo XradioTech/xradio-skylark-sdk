@@ -44,6 +44,7 @@
 #define COMMAND_DHCPD       0
 #define COMMAND_BRROADCAST  0
 #define COMMAND_ARP         0
+#define COMMAND_WLAN        1
 
 extern char sta_ssid[100];
 extern char sta_psk[100];
@@ -88,7 +89,6 @@ out:
 
 	return CMD_STATUS_ACKED;
 }
-	
 
 /*
  * net commands
@@ -149,6 +149,10 @@ static const struct cmd_data g_net_cmds[] = {
 
 #if COMMAND_ARP
 	{ "arp",        cmd_arp_exec },
+#endif
+
+#if COMMAND_WLAN
+	{ "wlan",        cmd_wlan_exec },
 #endif
 };
 

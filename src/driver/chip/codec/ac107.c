@@ -908,6 +908,16 @@ HAL_Status ac107_pdm_init(Audio_Device device, uint16_t volume, uint32_t sample_
 	return HAL_OK;
 }
 
+HAL_Status ac107_pdm_set_volume_level(Audio_Device device, uint16_t volume)
+{
+	return ac107_dai_set_volume(device, (volume & ~VOLUME_SET_MASK) | VOLUME_SET_LEVEL);
+}
+
+HAL_Status ac107_pdm_set_volume_gain(Audio_Device device, uint16_t volume)
+{
+	return ac107_dai_set_volume(device, (volume & ~VOLUME_SET_MASK) | VOLUME_SET_GAIN);
+}
+
 HAL_Status ac107_pdm_deinit(void)
 {
 	return ac107_dai_hw_free(PCM_IN);
@@ -963,6 +973,7 @@ HAL_Status ac107_codec_register(void)
 	if(ac107_priv->ac107_i2c_cfg == NULL){
 		AC107_ERR("Malloc ac107 i2c config buffer Fail!\n");
 		AC107_FREE(ac107_priv);
+		ac107_priv = NULL;
 		return HAL_ERROR;
 	}
 	AC107_MEMSET(ac107_priv->ac107_i2c_cfg, 0, sizeof(struct ac107_i2c_config) * detect_nums);

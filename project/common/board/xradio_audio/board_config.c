@@ -242,6 +242,22 @@ __xip_rodata
 static const gpio_button g_gpio_buttons[] = {
 };
 
+__xip_rodata
+static const matrix_button g_matrix_buttons_row[] = {
+	{.name = "row1", { GPIO_PORT_A, GPIO_PIN_0,	{ GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+	{.name = "row2", { GPIO_PORT_A, GPIO_PIN_1, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+	{.name = "row3", { GPIO_PORT_A, GPIO_PIN_2, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+	{.name = "row4", { GPIO_PORT_A, GPIO_PIN_3, { GPIOx_Pn_F1_OUTPUT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_NONE }}, 0, 0, 0},
+};
+
+__xip_rodata
+static const matrix_button g_matrix_buttons_col[] = {
+	{.name = "col1", { GPIO_PORT_A, GPIO_PIN_4, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
+	{.name = "col2", { GPIO_PORT_A, GPIO_PIN_5, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
+	{.name = "col3", { GPIO_PORT_A, GPIO_PIN_6, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
+	{.name = "col4", { GPIO_PORT_A, GPIO_PIN_7, { GPIOx_Pn_F6_EINT, GPIO_DRIVING_LEVEL_1, GPIO_PULL_DOWN }}, 1, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN},
+};
+
 #define BOARD_PA_PORT           GPIO_PORT_A
 #define BOARD_PA_PIN            GPIO_PIN_23
 #define BOARD_PA_ON_DELAY       150
@@ -482,6 +498,12 @@ static HAL_Status board_get_cfg(uint32_t major, uint32_t minor, uint32_t param)
 	case HAL_DEV_MAJOR_GPIO_BUTTON:
 		((gpio_button_info *)param)->gpio_buttons_p = g_gpio_buttons;
 		((gpio_button_info *)param)->count = sizeof(g_gpio_buttons) / sizeof(g_gpio_buttons[0]);
+		break;
+	case HAL_DEV_MAJOR_MATRIX_BUTTON:
+		((matrix_button_info *)param)->matrix_buttons_row_p = g_matrix_buttons_row;
+		((matrix_button_info *)param)->count_row = sizeof(g_matrix_buttons_row) / sizeof(g_matrix_buttons_row[0]);
+		((matrix_button_info *)param)->matrix_buttons_col_p = g_matrix_buttons_col;
+		((matrix_button_info *)param)->count_col = sizeof(g_matrix_buttons_col) / sizeof(g_matrix_buttons_col[0]);
 		break;
 	default:
 		BOARD_ERR("unknow major %u\n", major);

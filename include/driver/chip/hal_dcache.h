@@ -134,12 +134,31 @@ typedef struct {
 	uint32_t mixed_mode;
 } DCache_Config;
 
-void HAL_Dcache_FlushAll(void);
+#define RANGEOF_CACHEABLE(addr, len, start, end) ((((addr)+(len)) < (end)) && ((addr) >= (start)))
+
+static __INLINE int HAL_Dcache_Cacheable(uint32_t addr, uint32_t len)
+{
+    return !((RANGEOF_CACHEABLE(addr, len, DCACHE_CTRL->WT_ADDR[0].START_ADDR, DCACHE_CTRL->WT_ADDR[0].END_ADDR))
+           || (RANGEOF_CACHEABLE(addr, len, DCACHE_CTRL->WT_ADDR[1].START_ADDR, DCACHE_CTRL->WT_ADDR[1].END_ADDR))
+           || (RANGEOF_CACHEABLE(addr, len, DCACHE_CTRL->WT_ADDR[2].START_ADDR, DCACHE_CTRL->WT_ADDR[2].END_ADDR)));
+}
+
+static __INLINE void HAL_Dcache_WaitIdle()
+{
+    while(DCACHE_CTRL->DCACHE_STA);
+    return;
+}
+
+
+#ifdef __CONFIG_PSRAM
+void HAL_Dcache_SetWriteThrough(uint32_t idx, uint32_t en, uint32_t sadd, uint32_t eadd);
 void HAL_Dcache_FlushCleanAll(void);
 void HAL_Dcache_FlushClean(uint32_t sadd, uint32_t len);
 void HAL_Dcache_Clean(uint32_t sadd, uint32_t len);
+void HAL_Dcache_CleanAll(void);
+#endif
+void HAL_Dcache_FlushAll(void);
 void HAL_Dcache_Flush(uint32_t sadd, uint32_t len);
-void HAL_Dcache_SetWriteThrough(uint32_t idx, uint32_t en, uint32_t sadd, uint32_t eadd);
 void HAL_Dcache_DUMP_MissHit(void);
 void HAL_Dcache_Config(DCache_Config *cfg);
 void HAL_Dcache_DeConfig(void);

@@ -137,8 +137,6 @@ AT_ERROR_CODE at_act(void)
 AT_ERROR_CODE at_reset(void)
 {
 	if (at_callback.handle_cb != NULL) {
-		at_dump("Reboot...\r\n");
-		OS_MSleep(10);
 		at_callback.handle_cb(ACC_RST, NULL, NULL);
 	}
 

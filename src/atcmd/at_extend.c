@@ -130,6 +130,37 @@ AT_ERROR_CODE at_wifi_mode(int wifiMode)
     return AEC_OK; /* succeed */
 }
 
+AT_ERROR_CODE at_set_tcpserver(int port, int enable)
+{
+    AT_WRN("------>%s\n",__func__);
+    at_callback_para_t para;
+    para.u.tcp_server.port = port;
+	para.u.tcp_server.enable = enable;
+
+    para.cfg = &at_cfg;
+
+    if (at_callback.handle_cb != NULL) {
+        at_callback.handle_cb(ACC_TCPSERVER, &para, NULL);
+    }
+
+    return AEC_OK; /* succeed */
+}
+
+AT_ERROR_CODE at_tcp_max_conn(int max_conn)
+{
+    AT_WRN("------>%s\n",__func__);
+    at_callback_para_t para;
+    para.u.tcp_server.max_conn = max_conn;
+
+    para.cfg = &at_cfg;
+
+    if (at_callback.handle_cb != NULL) {
+        at_callback.handle_cb(ACC_TCPSERVERMAXCONN, &para, NULL);
+    }
+
+    return AEC_OK; /* succeed */
+}
+
 AT_ERROR_CODE at_setwupio(int gpioId,int edge)
 {
     AT_WRN("------>%s\n",__func__);
@@ -322,6 +353,26 @@ extern AT_ERROR_CODE at_send_tcp_buffer(char* tcpBuffer)
     return AEC_OK; /* succeed */
 }
 
+extern AT_ERROR_CODE at_set_ap(char *ssid,char *psk,char chl,int max_conn)
+{
+    AT_WRN("------>%s\n",__func__);
+    at_callback_para_t para;
+	
+	memset(&para.u.apcfgParam.ssid,0,64);
+	memset(&para.u.apcfgParam.psk,0,64);
+	memcpy(&para.u.apcfgParam.ssid,ssid,strlen(ssid));
+	memcpy(&para.u.apcfgParam.psk,psk,strlen(psk));
+	para.u.apcfgParam.chl = chl;
+	para.u.apcfgParam.max_conn = max_conn;
+    para.cfg = &at_cfg;
+
+    if (at_callback.handle_cb != NULL) {
+        at_callback.handle_cb(ACC_APCFG, &para, NULL);
+    }
+    return AEC_OK; /* succeed */
+}
+
+
 extern AT_ERROR_CODE at_close_network(int linkId)
 {
     AT_WRN("------>%s\n",__func__);
@@ -350,7 +401,6 @@ extern AT_ERROR_CODE at_mux_network(int mux)
     return AEC_OK; /* succeed */
 }
 
-
 extern AT_ERROR_CODE at_set_trans_mode(int mode)
 {
     AT_WRN("------>%s\n",__func__);
@@ -363,7 +413,6 @@ extern AT_ERROR_CODE at_set_trans_mode(int mode)
     }
     return AEC_OK; /* succeed */
 }
-
 
 extern AT_ERROR_CODE at_set_dns(char* dnsAdress)
 {
@@ -396,14 +445,13 @@ extern AT_ERROR_CODE at_send_data(int linkId, char* dataBuffer, s32 dataBufferLe
     return AEC_OK; /* succeed */
 }
 
-extern AT_ERROR_CODE at_io_cfg(int ID, int mode,int driving, int pull)
+extern AT_ERROR_CODE at_io_cfg(int ID, int mode , int pull)
 {
     AT_WRN("------>%s\n",__func__);
     at_callback_para_t para;
 	
     para.u.setgpio_para.ID = ID;
     para.u.setgpio_para.mode = mode;
-    para.u.setgpio_para.driving = driving;
 	para.u.setgpio_para.pull = pull;
 
     para.cfg = &at_cfg;

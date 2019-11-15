@@ -42,8 +42,7 @@
 #define SERIAL_CACHE_BUF_NUM	16
 #define SERIAL_CACHE_BUF_SIZE	(64/2)
 
-#define ATCMDSEND_MAX_BUFF_SIZE	1024L
-
+#define ATCMDSEND_MAX_BUFF_SIZE	(1024L+64L)
 
 typedef enum {
 	SERIAL_STATE_STOP = 0,
@@ -135,7 +134,6 @@ static void serial_rx_callback(void *arg)
 
 						break;
 					}
-
 					len = 0;
 				}
 			}
@@ -154,6 +152,7 @@ static void serial_rx_callback(void *arg)
 					break;
 				}
 				break;
+				
 			}
 		}
 	}

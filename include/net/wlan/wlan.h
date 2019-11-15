@@ -112,6 +112,7 @@ int wlan_sta_state(wlan_sta_states_t *state);
 int wlan_sta_ap_info(wlan_sta_ap_t *ap);
 
 int wlan_sta_gen_psk(wlan_gen_psk_param_t *param);
+int wlan_sta_get_ap_ssid_psk(wlan_ssid_psk_t *info);
 
 int wlan_sta_wps_pbc(void);
 int wlan_sta_wps_pin_get(wlan_sta_wps_pin_t *wps);
@@ -133,6 +134,7 @@ int wlan_ap_scan_once(void);
 int wlan_ap_scan(wlan_sta_scan_param_t *param);
 int wlan_ap_get_scan_result_num(int *num);
 int wlan_ap_scan_result(wlan_sta_scan_results_t *results);
+int wlan_ap_scan_bss_max_count(uint8_t count);
 
 /* monitor */
 typedef enum {

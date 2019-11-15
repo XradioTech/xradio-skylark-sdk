@@ -33,11 +33,11 @@
 #include "common/apps/buttons/buttons_low_level.h"
 
 /* the buttons in board, need see "board/xradio_storybot/board_config.c" */
-#define MODE   KEY0
-#define WECHAT KEY1
-#define VOICE  KEY2
+#define PLAY   KEY1
+#define PREV   KEY2
 #define NEXT   KEY3
-#define PREV   KEY4
+#define MODE   KEY4
+#define AI     KEY5
 
 static button_handle *short_button;
 static button_handle *long_button0;
@@ -50,56 +50,56 @@ static void short_button_cb(BUTTON_STATE sta, void *arg)
 {
 	/* short button only has the RELEASE state */
 	if (sta == RELEASE)
-		printf("short button for MODE has release\n");
+		printf("short button for PLAY/PAUSE has release\n");
 }
 
 static void long_button0_cb(BUTTON_STATE sta, void *arg)
 {
 	/* long button has the PRESS/RELEASE state */
 	if (sta == PRESS)
-		printf("long button for WECHAT has press\n");
+		printf("long button for PRE/VOL+ has press\n");
 	else if (sta == RELEASE)
-		printf("long button for WECHAT has release\n");
+		printf("long button for PRE/VOL+ has release\n");
 }
 
 static void long_button1_cb(BUTTON_STATE sta, void *arg)
 {
 	/* long button has the PRESS/RELEASE state */
 	if (sta == PRESS)
-		printf("long button for VOICE has press\n");
+		printf("long button for NEXT/VOL- has press\n");
 	else if (sta == RELEASE)
-		printf("long button for VOICE has release\n");
+		printf("long button for NEXT/VOL- has release\n");
 }
 
 static void short_long_button_cb(BUTTON_STATE sta, void *arg)
 {
 	/* short_long button has the PRESS/RELEASE/REPEAT_RELEASE state */
 	if (sta == PRESS)
-		printf("long button for NEXT has press\n");
+		printf("long button for MODE has press\n");
 	else if (sta == RELEASE)
-		printf("short button for NEXT has release\n");
+		printf("short button for MODE has release\n");
 	else if (sta == REPEAT_RELEASE)
-		printf("long button for NEXT has release\n");
+		printf("long button for MODE has release\n");
 }
 
 static void combined_long_button0_cb(BUTTON_STATE sta, void *arg)
 {
 	/* combined button has the PRESS/RELEASE state */
 	if (sta == PRESS)
-		printf("combined button for NEXT|PREV has press\n");
+		printf("combined button for NEXT+PREV has press\n");
 	else if (sta == RELEASE)
-		printf("combined button for NEXT|PREV has release\n");
+		printf("combined button for NEXT+PREV has release\n");
 }
 
 static void repeat_long_button_cb(BUTTON_STATE sta, void *arg)
 {
 	/* repeat long button has the PRESS/RELEASE/REPEAT_PRESS state */
 	if (sta == PRESS)
-		printf("repeat long button for PREV has press\n");
+		printf("repeat long button for AI has press\n");
 	else if (sta == RELEASE)
-		printf("repeat long button for PREV has release\n");
+		printf("repeat long button for AI has release\n");
 	else if (sta == REPEAT_PRESS)
-		printf("repeat long button for PREV has repeat release\n");
+		printf("repeat long button for AI has repeat release\n");
 
 }
 
@@ -169,13 +169,13 @@ int example_buttons_create(void)
 	/* create buttons object */
 
 	/* when this button pressed, it will trigger */
-	short_button = create_short_button(MODE);
+	short_button = create_short_button(PLAY);
 	/* after a long press of 50ms, it will trigger */
-	long_button0 = create_long_button(WECHAT, 50);
+	long_button0 = create_long_button(PREV, 50);
 	/* after a long press of 500ms, it will trigger */
-	long_button1 = create_long_button(VOICE, 500);
+	long_button1 = create_long_button(NEXT, 500);
 
-	short_long_button = create_short_long_button(NEXT, 500);
+	short_long_button = create_short_long_button(MODE, 500);
 	/*
 	 * NEXT and PREV are ad buttons, so if we want to create the combination
 	 * button of NEXT and PREV, we should set the ad value in boardconfig.c when
@@ -183,7 +183,7 @@ int example_buttons_create(void)
 	 */
 	combined_long_button0 = create_combined_long_button(NEXT | PREV, 50);
 
-	repeat_long_button = create_repeat_long_button(PREV, 500, 300);
+	repeat_long_button = create_repeat_long_button(AI, 500, 300);
 
 	if (!short_button || !long_button0 || !long_button1 || !short_long_button ||
 		!combined_long_button0 || !repeat_long_button) {

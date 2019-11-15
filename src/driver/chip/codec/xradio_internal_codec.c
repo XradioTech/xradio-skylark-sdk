@@ -196,13 +196,13 @@ static const struct real_val_to_reg_val xradio_lineout_gain[] = {
 #endif
 
 //Base read/write Interface
-__sram_text
+__nonxip_text
 static int xradio_codec_reg_read(uint32_t reg)
 {
 	return HAL_REG_32BIT(reg+CODEC_BASE);
 }
 
-__sram_text
+__nonxip_text
 static int xradio_codec_reg_write(uint32_t reg, uint32_t val)
 {
 	HAL_REG_32BIT(reg+CODEC_BASE) = val;
@@ -210,7 +210,7 @@ static int xradio_codec_reg_write(uint32_t reg, uint32_t val)
 	return HAL_OK;
 }
 
-__sram_text
+__nonxip_text
 static int xradio_codec_reg_update_bits(uint32_t reg, uint32_t mask, uint32_t val)
 {
 	uint32_t val_old,val_new;
@@ -227,7 +227,7 @@ static int xradio_codec_reg_update_bits(uint32_t reg, uint32_t mask, uint32_t va
 
 
 /*************************** XRADIO Codec DMA Control ****************************/
-__sram_text
+__nonxip_text
 static void xradio_codec_dma_trigger(Audio_Stream_Dir dir, bool enable)
 {
 	uint32_t flags;
@@ -286,7 +286,7 @@ static void xradio_codec_dma_trigger(Audio_Stream_Dir dir, bool enable)
 	}
 }
 
-__sram_text
+__nonxip_text
 static int xradio_codec_dma_threshold_check(Audio_Stream_Dir dir)
 {
 	if(dir == PCM_OUT){
@@ -318,7 +318,7 @@ static int xradio_codec_dma_threshold_check(Audio_Stream_Dir dir)
 	return HAL_OK;
 }
 
-__sram_text
+__nonxip_text
 static void xradio_codec_dma_half_callback(void *arg)
 {
 	if(arg == &xradio_codec_priv->txReady){
@@ -342,7 +342,7 @@ static void xradio_codec_dma_half_callback(void *arg)
 	}
 }
 
-__sram_text
+__nonxip_text
 static void xradio_codec_dma_end_callback(void *arg)
 {
 	if(arg == &xradio_codec_priv->txReady){
@@ -385,7 +385,11 @@ static int xradio_codec_dma_init(Audio_Stream_Dir dir, DMA_Channel channel)
 						xradio_codec_priv->tx_data_width,
 						DMA_BURST_LEN_1,
 						DMA_ADDR_MODE_INC,
+#if (__CONFIG_CODEC_HEAP_MODE == 1)
+						DMA_PERIPH_PSRAMC
+#else
 						DMA_PERIPH_SRAM
+#endif
 						);
 		dmaParam.halfArg = &(xradio_codec_priv->txReady);
 		dmaParam.endArg  = &(xradio_codec_priv->txReady);
@@ -397,7 +401,11 @@ static int xradio_codec_dma_init(Audio_Stream_Dir dir, DMA_Channel channel)
 						xradio_codec_priv->rx_data_width,
 						DMA_BURST_LEN_1,
 						DMA_ADDR_MODE_INC,
+#if (__CONFIG_CODEC_HEAP_MODE == 1)
+						DMA_PERIPH_PSRAMC,
+#else
 						DMA_PERIPH_SRAM,
+#endif
 						xradio_codec_priv->rx_data_width,
 						DMA_BURST_LEN_1,
 						DMA_ADDR_MODE_FIXED,

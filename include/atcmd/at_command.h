@@ -112,12 +112,15 @@ typedef enum {
 	ACC_CIPSTAMAC_CUR,
 	ACC_CIPSTA_CUR,
 	ACC_CWHOSTNAME,
+	ACC_APCFG,
 //add
 	ACC_CIPSTATUS,
 	ACC_CIPDOMAIN,
 	ACC_CIPSTART,
 	ACC_CIPSENDBUF,
 	ACC_CIPCLOSE,
+	ACC_TCPSERVER,
+	ACC_TCPSERVERMAXCONN,
 	ACC_CIPMUX,
 	ACC_CIPMODE,
 	ACC_CIPDNS_CUR,
@@ -148,7 +151,6 @@ typedef struct {
 typedef struct {
 	at_di_t ID;
     at_di_t	mode;
-    at_di_t	driving;
     at_di_t	pull;
 } at_setgpio_para_t;
 
@@ -210,6 +212,11 @@ typedef struct {
 			s32 protocol; /* 0: TCP 1: UDP */
 		} sockd;
 		struct {
+			s32 port;
+			s32 enable; /* 0: enable 1: disable */
+			s32 max_conn;
+		} tcp_server;
+		struct {
 			s32 len; /* transparent transmission send buffer length */
 			u8 *buf; /* transparent transmission send buffer */
 		} mode;
@@ -236,6 +243,14 @@ typedef struct {
 			char pwd[33];
 		}joinParam;
 		struct{
+			char  ssid[64];
+			char  psk[64];
+			int   chl;
+			int   ecn;
+			int   max_conn;
+			int   hidden;
+		}apcfgParam;
+		struct{
 			char hostname[33];
 		}iphostname;
 		struct{
@@ -260,7 +275,6 @@ typedef struct {
 		struct{
 			int ID;
 			int mode;
-			int driving;
 			int pull;
 		}setgpio_para;
 		struct{

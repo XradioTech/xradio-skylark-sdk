@@ -88,6 +88,8 @@ task.h is included from an application file. */
 #include "FreeRTOS.h"
 #include "task.h"
 #include "driver/chip/hal_dcache.h"
+#include "driver/chip/psram/psram.h"
+
 
 #undef MPU_WRAPPERS_INCLUDED_FROM_API_FILE
 
@@ -110,17 +112,16 @@ task.h is included from an application file. */
 #define psram_heapBITS_PER_BYTE			( ( size_t ) 8 )
 
 /* Allocate the memory for the heap. */
-	extern uint8_t __psram_end__[];	/* heap start address defined by linker */
 
-	#define psram_configTOTAL_HEAP_SIZE	( IDCACHE_END_ADDR - (size_t)__psram_end__ )
+	#define psram_configTOTAL_HEAP_SIZE	( PSRAM_END_ADDR - (size_t)__psram_end__ + 1 )
 
 	static uint8_t *psram_ucHeap = __psram_end__;
 
 /* Define the linked list structure.  This is used to link free blocks in order
 of their memory address. */
-typedef struct A_BLOCK_LINK
+typedef struct psram_A_BLOCK_LINK
 {
-	struct A_BLOCK_LINK *pxNextFreeBlock;	/*<< The next free block in the list. */
+	struct psram_A_BLOCK_LINK *pxNextFreeBlock;	/*<< The next free block in the list. */
 	size_t xBlockSize;						/*<< The size of the free block. */
 } psram_BlockLink_t;
 
@@ -162,7 +163,7 @@ static size_t psram_xBlockAllocatedBit = 0;
 
 /*-----------------------------------------------------------*/
 
-void *psram_malloc( size_t xWantedSize )
+void *_psram_malloc( size_t xWantedSize )
 {
 psram_BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
 void *pvReturn = NULL;
@@ -312,7 +313,7 @@ void *pvReturn = NULL;
 }
 /*-----------------------------------------------------------*/
 
-void psram_free( void *pv )
+void _psram_free( void *pv )
 {
 uint8_t *puc = ( uint8_t * ) pv;
 psram_BlockLink_t *pxLink;
@@ -480,7 +481,7 @@ uint8_t *puc;
 	}
 }
 
-void *psram_realloc( void *pv, size_t xWantedSize )
+void *_psram_realloc( void *pv, size_t xWantedSize )
 {
 	psram_BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
 	void *pvReturn = NULL;
@@ -521,7 +522,7 @@ void *psram_realloc( void *pv, size_t xWantedSize )
 			{
 				if(srcaddr == NULL)
 				{
-					pvReturn = psram_malloc(xWantedSize);
+					pvReturn = _psram_malloc(xWantedSize);
 					goto out;
 				}
                 pxBlockold = (psram_BlockLink_t *)(srcaddr -  psram_xHeapStructSize);
@@ -554,9 +555,9 @@ void *psram_realloc( void *pv, size_t xWantedSize )
 				}
 				else
 				{
-				    pvReturn = psram_malloc((((pxBlockold->xBlockSize)&(~psram_xBlockAllocatedBit))-psram_xHeapStructSize)+xWantedSize);
+				    pvReturn = _psram_malloc((((pxBlockold->xBlockSize)&(~psram_xBlockAllocatedBit))-psram_xHeapStructSize)+xWantedSize);
 					memcpy((uint8_t*)pvReturn,srcaddr,((pxBlockold->xBlockSize&(~psram_xBlockAllocatedBit))-psram_xHeapStructSize));
-					psram_free(srcaddr);
+					_psram_free(srcaddr);
 				}
 			}
 			else
@@ -573,16 +574,6 @@ out:
 	( void ) xTaskResumeAll();
 	configASSERT( ( ( ( size_t ) pvReturn ) & ( size_t ) psram_portBYTE_ALIGNMENT_MASK ) == 0 );
 	return pvReturn;
-}
-
-void *psram_calloc( size_t xNmemb, size_t xMembSize )
-{
-    void *ptr = psram_malloc(xNmemb*xMembSize);
-    if(ptr != NULL) {
-        memset(ptr, 0, xNmemb*xMembSize);
-    }
-
-    return ptr;
 }
 
 #endif /* __CONFIG_PSRAM */

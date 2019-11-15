@@ -348,7 +348,6 @@ static int fs_deinit()
 	return 0;
 }
 
-/* Run this demo, please connect the XR872ET_VER_DIG_V1_0 board. */
 int main(void)
 {
 	platform_init();

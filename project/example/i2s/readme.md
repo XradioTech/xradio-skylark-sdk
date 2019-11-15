@@ -11,17 +11,18 @@
 ## 适用平台
 
 > 本工程适用以下芯片类型：
-> 1. XR872系列芯片：XR872AT、XR872ET
+>
+> 1. XR872系列芯片： XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板：XR872MD_EVB
+> 1. 底板： XR872_EVB_AI
 > 2. 模组：XR872AT_MD01
 
-> 本工程在基于XR872AT的“XR872AT_VER_V1_0”数字板上测试通过。
+> 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
 > 若需要在其他适用芯片和评估板上运行本工程，请根据快速指南《XRadio_Quick_Start_Guide-CN》的提示进行相关配置修改。
 
 > XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ---
 
@@ -65,7 +66,7 @@
 > 3. 系统启动后，可以看到测试的打印信息
 
 > XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ### 代码结构
 ```
@@ -85,7 +86,7 @@
 └── project
     └── common
         └── board
-            └── xradio_evb    #本工程在Makefile中指定使用xradio_evb的板级配置
+            └── xr872_evb_ai    #本工程在Makefile中指定使用xr872_evb_ai的板级配置
                 ├── board_config.h     #本工程的板级配置，
                 └── board_config.c     #本工程的板级pin mux的配置。
 

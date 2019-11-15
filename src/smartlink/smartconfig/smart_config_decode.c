@@ -149,6 +149,12 @@ static int dec_data_decode(smartconfig_priv_t *priv, sc_result_t *result,
 	SC_DBG(INFO, "DATA_DECODE PWD_SIZE : %d SSID_SIZE: %d\n",
 	       src_pwd_size, src_ssid_size);
 
+	if (src_ssid_size + src_pwd_size >= sizeof(priv->src_data_buff)) {
+		SC_DBG(ERROR, "ERR %s(),%d, ssid size %u, pwd size %u\n",
+		       __func__, __LINE__, src_ssid_size, src_pwd_size);
+		return -1;
+	}
+
 	src_pwd_data = src_data_buff;
 	src_ssid_data = src_data_buff + src_pwd_size;
 
@@ -157,7 +163,7 @@ static int dec_data_decode(smartconfig_priv_t *priv, sc_result_t *result,
 		uint8_t temp_ssid[65];
 
 		if (src_pwd_size >= 66 || src_ssid_size >= 65) {
-			SC_DBG(ERROR, "DATA_DECODE pwd:\n");
+			SC_DBG(ERROR, "ERR DATA_DECODE, %u, %u\n", src_pwd_size, src_ssid_size);
 			return -1;
 		}
 		memset(temp_pwd , 0, 66);
@@ -175,15 +181,25 @@ static int dec_data_decode(smartconfig_priv_t *priv, sc_result_t *result,
 				for (i = 0; i < pwd_dlen; i++) {
 					int value = *(temp_pwd + src_pwd_size - 1 - i);
 					if (value != pwd_dlen) {
-						SC_DBG(ERROR, "%s,%d, aes pwd err, "
+						SC_DBG(ERROR, "ERR %s,%d, aes pwd err, "
 						       "value:%d\n", __func__, __LINE__, value);
 						return -1;
 					}
 				}
-				result->pwd_len = src_pwd_size - pwd_dlen;
-				memcpy(result->pwd, temp_pwd, strlen((const char *)temp_pwd));
-			} else
-				SC_DBG(ERROR, "%s,%d, aes pwd err\n", __func__, __LINE__);
+
+				int pwd_len = src_pwd_size - pwd_dlen;
+				if (pwd_len >= 0 && pwd_len <= WLAN_PASSPHRASE_MAX_LEN) {
+					result->pwd_len = pwd_len;
+					memcpy(result->pwd, temp_pwd, pwd_len);
+					result->pwd[pwd_len] = 0;
+				} else {
+					SC_DBG(ERROR, "ERR %s,%d, pwd_len %d\n", __func__, __LINE__, pwd_len);
+					return -1;
+				}
+			} else {
+				SC_DBG(ERROR, "ERR %s,%d, aes pwd err\n", __func__, __LINE__);
+				return -1;
+			}
 		}
 		if (src_ssid_size) {
 			if (aes_ebc_decrypt((char *)src_ssid_data, (char *)temp_ssid,
@@ -194,29 +210,42 @@ static int dec_data_decode(smartconfig_priv_t *priv, sc_result_t *result,
 				for (i = 0; i < ssid_dlen; i++) {
 					int value = *(temp_ssid + src_ssid_size - 1 - i);
 					if (value != ssid_dlen) {
-						SC_DBG(ERROR, "%s,%d, aes ssid err, value:%d\n",
+						SC_DBG(ERROR, "ERR %s,%d, aes ssid err, value:%d\n",
 						       __func__, __LINE__, value);
 						return -1;
 					}
 				}
-				result->ssid_len = src_ssid_size- ssid_dlen;
-				memcpy(result->ssid, temp_ssid, strlen((const char *)temp_ssid));
+
+				int ssid_len = src_ssid_size- ssid_dlen;
+				if (ssid_len > 0 && ssid_len <= WLAN_SSID_MAX_LEN) {
+					result->ssid_len = ssid_len;
+					memcpy(result->ssid, temp_ssid, ssid_len);
+				} else {
+					SC_DBG(ERROR, "ERR %s,%d, ssid_len %d\n", __func__, __LINE__, ssid_len);
+					return -1;
+				}
 			} else {
-				SC_DBG(ERROR, "%s,%d, aes ssid err\n",  __func__, __LINE__);
+				SC_DBG(ERROR, "ERR %s,%d, aes ssid err\n",  __func__, __LINE__);
+				return -1;
 			}
 		}
+	} else {
+		if (src_ssid_size > 0 && src_ssid_size <= WLAN_SSID_MAX_LEN) {
+			result->ssid_len = src_ssid_size;
+			memcpy(result->ssid, src_ssid_data, src_ssid_size);
+		} else {
+			SC_DBG(ERROR, "ERR %s,%d, ssid_len %d\n", __func__, __LINE__, src_ssid_size);
+			return -1;
+		}
 
-		*(result->pwd + result->pwd_len) = 0;
-		*(result->ssid + result->ssid_len) = 0;
-	} else if (priv->aes_key[0] == 0) {
-		result->ssid_len = src_ssid_size;
-		result->pwd_len = src_pwd_size;
-
-		memcpy(result->ssid, src_ssid_data, result->ssid_len);
-		memcpy(result->pwd, src_pwd_data, result->pwd_len);
-
-		*(result->pwd + result->pwd_len) = 0;
-		*(result->ssid + result->ssid_len) = 0;
+		if (src_pwd_size >= 0 && src_pwd_size <= WLAN_PASSPHRASE_MAX_LEN) {
+			result->pwd_len = src_pwd_size;
+			memcpy(result->pwd, src_pwd_data, src_pwd_size);
+			result->pwd[src_pwd_size] = 0;
+		} else {
+			SC_DBG(ERROR, "ERR %s,%d, pwd_len %d\n", __func__, __LINE__, src_pwd_size);
+			return -1;
+		}
 	}
 
 	result->random = lead_code->random;
@@ -226,19 +255,18 @@ static int dec_data_decode(smartconfig_priv_t *priv, sc_result_t *result,
 
 	crc8_pwd = *(src_data_buff + lead_code->ssidpwd_len + i);
 
-	if (cal_crc8(result->pwd, result->pwd_len) != crc8_pwd) {
+	uint8_t calc_crc = cal_crc8(result->pwd, result->pwd_len);
+	if (calc_crc != crc8_pwd) {
 		src_data_buff[0] = 0;
-		SC_DBG(ERROR, "%s,%d pwd crc err %x\n", __func__, __LINE__, crc8_pwd);
-
+		SC_DBG(ERROR, "%s,%d pwd crc err %x != %x\n", __func__, __LINE__, crc8_pwd, calc_crc);
 		return -1;
 	}
 
 	crc8_ssid = *(src_data_buff + lead_code->ssidpwd_len + i + 1);
-
-	if (cal_crc8(result->ssid, result->ssid_len) != crc8_ssid) {
+	calc_crc = cal_crc8(result->ssid, result->ssid_len);
+	if (calc_crc != crc8_ssid) {
 		src_data_buff[0] = 0;
-		SC_DBG(ERROR, "%s,%d ssid crc err\n", __func__, __LINE__);
-
+		SC_DBG(ERROR, "%s,%d ssid crc err %x != %x\n", __func__, __LINE__, crc8_ssid, calc_crc);
 		return -1;
 	}
 
@@ -250,7 +278,7 @@ static int dec_data_decode(smartconfig_priv_t *priv, sc_result_t *result,
 /* save psk and ssid data */
 static int
 dec_push_data(sc_lead_code_t *lead_code, uint8_t packet_num,
-              uint16_t *src_data_buff, uint16_t data)
+              uint8_t *src_data_buff, uint8_t *data)
 {
 	int d = 0;
 
@@ -259,9 +287,10 @@ dec_push_data(sc_lead_code_t *lead_code, uint8_t packet_num,
 	if (dec_valid_packet_count(lead_code->count_pkt, packet_num) == 1)
 		lead_code->packet_count += 1;
 
-	SC_DBG(INFO, "push packet_num:%d, data:%x\n", packet_num, data);
+	SC_DBG(INFO, "push packet_num %u, data %x %x\n", packet_num, data[0], data[1]);
 
-	*(src_data_buff + packet_num) = data;
+	src_data_buff[packet_num * 2] = data[0];
+	src_data_buff[packet_num * 2 + 1] = data[1];
 	d = lead_code->packet_count - lead_code->packet_total;
 
 	return d;
@@ -308,12 +337,15 @@ sc_dec_packet_decode(smartconfig_priv_t *priv, uint8_t *data, uint32_t len)
 	if (!lead_code->lead_complete_flag)
 		return status;
 
-	if (packet_num <= 127) {
-		uint16_t data = (iframe->i_addr3[4]) | (iframe->i_addr3[5] << 8);
-
-		if (dec_push_data(lead_code, packet_num,
-		    (uint16_t *)priv->src_data_buff, data) != 0)
+	/* data packet num MUST >= 5 and <= 64, use 127 to avoid strange cases */
+	if (packet_num >= 5 && packet_num <= 127) {
+		if (packet_num > 64) {
+			SC_DBG(ERROR, "ERR strange pkt num %u\n", packet_num);
+		}
+		if (dec_push_data(lead_code, packet_num, priv->src_data_buff,
+		                  &iframe->i_addr3[4]) != 0) {
 			return status;
+		}
 	}
 
 	if (priv->status < SC_STATUS_COMPLETE &&

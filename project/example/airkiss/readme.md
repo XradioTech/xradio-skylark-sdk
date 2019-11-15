@@ -13,19 +13,20 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片：XR872AT、XR872ET
+> 1. XR808系列芯片： XR808CT
+> 2. XR872系列芯片： XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
 >
-> 1. 底板：XR872MD_EVB
-> 2. 模组：XR872AT_MD01
+> 1. 底板： XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
+> 2. 模组：XR808CT0_MD01、XR808CT0_MD02、XR872AT_MD01
 
-> 本工程在基于XR872ET的“XR872MD_EVB+XR872AT_MD01”评估板上测试通过。
+> 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
 >
 > 若需要在其他适用芯片和评估板上运行本工程，请根据快速指南《XRadio_Quick_Start_Guide-CN》的提示进行相关配置修改。
 
 > XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ## 工程配置
 
@@ -78,7 +79,7 @@
 > 7. 等待串口打印配网结果
 
 > XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ### 代码结构
 
@@ -111,7 +112,7 @@
 └── project
     └── common
         └── board
-            └── xradio_evb             #本工程在localconfig.mk中指定使用xradio_evb的板级配置
+            └── xr872_evb_ai           #本工程在Makefile中指定使用xr872_evb_ai的板级配置
                 ├── board_config.h     #本工程的板级配置
                 └── board_config.c     #本工程的板级pin mux的配置。
 ```

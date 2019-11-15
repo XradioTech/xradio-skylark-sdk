@@ -34,11 +34,13 @@
 #include "common/framework/net_ctrl.h"
 #include "common/framework/platform_init.h"
 #include "common/framework/sysinfo.h"
+#include "common/cmd/cmd.h"
 #include "lwip/inet.h"
 #include "sys/fdcm.h"
 #include "util/time_logger.h"
 
 extern uint64_t HAL_RTC_GetFreeRunTime(void);
+extern void stdout_enable(uint8_t en);
 
 #define FC_DEBUG_EN		0
 #if FC_DEBUG_EN
@@ -122,7 +124,7 @@ void connect_ap(void)
 		return;
 	}
 
-    printf("Save IP info to flash!\n");
+    //Save IP info to flash
 	sysinfo->sta_use_dhcp = 0;
 	memcpy(&sysinfo->netif_sta_param.ip_addr, &g_wlan_netif->ip_addr, sizeof(ip_addr_t));
 	memcpy(&sysinfo->netif_sta_param.gateway, &g_wlan_netif->gw, sizeof(ip_addr_t));
@@ -142,7 +144,7 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 		ret = -1;
 		return ret;
 	}
-    printf("Try to get current bss info size\n");
+    //Try to get current bss info size
 	ret = wlan_sta_get_bss_size(&size);
 	if (ret != 0) {
     	printf("Get current bss info size failed!\n");
@@ -151,14 +153,14 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 	bss_get.size = size;
 	bss_get.bss = malloc(size);
 
-    printf("Try to get current bss info\n");
+    //Try to get current bss info
 	ret = wlan_sta_get_bss(&bss_get);
 	if (ret != 0) {
     	printf("Get current bss info failed!\n");
 		return ret;
 	}
 
-    printf("Gererate 32 bytes HEX psk, so that we don't need to calcute next time.\n");
+    //Gererate 32 bytes HEX psk, so that we don't need to calcute next time
 	wlan_gen_psk_param_t param;
 	param.ssid_len = strlen(sta_ssid);
 	memcpy(param.ssid, sta_ssid, param.ssid_len);
@@ -170,7 +172,7 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 		return ret;
 	}
 
-    printf("Save current bss info to flash!\n");
+    //Save current bss info to flash
 	memset(pbss_info, 0, sizeof(bss_info_t));
 	memcpy(pbss_info->ssid, sta_ssid, strlen(sta_ssid));
 	memcpy(pbss_info->psk, param.psk, 32);
@@ -185,6 +187,7 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 	fdcm_write(bss_fdcm_hdl, pbss_info, sizeof(bss_info_t));
 	fdcm_close(bss_fdcm_hdl);
 	free(bss_get.bss);
+    printf("Save bss info to done!\n");
 	return ret;
 }
 
@@ -221,7 +224,7 @@ void connect_ap_normal(void)
 {
 	connect_ap();
 
-	printf("Save new bss info to flash!\n");
+	//Save new bss info to flash
 	save_bss_to_flash(&g_bss_info);
 }
 
@@ -302,14 +305,16 @@ void fast_connect_example(void)
 	FC_DEBUG("Begin fast connect example\n");
 	FC_DEBUG("Try to get old bss info in flash...\n");
 	if (get_bss_from_flash(&g_bss_info)) {
+		stdout_enable(1);
 		printf("Get old bss failed!\n");
 		printf("Begin normal connection\n");
 		connect_ap_normal();
-    	printf("Complete first time connection, please reboot to run fast connection!\n");
+    	printf("The first connection is complete, please reboot to run fast connection!\n");
 	} else {
 		FC_DEBUG("Get old bss info success!\n");
 		FC_DEBUG("Begin fast connection\n");
 		connect_ap_fast(&g_bss_info);
+		stdout_enable(1);
 	}
 }
 
@@ -317,6 +322,7 @@ int main(void)
 {
 	uint32_t time_eob, time_eop;
 	time_eob = (uint32_t)HAL_RTC_GetFreeRunTime();
+	stdout_enable(0);
 	platform_init();
 	time_eop = (uint32_t)HAL_RTC_GetFreeRunTime();
 	save_time(time_eob, 0);
@@ -324,6 +330,10 @@ int main(void)
 	fast_connect_example();
 	OS_MSleep(100);
 	get_time();
+
+	printf("Try to ping www.baidu.com\n");
+	cmd_ping_exec("www.baidu.com 1");
+
 	return 0;
 }
 

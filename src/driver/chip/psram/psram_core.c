@@ -1175,6 +1175,7 @@ int32_t psram_init(struct psram_chip *chip, struct psram_ctrl *ctrl, PSRAMChip_I
 	default :
 		break;
 	}
+	HAL_PsramCtrl_Set_Address_Field(ctrl, 0, PSRAM_START_ADDR, PSRAM_END_ADDR, 0);
 	_chip_priv = chip;
 #ifdef CONFIG_PM
     pm_register_ops(&psram_dev);
@@ -1219,45 +1220,4 @@ void psram_info_dump(struct psram_chip *chip)
 
 	return ;
 }
-
-#define CONFIG_PSRAM_APS_TEST
-
-#ifdef CONFIG_PSRAM_APS_TEST
-#include <string.h>
-
-typedef uint32_t (*c_psram_run_exec)(void *p);
-
-volatile int p_flag = 1;
-
-const unsigned int psram_bin[91] = { /* include text, data, bss */
-	0x4903b508,0x60084603,0x47984802,0xbd0820c8,0x01400038,0x01357924,0x22014901,0xb804f000,
-	0x0140003c,0x00000000,0x4802b401,0xbc014684,0xbf004760,0x002062b9,0x00000000,0x01400044,
-	0x01400001,0x666e6f63,0x00006769,
-};
-
-static void test_cb(uint32_t args, void *addr)
-{
-	printf("%s,%d %x %p\n", __func__, __LINE__, args, addr);
-}
-
-int32_t psram_aps_run_test(void)
-{
-	int32_t ret = 0;
-	uint32_t config_test = 0x1400001;
-
-	HAL_PsramCtrl_Set_Address_Field(NULL, 0, IDCACHE_START_ADDR, IDCACHE_END_ADDR, 0);
-	HAL_Dcache_FlushCleanAll();
-
-	memcpy((void *)0x1400000, psram_bin, sizeof(psram_bin));
-	print_hex_dump_bytes((const void *)0x1400000, sizeof(psram_bin));
-
-	printf("%s print:\n", __func__);
-	((c_psram_run_exec)config_test)(test_cb);
-	while(p_flag);
-	p_flag = 1;
-
-	return ret;
-}
-#endif /* CONFIG_PSRAM_APS_TEST */
-
 #endif /* __CONFIG_PSRAM */

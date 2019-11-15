@@ -99,7 +99,7 @@ typedef struct smartconfig_priv {
 	sc_result_t result;
 	uint8_t waiting;
 	uint8_t ack_run;
-	uint8_t src_data_buff[SC_MAX_SSIDPSK_LEN];
+	uint8_t src_data_buff[SC_MAX_SSIDPSK_LEN * 2]; /* double size to avoid out of bounds */
 } smartconfig_priv_t;
 
 extern smartconfig_priv_t *smartconfig_priv;

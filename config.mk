@@ -25,6 +25,9 @@ __CONFIG_MALLOC_USE_STDLIB ?= y
 # trace heap memory usage and error when using malloc, free, etc.
 __CONFIG_MALLOC_TRACE ?= n
 
+# trace psram heap memory usage and error when using psram_malloc, psram_free, etc.
+__CONFIG_PSRAM_MALLOC_TRACE ?= n
+
 # os
 __CONFIG_OS_FREERTOS ?= y
 
@@ -158,7 +161,7 @@ __CONFIG_JPEG_SHARE_64K ?= n
 ifeq ($(__CONFIG_MALLOC_USE_STDLIB), y)
   ifeq ($(__CONFIG_PSRAM), y)
     ifneq ($(__CONFIG_MALLOC_TRACE), y)
-      __CONFIG_MIX_HEAP_MANAGE ?= y
+      __CONFIG_MIX_HEAP_MANAGE ?= n
     endif
   endif
 endif
@@ -244,6 +247,10 @@ endif
 
 ifeq ($(__CONFIG_MALLOC_TRACE), y)
   CONFIG_SYMBOLS += -D__CONFIG_MALLOC_TRACE
+endif
+
+ifeq ($(__CONFIG_PSRAM_MALLOC_TRACE), y)
+  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_MALLOC_TRACE
 endif
 
 ifeq ($(__CONFIG_OS_FREERTOS), y)

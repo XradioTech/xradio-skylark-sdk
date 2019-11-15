@@ -293,7 +293,7 @@ static HAL_Status I2S_SET_SampleResolution(I2S_DataParam *param)
 {
         if (!param)
                 return HAL_INVALID;
-        uint8_t sample_resolution = pcm_format_to_sampleresolution(param->resolution);	//I2S_SR16BIT;//temporary test, pjw
+        uint8_t sample_resolution = pcm_format_to_sampleresolution(param->resolution);
 
         if (8 <= sample_resolution &&  sample_resolution <= 32)
                 HAL_MODIFY_REG(I2S->DA_FMT0, I2S_SR_MASK, (sample_resolution/4-1)<<I2S_SR_SHIFT);

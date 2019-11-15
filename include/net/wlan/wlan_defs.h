@@ -392,6 +392,17 @@ typedef struct wlan_gen_psk_param {
 } wlan_gen_psk_param_t;
 
 /**
+ * @brief Wlan station SSID, passphrase and WPA PSK infomation definition
+ */
+typedef struct wlan_ssid_psk {
+	uint8_t ssid[WLAN_SSID_MAX_LEN];
+	uint8_t ssid_len;
+	char passphrase[WLAN_PASSPHRASE_MAX_LEN + 1];
+	uint8_t psk_valid;
+	uint8_t psk[WLAN_PSK_HEX_LEN];
+} wlan_ssid_psk_t;
+
+/**
  * @brief Wlan WPS pin definition
  */
 typedef struct wlan_sta_wps_pin {

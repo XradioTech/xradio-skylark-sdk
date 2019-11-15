@@ -1,6 +1,6 @@
-# fast connect示例工程
+# cold start fast connection示例工程
 
-> fast connect示例工程展示了wlan模块的快速连接相关接口的使用方法。
+> cold start fast connection示例工程展示了wlan模块的快速连接相关接口的使用方法。
 >
 > 本工程中提供以下模块接口使用的示例：
 > 1. 第一次普通连接AP的过程
@@ -11,18 +11,19 @@
 ## 适用平台
 
 > 本工程适用以下芯片类型：
-> 1. XR808系列芯片：XR808ST、XR872CT
+> 1. XR808系列芯片：XR872CT
 > 2. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板：XR872MD_AI、XR872MD_IO、XR808MD_EVB_IO
-> 2. 模组：XR872AT_MD01、XR808ST_MD01、XR808CT_MD01
+> 1. 底板：XR872MD_AI、XR872_EVB_IO、XR808_EVB_IO
+> 2. 模组：XR872AT_MD01、XR808CT0_MD01、XR808CT0_MD02
 
-> 本工程在基于XR808ST的“XR808ST_MD01+XR808MD_EVB_IO”评估板上测试通过。
+> 本工程在基于"XR808CT0_MD02"的“XR808_EVB_IO”板上测试通过。
+>
 > 若需要在其他适用芯片和评估板上运行本工程，请根据快速指南《XRadio_Quick_Start_Guide-CN》的提示进行相关配置修改。
 
 > XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ## 工程配置
 
@@ -39,6 +40,7 @@
 > * N/A
 >
 > prj_config.h
+>
 > * N/A
 
 ## 模块依赖
@@ -55,18 +57,21 @@
 
 ### 操作说明：
 
-> 1. 修改工程中的 sta_ssid 和 sta_psk 字符串为实际需要连接的AP的字符串
-> 2. 编译工程，烧录镜像，启动即可
-> 3. 系统启动后，可以通过串口软件看到示例的打印信息
-> 4. 首次启动为普通连接，在连上AP之后会保存BSS信息到flash
-> 5. 后续启动为快速连接
+> 1. 编译工程，烧录镜像，reset启动
+> 2. 系统启动后，输入命令“net fc config ssid password”和“net fc enable”进行AP连接，可以参考打印提示进行操作
+> 3. 首次连接为普通连接，在连上AP之后会保存BSS信息到flash
+> 4. 后续启动为快速连接，按下reset重启后会自动使用快连模式连接AP
+> 5. 如果想要修改连接的AP信息，输入命令“net fc clear_bss”即可清除保存的AP信息，然后重复2-4步骤即可
 
 > XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ### 控制命令
-
-> * N/A
+```
+> net fc config ssid password #配置需要连接的AP信息
+> net fc enable               #使能连接
+> net fc clear_bss            #清除保存在flash上的AP信息
+```
 
 ### 代码结构
 ```
@@ -77,6 +82,8 @@
 ├── image
 │   └── xr872
 │       └── image.cfg           # 本工程的镜像分区配置
+├── command.c                   # 本工程的命令实现
+├── command.h                   # 本工程的命令头文件
 ├── main.c                      # 本工程的入口，运行fast con的示例代码
 ├── prj_config.h                # 本工程的配置选项，主要用于功能的选择。
 └── readme.md                   # 本工程的说明文档
@@ -86,7 +93,7 @@
 └── project
     └── common
         └── board
-            └── xradio_evb             #本工程在Makefile中指定使用xradio_evb的板级配置
+            └── xr872_evb_ai           #本工程在Makefile中指定使用xr872_evb_ai的板级配置
                 ├── board_config.h     #本工程的板级配置，
                 └── board_config.c     #本工程的板级pin mux的配置。
 ```

@@ -85,6 +85,7 @@ static __inline void bl_upgrade(void)
 
 static __inline void bl_hw_init(void)
 {
+	HAL_Flash_SetDbgMask(0);
 	if (HAL_Flash_Init(PRJCONF_IMG_FLASH) != HAL_OK) {
 		BL_ERR("flash init fail\n");
 	}

@@ -29,6 +29,30 @@
 
 #include "common/cmd/cmd_util.h"
 #include "common/cmd/cmd.h"
+#include "driver/chip/hal_prcm.h"
+#include "driver/chip/hal_gpio.h"
+
+enum cmd_status cmd_prcm_exec(char *cmd)
+{
+  char *argv[3];
+
+  cmd_parse_argv(cmd, argv, cmd_nitems(argv));
+
+  if (!strcmp("set_top_ldo", argv[0])) {
+    if (!strcmp("1.8", argv[1]))
+      HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_1V8_DEFAULT);
+    else if (!strcmp("1.4", argv[1]))
+      HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_1V4);
+    else if (!strcmp("1.7", argv[1]))
+      HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_1V7);
+    else if (!strcmp("1.9", argv[1]))
+      HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_1V9);
+    else if (!strcmp("2.0", argv[1]))
+      HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_2V0);
+  }
+
+  return CMD_STATUS_OK;
+}
 
 #if PRJCONF_NET_EN
 
@@ -43,6 +67,7 @@
 #define COMMAND_DHCPD       0
 #define COMMAND_BRROADCAST  0
 #define COMMAND_ARP         0
+#define COMMAND_WLAN        1
 
 /*
  * net commands
@@ -103,6 +128,10 @@ static const struct cmd_data g_net_cmds[] = {
 #if COMMAND_ARP
 	{ "arp",        cmd_arp_exec },
 #endif
+
+#if COMMAND_WLAN
+	{ "wlan",        cmd_wlan_exec },
+#endif
 };
 
 static enum cmd_status cmd_net_exec(char *cmd)
@@ -149,6 +178,8 @@ static const struct cmd_data g_main_cmds[] = {
 	{ "lmac",	cmd_lmac_exec },
 #endif
 	{ "sysinfo",cmd_sysinfo_exec },
+    { "gpio",   cmd_gpio_exec },
+    { "prcm",   cmd_prcm_exec },
 };
 
 void main_cmd_exec(char *cmd)

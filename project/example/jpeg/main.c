@@ -43,9 +43,9 @@
 #include "driver/chip/psram/psram.h"
 
 #define IMAGE_SENSOR_I2CID 		I2C0_ID
-#define SENSOR_RESET_PIN        GPIO_PIN_21
+#define SENSOR_RESET_PIN        GPIO_PIN_15
 #define SENSOR_RESET_PORT       GPIO_PORT_A
-#define SENSOR_POWERDOWN_PIN    GPIO_PIN_22
+#define SENSOR_POWERDOWN_PIN    GPIO_PIN_14
 #define SENSOR_POWERDOWN_PORT   GPIO_PORT_A
 
 #define JPEG_MEMPART_EN			(0)
@@ -128,13 +128,6 @@ static int camera_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt)
 {
 	uint8_t* addr;
 
-	mgmt->jpeg_header_buf = (uint8_t*)malloc(CAMERA_JPEG_HEADER_LEN);
-	if (mgmt->jpeg_header_buf == NULL) {
-		printf("malloc fail\n");
-		return -1;
-	}
-	memset(mgmt->jpeg_header_buf, 0 , CAMERA_JPEG_HEADER_LEN);
-
 	if (jpeg_cfg->memPartEn) {
 		addr = (uint8_t*)malloc(JPEG_MPART_SIZE + 2048);//imgbuf;
 		if (addr == NULL) {
@@ -179,7 +172,7 @@ static int camera_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt)
 				printf("malloc addr: %p -> %p\n", addr, addr + JPEG_SRAM_SIZE + 2048);
 			}
 			mgmt->yuv_buf = (uint8_t *)ALIGN_16B((uint32_t)addr);
-			mgmt->jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)mgmt->yuv_buf +
+			mgmt->jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)mgmt->yuv_buf + CAMERA_JPEG_HEADER_LEN +
 				camera_cfg.sensor_cfg.pixel_size.width * camera_cfg.sensor_cfg.pixel_size.height * 3/2);//after yuv data
 		}
 	}
@@ -202,11 +195,6 @@ static void camera_mem_destroy()
 	if (mem_mgmt.online_jpeg_mempart_last_buf) {
 		free(mem_mgmt.online_jpeg_mempart_last_buf);
 		mem_mgmt.online_jpeg_mempart_last_buf = NULL;
-	}
-
-	if (mem_mgmt.jpeg_header_buf) {
-		free(mem_mgmt.jpeg_header_buf);
-		mem_mgmt.jpeg_header_buf = NULL;
 	}
 }
 
@@ -283,16 +271,9 @@ int camera_get_image()
 
 		printf("jpeg image szie: %dbytes\n", encode_size);
 
-		addr = mem_mgmt.jpeg_header_buf;
-		/* jpeg header data*/
-		res = f_write(&fp, addr, CAMERA_JPEG_HEADER_LEN, &bw);
-		if (res != FR_OK || bw < CAMERA_JPEG_HEADER_LEN) {
-			printf("write fail(%d), line%d..\n", res, __LINE__);
-			return -1;
-		}
-
-		/* jpeg body data*/
-		addr = camera_cfg.jpeg_cfg.memPartEn ?  mem_mgmt.online_jpeg_mempart_last_buf : mem_mgmt.jpeg_buf;
+		/* jpeg data*/
+		encode_size += CAMERA_JPEG_HEADER_LEN;
+		addr = camera_cfg.jpeg_cfg.memPartEn ?  mem_mgmt.online_jpeg_mempart_last_buf : (mem_mgmt.jpeg_buf - CAMERA_JPEG_HEADER_LEN);
 		res = f_write(&fp, addr, encode_size, &bw);
 		if (res != FR_OK || bw < encode_size) {
 			printf("write fail(%d), line%d..\n", res, __LINE__);
@@ -312,7 +293,6 @@ static void camera_deinit()
 	camera_mem_destroy();
 }
 
-/* Run this demo, please connect the XR872AT_VER_DIG_V1_0 board. */
 int main(void)
 {
 	platform_init();

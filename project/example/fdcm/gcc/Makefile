@@ -23,7 +23,13 @@ PRJ_ROOT_PATH := $(ROOT_PATH)/project/example/$(PROJECT)
 # ----------------------------------------------------------------------------
 # board path, including board_config.c and board_config.h
 # ----------------------------------------------------------------------------
-PRJ_BOARD := $(ROOT_PATH)/project/common/board/xradio_evb
+ifeq ($(__CONFIG_CHIP_TYPE), xr872)
+PRJ_BOARD := $(ROOT_PATH)/project/common/board/xr872_evb_ai
+else ifeq ($(__CONFIG_CHIP_TYPE), xr808)
+PRJ_BOARD := $(ROOT_PATH)/project/common/board/xr808_evb_io
+else
+PRJ_BOARD := null
+endif
 
 # ----------------------------------------------------------------------------
 # objects

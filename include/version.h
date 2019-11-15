@@ -44,6 +44,6 @@
                         _SDK_VERSTR(SDK_VERSION_MINOR) "." \
                         _SDK_VERSTR(SDK_VERSION_PATCH)
 
-#define SDK_STAGE_STR " rc2"
+#define SDK_STAGE_STR " rc3"
 
 #endif /* _VERSION_H_ */

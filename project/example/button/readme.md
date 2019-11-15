@@ -14,16 +14,15 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片：XR872AT、XR872ET
+> 1. XR872系列芯片： XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
 >
-> 1. XR872ET_STORYTOY_PRO_V1_0
+> 1. XR872_EVB_AI
 
-> 本工程在基于XR872ET的“XR872ET_STORYTOY_PRO_V1_0”评估板上测试通过。暂且不支持其他评估板，若需要支持其他评估板，则需要进行board_config.c适配，详细请参考《XR872_Button_Developer_Guide-CN.doc》。
+> 本工程在基于“XR872AT_MD01”的“XR872_EVB_AI”板上测试通过。暂且不支持其他评估板，若需要支持其他评估板，则需要进行board_config.c适配，详细请参考《XR872_Button_Developer_Guide-CN.doc》。
 
-> XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：<https://docs.xradiotech.com>
 
 ## 工程配置
 
@@ -59,9 +58,8 @@
 
 ## 工程说明
 
-> 本工程代码需要配合`board_config.c`来使用，`board_config.c`中保存了按键的配置信息。本工程使用的`board_config.c`的路径为：`project/common/board/xradio_storybot/board_config.c`。本工程只支持`XR872ET_STORYTOY_PRO_V1_0`工程板，如果需要支持其他板子，则需要选择对应的`board_config.c`，可修改gcc目录下`makefile`中的`PRJ_BOARD`。
+> 本工程代码需要配合`board_config.c`来使用，`board_config.c`中保存了按键的配置信息。本工程使用的`board_config.c`的路径为：`project/common/board/xr872_evb_ai/board_config.c`。本工程只支持`XR872_EVB_AI`工程板，如果需要支持其他板子，则需要选择对应的`board_config.c`，可修改gcc目录下`makefile`中的`PRJ_BOARD`。
 >
-> 由于`XR872ET_STORYTOY_PRO_V1_0`工程板不含GPIO按键，故本工程只支持AD按键。
 
 ### 操作说明
 
@@ -69,8 +67,7 @@
 > 2. 打开串口调试工具，并连接串口
 > 3. 系统启动后，按下板子上的按键，串口打印按下按键按下的信息
 
-> XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：<https://docs.xradiotech.com>
 
 ### 代码结构
 
@@ -91,7 +88,7 @@
 └── project
     └── common
         └── board
-            └── xradio_storybot        #本工程在localconfig.mk中指定使用xradio_storybot的板级配置
+            └── xr872_evb_ai           #本工程在makefile中指定使用xr872_evb_ai的板级配置
                 ├── board_config.h     #本工程的板级配置
                 └── board_config.c     #本工程的板级pin mux的配置。
 ```

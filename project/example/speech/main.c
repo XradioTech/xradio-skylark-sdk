@@ -31,6 +31,9 @@
 #include "kernel/os/os_time.h"
 #include "AecAsr.h"
 #include "driver/chip/psram/hal_psramctrl.h"
+#include "pcmFifo.h"
+
+struct PcmFifoS *pcmFifo;
 
 int main(void)
 {
@@ -38,6 +41,8 @@ int main(void)
 	OS_MSleep(100);
 
 	HAL_PsramCtrl_Set_RD_BuffSize(PSRAMC_CACHE_LL_256BIT);
+
+	pcmFifo = pcm_fifo_create(4 * 1024);
 
 	aec_asr_start();
 	return 0;

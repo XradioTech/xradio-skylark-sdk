@@ -9,17 +9,17 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片：XR872AT、XR872ET
+> 1. XR872系列芯片： XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板：XR872MD_EVB
+> 1. 底板： XR872_EVB_AI
 > 2. 模组：XR872AT_MD01
 
-> 本工程在基于XR872ET的“XR872MD_EVB+XR872AT_MD01”评估板上测试通过。
+> 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
 > 若需要在其他适用芯片和评估板上运行本工程，请根据快速指南《XRadio_Quick_Start_Guide-CN》的提示进行相关配置修改。
 
 > XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ## 工程配置
 
@@ -57,7 +57,7 @@
 > 8. fatfs、mmc模块：播放sd/tf卡歌曲需要的模块
 
 > 音频的数据流、解码格式可根据需求选择，选择说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki/wiki/dev-about-cedarx-decoder-config
+> https://docs.xradiotech.com
 
 ---
 
@@ -74,7 +74,7 @@
 > 5. 系统启动后，即会自动播放“1.mp3”。当插入话筒时，系统会启动混响模式，此时喇叭播放声音为话筒声加音乐声。当拔出话筒时，系统退出混响模式，正常播放“1.mp3”
 
 > XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ### 控制命令
 
@@ -102,7 +102,7 @@
 └── project
     └── common
         └── board
-            └── xradio_audio           #本工程在Makefile中指定使用xradio_audio的板级配置
+            └── xr872_evb_ai           #本工程在Makefile中指定使用xr872_evb_ai的板级配置
                 ├── board_config.h     #本工程的板级配置，
                 └── board_config.c     #本工程的板级pin mux的配置。
 ```
@@ -139,4 +139,5 @@
 
 > WiKi资源
 
-1. https://github.com/XradioTech/xradiotech-wiki/wiki/dev-about-cedarx
+1. https://docs.xradiotech.com
+

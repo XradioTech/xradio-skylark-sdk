@@ -1,5 +1,21 @@
 # ChangeLog for XRADIO Skylark SDK
 
+## xradio_skylark_sdk-1.0.0-rc3 (20191115)
+  * WLAN
+    - Improve the RF performance
+    - Fix a bug about dpd calculation exception
+    - Increase limitation for 802.11b tx power
+    - Fix bugs of smart config to avoid memory writing out of bounds
+    - Add two new APIs for sta mode and ap mode
+
+  * Driver
+    - CACHE: adjust some h/w operations according to spec
+
+  * System
+    - Support PSRAM heap trace function
+    - adjust board config names
+
+
 ## xradio_skylark_sdk-1.0.0-rc2 (20191104)
   * Driver
     - PSRAM: Improve the performance and stability

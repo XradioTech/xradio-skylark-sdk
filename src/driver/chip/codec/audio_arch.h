@@ -166,6 +166,8 @@ HAL_Status ac107_codec_register(void);
 HAL_Status ac107_codec_unregister(void);
 HAL_Status ac107_pdm_init(Audio_Device device, uint16_t volume, uint32_t sample_rate);
 HAL_Status ac107_pdm_deinit(void);
+HAL_Status ac107_pdm_set_volume_level(Audio_Device device, uint16_t volume);
+HAL_Status ac107_pdm_set_volume_gain(Audio_Device device, uint16_t volume);
 
 HAL_Status xradio_i2s_register(void);
 HAL_Status xradio_i2s_unregister(void);

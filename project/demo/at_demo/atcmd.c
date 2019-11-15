@@ -58,8 +58,16 @@ static void atcmd_task(void *arg)
 	OS_ThreadDelete(&g_atcmd_thread);
 }
 
+
+int at_uart_reinit(void)
+{
+	return 0;
+}
+
+/*
 int at_uart_reinit(at_serial_para_t *para)
 {
+
 	HAL_UART_DeInit(SERIAL_UART_ID);
 	serial_bezero_g_serial();
 	at_cmd_reinit();
@@ -92,7 +100,7 @@ int at_uart_reinit(at_serial_para_t *para)
 
 	return 0;
 }
-
+*/
 
 /* start at command */
 
@@ -105,7 +113,7 @@ void atcmd_start(void)
 	at_cmd_init();
 	at_serial(&para);
 
-	serial_init(SERIAL_UART_ID, 115200, UART_DATA_BITS_8, UART_PARITY_NONE, UART_STOP_BITS_1, 1);
+	serial_init(SERIAL_UART_ID, 115200, UART_DATA_BITS_8, UART_PARITY_NONE, UART_STOP_BITS_1, 0);
 
 	serial_start();
 

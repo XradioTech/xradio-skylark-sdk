@@ -336,9 +336,6 @@ void __wrap__free_r(struct _reent *reent, void *ptr)
 
 extern uint8_t __end__[];	/* sram heap start address */
 extern uint8_t _estack[];	/* sram heap end address */
-extern uint8_t __psram_end__[]; /* psram heap start address */
-extern uint8_t __PSRAM_BASE[];
-extern uint8_t __PSRAM_LENGTH[]; /* psram heap end address: __PSRAM_BASE+__PSRAM_LENGTH*/
 
 static __always_inline int is_rangeof_sramheap(void *ptr)
 {
@@ -347,7 +344,7 @@ static __always_inline int is_rangeof_sramheap(void *ptr)
 
 static __always_inline int is_rangeof_psramheap(void *ptr)
 {
-    return RANGEOF((uint32_t)ptr, (uint32_t)__psram_end__, (uint32_t)__PSRAM_BASE+(uint32_t)__PSRAM_LENGTH -1);
+    return RANGEOF((uint32_t)ptr, (uint32_t)__psram_end__, PSRAM_END_ADDR);
 }
 
 void *__wrap__malloc_r(struct _reent *reent, size_t size)

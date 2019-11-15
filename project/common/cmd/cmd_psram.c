@@ -74,6 +74,9 @@
 		             __func__, __LINE__, ##arg);\
 	} while (0)
 
+#ifdef __CONFIG_PSRAM_MALLOC_TRACE
+extern uint32_t psram_malloc_heap_info(int verbose);
+#endif
 
 __CMD_SRAM_DATA
 static uint32_t dmaPrintFlgCpu = 0;
@@ -286,6 +289,9 @@ enum cmd_status cmd_info_exec(char *cmd)
 	psram_info_dump(chip);
 	psram_close(0);
 
+#ifdef __CONFIG_PSRAM_MALLOC_TRACE
+	psram_malloc_heap_info(cmd_atoi(cmd));
+#endif
 	return CMD_STATUS_OK;
 }
 

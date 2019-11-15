@@ -126,7 +126,13 @@ endif
 
 INCLUDE_PATHS += -I$(ROOT_PATH)/project
 
-ifneq ($(PRJ_BOARD),)
+ifeq ($(PRJ_BOARD), null)
+  ifneq ($(MAKECMDGOALS), config)
+  ifneq ($(MAKECMDGOALS), config_clean)
+    $(error $(PROJECT) doesn't support $(__CONFIG_CHIP_TYPE))
+  endif
+  endif
+else ifneq ($(PRJ_BOARD),)
   INCLUDE_PATHS += -I$(PRJ_BOARD)
 else
   $(error board is not defined!)

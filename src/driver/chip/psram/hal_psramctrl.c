@@ -32,6 +32,7 @@
 #include <stdio.h>
 
 #include "sys/xr_debug.h"
+#include "sys/param.h"
 #include "sys/io.h"
 #include "pm/pm.h"
 
@@ -539,22 +540,22 @@ int32_t HAL_PsramCtrl_DQS_Delay_Cal_Policy(struct psram_ctrl *ctrl)
     uint8_t baseCal;
     uint8_t minCal = 0;
     uint8_t maxCal = 0;
-    HAL_Dcache_SetWriteThrough(2, 1, IDCACHE_START_ADDR, IDCACHE_END_ADDR);
+    HAL_Dcache_SetWriteThrough(2, 1, PSRAM_START_ADDR, rounddown2(PSRAM_END_ADDR, 16));
+    baseCal = HAL_GET_BIT_VAL(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG,
+                PSRAMC_CAL_RESULT_VAL_SHIFT, PSRAMC_CAL_RESULT_VAL_MASK);
+    PRC_DBG("auto result cal=%d\n", baseCal);
     for(int i=0; i<ARRAY_SIZE(freqArr); i++) {
         HAL_PRCM_SetDev2Clock(freqFactorArr[i]);
         HAL_PsramCtrl_Clk_With_Dev2Clk(freqArr[i]*1000000);
         ctrl->freq = freqArr[i]*1000000;
         minCal = 0;
         maxCal = 0;
-        baseCal = HAL_GET_BIT_VAL(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG,
-                    PSRAMC_CAL_RESULT_VAL_SHIFT, PSRAMC_CAL_RESULT_VAL_MASK) / 4;
-        PRC_DBG("auto result cal=%d\n", baseCal);
-        for(int j=baseCal+1; j<64; j++) {
+        for(int j=baseCal; j<64; j++) {
             HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
                     PSRAMC_OVERWR_CAL_VAL(j) | PSRAMC_OVERWR_CAL);
             HAL_UDelay(10);
-            if(!(__psram_wr_check((uint32_t)__PSRAM_BASE)
-                || __psram_wr_check((uint32_t)__PSRAM_BASE + (uint32_t)__PSRAM_LENGTH - 4))) {
+            if(!(__psram_wr_check(PSRAM_START_ADDR)
+                || __psram_wr_check(PSRAM_END_ADDR - 4))) {
                 if(minCal == 0) {
                     minCal = j;
                 }
@@ -568,17 +569,15 @@ int32_t HAL_PsramCtrl_DQS_Delay_Cal_Policy(struct psram_ctrl *ctrl)
             }
         }
         if(maxCal != 0) {
-            HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
-                    PSRAMC_OVERWR_CAL_VAL((minCal + maxCal) / 2) | PSRAMC_OVERWR_CAL);
+            baseCal = (minCal + maxCal) / 2;
             PRC_DBG("DQS_Delay_Cal_Policy: minCal=%d, maxCal=%d, set cal=%d\n", minCal, maxCal, (minCal + maxCal) / 2);
-            return 0;
+            break;
         }
     }
     HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
-                    PSRAMC_OVERWR_CAL_VAL(baseCal + 1) | PSRAMC_OVERWR_CAL);
+                    PSRAMC_OVERWR_CAL_VAL(baseCal) | PSRAMC_OVERWR_CAL);
     HAL_UDelay(10);
     HAL_Dcache_SetWriteThrough(2, 0, 0, 0);
-    PRC_WRN("DQS_Delay_Cal_Policy unsuccessfully, so config the fixed value %d\n", baseCal+1);
     return -1;
 }
 

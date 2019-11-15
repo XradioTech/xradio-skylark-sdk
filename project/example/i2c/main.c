@@ -125,7 +125,6 @@ static void i2c_test()
 		printf("i2c read fail\n");
 }
 
-/* Run this demo, please connect the XR872ET_VER_DIG_V1_0 board. */
 int main(void)
 {
 	printf("i2c demo started\n\n");

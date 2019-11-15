@@ -35,17 +35,102 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include "kernel/os/os_time.h"
+#include "pcmFifo.h"
+
+typedef enum {
+	AI_START,
+	AI_STOP,
+} AI_STATUS;
+
+#define KEYWORD_TO_VAD_THRESHOLD  250
+#define MIN_TIME_TO_RESTART       2000
+#define MIN_RECORD_TIME           1500
+#define MAX_NO_SOUND_TIME         10000
+#define MAX_NO_SOUND_TIME2        500
+
+static AI_STATUS ai_status = AI_STOP;
+static struct timeval keywordStartTime;
+static struct timeval lastVadTime;
+
+extern struct PcmFifoS *pcmFifo;
 
 int result_output_start()
 {
 	return 0;
 }
 
+static int ai_start()
+{
+	printf("=================start record=================\n");
+	ai_status = AI_START;
+	gettimeofday(&keywordStartTime, NULL);
+	gettimeofday(&lastVadTime, NULL);
+
+	return 0;
+}
+
+static int ai_stop()
+{
+	printf("=================stop  record=================\n");
+	ai_status = AI_STOP;
+
+	return 0;
+}
+
+static int result_param_solve(struct resultParam *param)
+{
+	long startDurationMs;
+	long keywordToVadDurationMs;
+	long noSoundDurationMs;
+	struct timeval nowTime;
+
+	if (param->vad == 1) {
+		gettimeofday(&lastVadTime, NULL);
+	}
+
+	if (ai_status == AI_START) {
+		gettimeofday(&nowTime, NULL);
+		startDurationMs = (nowTime.tv_sec - keywordStartTime.tv_sec) * 1000 + (nowTime.tv_usec - keywordStartTime.tv_usec) / 1000;
+		if (param->keyword) {
+			if (startDurationMs > MIN_TIME_TO_RESTART) {
+				ai_stop();
+				OS_MSleep(100);
+				ai_start();
+			} else {
+				printf("ignore this keyword\n");
+			}
+		} else {
+			keywordToVadDurationMs = (lastVadTime.tv_sec - keywordStartTime.tv_sec) * 1000 + (lastVadTime.tv_usec - keywordStartTime.tv_usec) / 1000;
+			noSoundDurationMs = (nowTime.tv_sec - lastVadTime.tv_sec) * 1000 + (nowTime.tv_usec - lastVadTime.tv_usec) / 1000;
+			if ((keywordToVadDurationMs <= KEYWORD_TO_VAD_THRESHOLD) && (startDurationMs > MAX_NO_SOUND_TIME)) {
+				ai_stop();  /* after keyword, no sound is detected, and duration MAX_NO_SOUND_TIME */
+			} else if ((keywordToVadDurationMs > KEYWORD_TO_VAD_THRESHOLD) && (noSoundDurationMs > MAX_NO_SOUND_TIME2) && (startDurationMs > MIN_RECORD_TIME)) {
+				ai_stop();
+			}
+		}
+	} else {
+		if (param->keyword) {
+			ai_start();
+		}
+	}
+
+	return 0;
+}
+
+static int media_data_solve(struct mediaData *mData)
+{
+	PcmFifoLock(pcmFifo);
+	PcmFifoIn(pcmFifo, mData->LOut, mData->loutLen, 1);
+	PcmFifoUnlock(pcmFifo);
+
+	return 0;
+}
+
 int result_output_data(struct resultParam *param, struct mediaData *mData)
 {
-	if (param->keyword) {
-		printf("keyword recognized.\n");
-	}
+	result_param_solve(param);
+	media_data_solve(mData);
 
 	return 0;
 }

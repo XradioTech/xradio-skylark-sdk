@@ -34,6 +34,7 @@
 
 #define COMMAND_IPERF       1
 #define COMMAND_PING        1
+#define COMMAND_WLAN        1
 
 /*
  * net commands
@@ -54,6 +55,10 @@ static const struct cmd_data g_net_cmds[] = {
 
 #if COMMAND_PING
 	{ "ping",		cmd_ping_exec },
+#endif
+
+#if COMMAND_WLAN
+	{ "wlan",        cmd_wlan_exec },
 #endif
 };
 

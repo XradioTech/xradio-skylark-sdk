@@ -38,61 +38,6 @@
 #include "pm/pm.h"
 
 #ifdef __CONFIG_ROM
-#ifdef __CONFIG_PSRAM
-void HAL_Dcache_SetWriteThrough(uint32_t idx, uint32_t en, uint32_t sadd, uint32_t eadd)
-{
-	HAL_ASSERT_PARAM(idx < 3);
-	if (en) {
-        HAL_ASSERT_PARAM(!(sadd & 0x0F));
-		HAL_ASSERT_PARAM(!(eadd & 0x0F));
-		HAL_ASSERT_PARAM(eadd > sadd);
-        HAL_ASSERT_PARAM((sadd >= IDCACHE_START_ADDR) && (eadd <= (IDCACHE_END_ADDR)));
-		HAL_Dcache_FlushClean(sadd, eadd - sadd);
-		DCACHE_CTRL->WT_ADDR[idx].START_ADDR = sadd;
-		DCACHE_CTRL->WT_ADDR[idx].END_ADDR = eadd;
-	} else {
-		DCACHE_CTRL->WT_ADDR[idx].START_ADDR = 0;
-		DCACHE_CTRL->WT_ADDR[idx].END_ADDR = 0;
-	}
-}
-
-void HAL_Dcache_FlushClean(uint32_t sadd, uint32_t len)
-{
-	HAL_ASSERT_PARAM((sadd >= IDCACHE_START_ADDR) && (len > 0) && ((sadd-len) < IDCACHE_END_ADDR));
-
-	DCACHE_CTRL->CLEAN_FLUSH_SADDR = sadd;
-	DCACHE_CTRL->CLEAN_FLUSH_LEN = len;
-
-    unsigned long flag;
-    flag = HAL_EnterCriticalSection();
-
-	HAL_MODIFY_REG(DCACHE_CTRL->DCACHE_COM_CFG,
-	               (DCACHE_FLUSH_START_MASK | DCACHE_CLEAN_START_MASK),
-	               (DCACHE_FLUSH_START_MASK | DCACHE_CLEAN_START_MASK));
-	while (DCACHE_CTRL->DCACHE_COM_CFG &
-	       (DCACHE_FLUSH_START_MASK | DCACHE_CLEAN_START_MASK))
-		;
-    HAL_ExitCriticalSection(flag);
-}
-
-void HAL_Dcache_Clean(uint32_t sadd, uint32_t len)
-{
-	HAL_ASSERT_PARAM((sadd >= IDCACHE_START_ADDR) && (len > 0) && ((sadd-len) < IDCACHE_END_ADDR));
-
-	DCACHE_CTRL->CLEAN_FLUSH_SADDR = sadd;
-	DCACHE_CTRL->CLEAN_FLUSH_LEN = len;
-
-    unsigned long flag;
-    flag = HAL_EnterCriticalSection();
-
-	HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_CLEAN_START_MASK);
-	while (DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_CLEAN_START_MASK)
-		;
-
-    HAL_ExitCriticalSection(flag);
-}
-
-#endif
 
 void HAL_Dcache_Flush(uint32_t sadd, uint32_t len)
 {
@@ -104,12 +49,112 @@ void HAL_Dcache_Flush(uint32_t sadd, uint32_t len)
     unsigned long flag;
     flag = HAL_EnterCriticalSection();
 
+    HAL_Dcache_WaitIdle();
 	HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_FLUSH_START_MASK);
 	while (DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_FLUSH_START_MASK)
 		;
 
     HAL_ExitCriticalSection(flag);
 }
+
+void HAL_Dcache_FlushAll(void)
+{
+    unsigned long flag;
+    flag = HAL_EnterCriticalSection();
+
+    HAL_Dcache_WaitIdle();
+	HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, (DCACHE_FLUSH_START_MASK | DCACHE_FLUSH_CLEAN_START_MASK));
+	while (DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_FLUSH_START_MASK)
+		;
+
+    HAL_ExitCriticalSection(flag);
+}
+
+#ifdef __CONFIG_PSRAM
+void HAL_Dcache_SetWriteThrough(uint32_t idx, uint32_t en, uint32_t sadd, uint32_t eadd)
+{
+	HAL_ASSERT_PARAM(idx < 3);
+	if (en) {
+        HAL_ASSERT_PARAM(!(sadd & 0x0F));
+		HAL_ASSERT_PARAM(!(eadd & 0x0F));
+		HAL_ASSERT_PARAM(eadd > sadd);
+        HAL_ASSERT_PARAM((sadd >= IDCACHE_START_ADDR) && (eadd <= (IDCACHE_END_ADDR)));
+		DCACHE_CTRL->WT_ADDR[idx].START_ADDR = sadd;
+		DCACHE_CTRL->WT_ADDR[idx].END_ADDR = eadd;
+	} else {
+		DCACHE_CTRL->WT_ADDR[idx].START_ADDR = 0;
+		DCACHE_CTRL->WT_ADDR[idx].END_ADDR = 0;
+	}
+}
+
+void HAL_Dcache_FlushCleanAll(void)
+{
+    unsigned long flag;
+    flag = HAL_EnterCriticalSection();
+
+    HAL_Dcache_WaitIdle();
+    /*clean all*/
+    HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, (DCACHE_CLEAN_START_MASK | DCACHE_FLUSH_CLEAN_START_MASK));
+	while (DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_CLEAN_START_MASK)
+		;
+    /*flush all*/
+    HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, (DCACHE_FLUSH_START_MASK | DCACHE_FLUSH_CLEAN_START_MASK));
+	while (DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_FLUSH_START_MASK)
+		;
+
+    HAL_ExitCriticalSection(flag);
+}
+
+void HAL_Dcache_FlushClean(uint32_t sadd, uint32_t len)
+{
+	HAL_ASSERT_PARAM((sadd >= IDCACHE_START_ADDR) && (len > 0) && ((sadd+len-1) < IDCACHE_END_ADDR));
+
+	DCACHE_CTRL->CLEAN_FLUSH_SADDR = sadd;
+	DCACHE_CTRL->CLEAN_FLUSH_LEN = len;
+
+    unsigned long flag;
+    flag = HAL_EnterCriticalSection();
+
+    HAL_Dcache_WaitIdle();
+    HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, (DCACHE_FLUSH_START_MASK | DCACHE_CLEAN_START_MASK));
+	while (DCACHE_CTRL->DCACHE_COM_CFG &
+	       (DCACHE_FLUSH_START_MASK | DCACHE_CLEAN_START_MASK))
+		;
+
+    HAL_ExitCriticalSection(flag);
+}
+
+void HAL_Dcache_CleanAll(void)
+{
+    unsigned long flag;
+    flag = HAL_EnterCriticalSection();
+
+    HAL_Dcache_WaitIdle();
+	HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, (DCACHE_CLEAN_START_MASK | DCACHE_FLUSH_CLEAN_START_MASK));
+	while (DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_CLEAN_START_MASK)
+		;
+
+    HAL_ExitCriticalSection(flag);
+}
+
+void HAL_Dcache_Clean(uint32_t sadd, uint32_t len)
+{
+	HAL_ASSERT_PARAM((sadd >= IDCACHE_START_ADDR) && (len > 0) && ((sadd+len-1) < IDCACHE_END_ADDR));
+
+	DCACHE_CTRL->CLEAN_FLUSH_SADDR = sadd;
+	DCACHE_CTRL->CLEAN_FLUSH_LEN = len;
+
+    unsigned long flag;
+    flag = HAL_EnterCriticalSection();
+
+    HAL_Dcache_WaitIdle();
+	HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_CLEAN_START_MASK);
+	while (DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_CLEAN_START_MASK)
+		;
+
+    HAL_ExitCriticalSection(flag);
+}
+#endif
 
 #ifdef CONFIG_PM
 static DCache_Config _dcache_cfg;
@@ -122,7 +167,9 @@ static int dcache_suspend(struct soc_device *dev, enum suspend_state_t state)
 		break;
 	case PM_MODE_STANDBY:
 	case PM_MODE_HIBERNATION:
+#ifdef __CONFIG_PSRAM
 		HAL_Dcache_FlushCleanAll();
+#endif
 		for (int i = 0; i < DCACHE_ADDR_MAX; i++) {
 			_dcache_addr[i * 2] = DCACHE_CTRL->WT_ADDR[i].START_ADDR;
 			_dcache_addr[i * 2 + 1] = DCACHE_CTRL->WT_ADDR[i].END_ADDR;

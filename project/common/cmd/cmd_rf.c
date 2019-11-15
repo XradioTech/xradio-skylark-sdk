@@ -136,7 +136,7 @@ enum cmd_status cmd_rf_get_sdd_file_exec(char *cmd)
 	} else if (!strcmp("ascii",cmd)) {
 		print_type = 1;
 	} else {
-		printf("Invalid params input!Should be [hex | ascii] !\n");
+		CMD_LOG(1, "Invalid params input!Should be [hex | ascii] !\n");
 		return -1;
 	}
 
@@ -169,15 +169,15 @@ enum cmd_status cmd_rf_get_power_exec(char *cmd)
 		begin_rate = 0;
 		end_rate = 10;
 	} else {
-		printf("Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
+		CMD_LOG(1, "Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
 		return -1;
 	}
 
-	printf("------------ power level tab current ------------\n");
+	CMD_LOG(1, "------------ power level tab current ------------\n");
 	param.PowerTabType = POWER_LEVEL_TAB_TYPE_CUR;
 	ret = wlan_ext_request(g_wlan_netif, WLAN_EXT_CMD_GET_POWER_LEVEL_TAB, (int)(&param));
 	for (i = begin_rate; i <= end_rate; i++) {
-		printf("%s: %d\n", power_tab_name[i], param.PowerTab[i]*4/10+2);
+		CMD_LOG(1, "%s: %d\n", power_tab_name[i], param.PowerTab[i]*4/10+2);
 	}
 	if (ret == -2) {
 		CMD_ERR("%s: command '%s' invalid arg\n", __func__, cmd);
@@ -230,7 +230,7 @@ enum cmd_status cmd_rf_set_power_exec(char *cmd)
 			return CMD_STATUS_INVALID_ARG;
 		}
 	} else {
-		printf("Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
+		CMD_LOG(1, "Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
 		return -1;
 	}
 
@@ -261,9 +261,9 @@ enum cmd_status cmd_rf_set_power_exec(char *cmd)
 		CMD_ERR("%s: command '%s' exec failed\n", __func__, cmd);
 		return CMD_STATUS_ACKED;
 	}
-	printf("Set user power level:\n");
+	CMD_LOG(1, "Set user power level:\n");
 	for (i = 0; i < 11; i++) {
-		printf("%s\t%d\n",power_tab_name[i], (int)(param_set.PowerTab[i]*4/10+2));
+		CMD_LOG(1, "%s\t%d\n",power_tab_name[i], (int)(param_set.PowerTab[i]*4/10+2));
 	}
 
 	return CMD_STATUS_ACKED;
@@ -287,7 +287,7 @@ enum cmd_status cmd_rf_get_sdd_power_exec(char *cmd)
 		begin_rate = 0;
 		end_rate = 10;
 	} else {
-		printf("Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
+		CMD_LOG(1, "Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
 		return -1;
 	}
 
@@ -299,9 +299,9 @@ enum cmd_status cmd_rf_get_sdd_power_exec(char *cmd)
 		CMD_ERR("%s: command '%s' exec failed\n", __func__, cmd);
 		return CMD_STATUS_ACKED;
 	}
-	printf("Get sdd user power level:\n");
+	CMD_LOG(1, "Get sdd user power level:\n");
 	for (int i = begin_rate; i <= end_rate; i++) {
-		printf("%s\t%d\n",power_tab_name[i], (int)(user_power[i]*4/16+2));
+		CMD_LOG(1, "%s\t%d\n",power_tab_name[i], (int)(user_power[i]*4/16+2));
 	}
 	return CMD_STATUS_OK;
 }
@@ -346,7 +346,7 @@ enum cmd_status cmd_rf_set_sdd_power_exec(char *cmd)
 			return CMD_STATUS_INVALID_ARG;
 		}
 	} else {
-		printf("Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
+		CMD_LOG(1, "Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
 		return -1;
 	}
 
@@ -376,13 +376,12 @@ enum cmd_status cmd_rf_set_sdd_power_exec(char *cmd)
 		CMD_ERR("%s: command '%s' exec failed\n", __func__, cmd);
 		return CMD_STATUS_ACKED;
 	}
-	printf("Set sdd user power level:\n");
+	CMD_LOG(1, "Set sdd user power level:\n");
 	for (i = 0; i < 11; i++) {
-		printf("%s\t%d\n",power_tab_name[i], (int)(user_power[i]*4/16+2));
+		CMD_LOG(1, "%s\t%d\n",power_tab_name[i], (int)(user_power[i]*4/16+2));
 	}
 	return CMD_STATUS_OK;
 }
-
 
 /*
  * rf commands

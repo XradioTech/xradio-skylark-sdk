@@ -12,7 +12,7 @@
 > 2. XR808系列芯片
 
 > XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ## 工程配置
 
@@ -57,7 +57,7 @@
 > 3.输入命令进行ping、iperf等网络应用测试
 > 
 > XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ### 控制命令
 
@@ -84,7 +84,7 @@
 └── project
     └── common
         └── board
-            └── xradio_evb             #本工程在Makefile中指定使用xradio_evb的板级配置
+            └── xr872_evb_ai           #本工程在Makefile中指定使用xr872_evb_ai的板级配置
                 ├── board_config.h     #本工程的板级配置，
                 └── board_config.c     #本工程的板级pin mux的配置。
 ```

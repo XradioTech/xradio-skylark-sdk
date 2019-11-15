@@ -63,6 +63,7 @@
 #include "driver/chip/hal_dcache.h"
 #ifdef __CONFIG_PSRAM
 #include "psram.h"
+#include "driver/chip/psram/psram.h"
 #include "sys/sys_heap.h"
 #endif
 
@@ -72,6 +73,10 @@
 
 #ifdef __CONFIG_XPLAYER
 #include "cedarx/cedarx.h"
+#endif
+
+#if (__CONFIG_CHIP_ARCH_VER == 2)
+#include "driver/chip/hal_trng.h"
 #endif
 
 #define PLATFORM_SHOW_DEBUG_INFO	0	/* for internal debug only */
@@ -101,11 +106,6 @@ static void platform_show_info(void)
 #ifdef __CONFIG_ROM
 	extern uint8_t __ram_table_lma_start__[];
 	extern uint8_t __ram_table_lma_end__[];
-#endif
-#ifdef __CONFIG_PSRAM
-    extern uint8_t __PSRAM_BASE[];
-    extern uint8_t __PSRAM_LENGTH[];
-    extern uint8_t __psram_end__[];
 #endif
 #if PRJCONF_NET_EN
 	uint8_t mac_addr[6] = {0};
@@ -340,6 +340,7 @@ static void platform_wdg_start(void)
 #endif /* PRJCONF_WDG_EN */
 
 #if (PRJCONF_CE_EN && PRJCONF_PRNG_INIT_SEED)
+#if (__CONFIG_CHIP_ARCH_VER == 1)
 #define RAND_SYS_TICK() ((SysTick->VAL & 0xffffff) | (OS_GetTicks() << 24))
 
 static void platform_prng_init_seed(void)
@@ -379,6 +380,25 @@ static void platform_prng_init_seed(void)
 
 	HAL_PRNG_SetSeed(seed);
 }
+#elif (__CONFIG_CHIP_ARCH_VER == 2)
+static void platform_prng_init_seed(void)
+{
+	uint32_t seed[6];
+	HAL_Status status;
+
+	status = HAL_TRNG_Extract(0, seed);
+	if (status != HAL_OK) {
+		FWK_WRN("gen trng fail %d\n", status);
+	} else {
+		seed[4] = seed[0] ^ seed[1];
+		seed[5] = seed[2] ^ seed[3];
+		FWK_DBG("prng seed %08x %08x %08x %08x %08x %08x\n",
+		        seed[0], seed[1], seed[2], seed[3], seed[4], seed[5]);
+	}
+
+	HAL_PRNG_SetSeed(seed);
+}
+#endif /* __CONFIG_CHIP_ARCH_VER */
 #endif /* (PRJCONF_CE_EN && PRJCONF_PRNG_INIT_SEED) */
 
 #ifdef __CONFIG_XPLAYER
@@ -435,7 +455,8 @@ __weak void platform_cedarx_init(void)
 
 #if (__CONFIG_CHIP_ARCH_VER == 2)
 #if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-DCache_Config g_dcache_cfg = {
+__sram_rodata
+static DCache_Config g_dcache_cfg = {
     .vc_en = 1,
     .wrap_en = 1,
     .way_mode = ((__CONFIG_CACHE_POLICY & 0xF) >> 1),
@@ -448,7 +469,8 @@ DCache_Config g_dcache_cfg = {
 #endif
 
 #if (((__CONFIG_CACHE_POLICY>>4) & 0xF) != 0)
-ICache_Config g_icache_cfg = {
+__sram_rodata
+static ICache_Config g_icache_cfg = {
     .vc_en = 0,
     .wrap_en = 0,
     .way_mode = (((__CONFIG_CACHE_POLICY>>4) & 0xF) >> 1),
@@ -456,33 +478,33 @@ ICache_Config g_icache_cfg = {
 #endif
 #endif
 
-__nonxip_text
+__sram_text
 void platform_cache_init(void)
 {
 #if (__CONFIG_CHIP_ARCH_VER == 1)
-    #ifdef __CONFIG_XIP
-        ICache_Config cache_cfg = { 0 };
-        uint32_t addr;
-        addr = image_get_section_addr(IMAGE_APP_XIP_ID);
-        if (addr == IMAGE_INVALID_ADDR) {
-            FWK_NX_ERR("no xip section\n");
-            return;
-        }
-        cache_cfg.addr_bias = addr + IMAGE_HEADER_SIZE;
-        HAL_ICache_Init(&cache_cfg);
-    #endif
+  #ifdef __CONFIG_XIP
+    ICache_Config cache_cfg = { 0 };
+    uint32_t addr;
+    addr = image_get_section_addr(IMAGE_APP_XIP_ID);
+    if (addr == IMAGE_INVALID_ADDR) {
+        FWK_NX_ERR("no xip section\n");
+        return;
+    }
+    cache_cfg.addr_bias = addr + IMAGE_HEADER_SIZE;
+    HAL_ICache_Init(&cache_cfg);
+  #endif
 #else
-    #if (((__CONFIG_CACHE_POLICY>>4) & 0xF) != 0)
+  #if (((__CONFIG_CACHE_POLICY>>4) & 0xF) != 0)
     HAL_ICache_Init(&g_icache_cfg);
-    #endif
-    #if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+  #endif
+  #if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
     HAL_Dcache_Init(&g_dcache_cfg);
-    #endif
+  #endif
 #endif
 }
 
 /* init basic platform hardware and services */
-__nonxip_text
+__sram_text
 __weak void platform_init_level0(void)
 {
 	pm_start();
@@ -599,7 +621,7 @@ __weak void platform_init_level2(void)
 #endif
 }
 
-__nonxip_text
+__sram_text
 void platform_init(void)
 {
 	platform_init_level0();

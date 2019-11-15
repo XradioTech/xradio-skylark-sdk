@@ -480,7 +480,7 @@ SECTIONS
         *command.o ( .bss .bss.* COMMON )
         *(.psram_bss*)
 
-        . = ALIGN(4);
+        . = ALIGN(16);
         __psram_bss_end__ = .;
         __psram_end__ = .;
     } > PSRAM

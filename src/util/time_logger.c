@@ -49,6 +49,7 @@ void save_time(uint32_t t, uint32_t i)
 
 void get_time(void)
 {
+	printf("\n");
 	for(int i = 0;i < MAX_SIZE_OF_TIME_ITEM;i++) {
 		if (i == 0)
 			printf("%s:\t%06dus\tdelta:%dus\n", time_item[i], ((uint32_t *)SAVE_TIME_TAB)[i],
@@ -57,5 +58,7 @@ void get_time(void)
 			printf("%s:\t%06dus\tdelta:%dus\n", time_item[i], ((uint32_t *)SAVE_TIME_TAB)[i],
 										((uint32_t *)SAVE_TIME_TAB)[i] - ((uint32_t *)SAVE_TIME_TAB)[i-1]);
 	}
+	printf("delta of %s to %s:\t%dus\n", time_item[0], time_item[MAX_SIZE_OF_TIME_ITEM - 1],
+				((uint32_t *)SAVE_TIME_TAB)[MAX_SIZE_OF_TIME_ITEM - 1] - ((uint32_t *)SAVE_TIME_TAB)[0]);
 }
 

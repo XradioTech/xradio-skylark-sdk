@@ -33,6 +33,7 @@
 #include "net/wlan/wlan.h"
 #include "common/framework/net_ctrl.h"
 #include "net/sntp/sntp.h"
+#include "time.h"
 
 #define SNTP_YEAR_OFFSET			(2000)
 
@@ -74,21 +75,23 @@ static int wlan_msg_init(void)
 
 static void sntp_test()
 {
+	int ret;
+	struct timeval ntp_time;
+	struct tm *time;
+
 	wlan_msg_init();
 
 	printf("<sntp> please connect the network firstly!\n");
 
 	do {
 		if (wlan_isConnect) {
-			printf("\n<sntp> sntp request...\n");
-			if (sntp_request(NULL) != 0) {
-				printf("<sntp> sntp request fail\n");
-				break;
+			ret = sntp_get_time(NULL, &ntp_time);
+			if (ret == 0) {
+				time = localtime(&ntp_time.tv_sec);
+				printf("<sntp> %u-%02u-%02u %02u:%02u:%02u %02u\n",
+						time->tm_year + 1900, time->tm_mon + 1, time->tm_mday,
+						time->tm_hour, time->tm_min, time->tm_sec, time->tm_wday);
 			}
-			sntp_time *time = (sntp_time *)sntp_obtain_time();
-			printf("<sntp> sntp request success\n");
-			printf("<sntp> %u-%02u-%02u ", time->year + SNTP_YEAR_OFFSET, time->mon, time->day);
-        	printf("%02u:%02u:%02u\n", time->hour, time->min, time->sec);
 		}
 		OS_MSleep(5000);
 	} while(1);

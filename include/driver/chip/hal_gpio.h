@@ -359,7 +359,7 @@ typedef enum {
     GPIOA_P18_F2_I2C0_SDA   = 2U,
     GPIOA_P18_F3_IR_TX      = 3U,
     GPIOA_P18_F4_FEM_CTRL2  = 4U,
-    GPIOA_P18_F5_IRRX       = 5U,
+    GPIOA_P18_F5_IR_RX      = 5U,
 
     GPIOA_P19_F2_UART2_RTS  = 2U,
     GPIOA_P19_F3_I2C0_SCL   = 3U,

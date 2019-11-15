@@ -30,8 +30,9 @@
 #ifndef _UTIL_TIME_LOGGER_H_
 #define _UTIL_TIME_LOGGER_H_
 
+#include <stdint.h>
+
 void save_time(uint32_t t, uint32_t i);
 void get_time(void);
-
 
 #endif /* _UTIL_TIME_LOGGER_H_ */

@@ -20,5 +20,7 @@ SRCS := $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS])))
 
 OBJS := $(addsuffix .o,$(SRCS))
 
+INCLUDE_PATHS += -I../../project/
+
 # library make rules
 include $(LIB_MAKE_RULES)

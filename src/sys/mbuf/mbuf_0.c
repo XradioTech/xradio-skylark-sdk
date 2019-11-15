@@ -32,7 +32,7 @@
 #include "sys/mbuf_0.h"
 #include "mbuf_util.h"
 
-#define MBUF_SIZE       sizeof(struct mbuf) /* (24 + 24) == 48 */
+#define MBUF_SIZE       sizeof(struct mbuf) /* (24 + 24 + 32) == 80 */
 
 #if MBUF_OPT_LIMIT_MEM
 

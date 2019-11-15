@@ -42,6 +42,8 @@
 
 static unsigned char tx_sample_resolution;
 void I2S_Loop_En(uint8_t en);
+HAL_Status xradio_i2s_register(void);
+HAL_Status xradio_i2s_unregister(void);
 
 unsigned int tx_data_32bit[32] = {
 	0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678,
@@ -50,6 +52,16 @@ unsigned int tx_data_32bit[32] = {
 	0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678,
 };
 
+
+static int i2s_register_example(void)
+{
+	return xradio_i2s_register();
+}
+
+static int i2s_unregister_example(void)
+{
+	return xradio_i2s_unregister();
+}
 
 static int i2s_init_example(void)
 {
@@ -120,25 +132,25 @@ static int i2s_open_example(uint8_t direction, uint32_t samplerate, uint8_t chan
 
 	switch(resolution){
 		case 8:
-			resolution = I2S_SR8BIT;
+			resolution = PCM_FORMAT_S8;
 			break;
 		case 12:
-			resolution = I2S_SR12BIT;
+			resolution = PCM_FORMAT_S12_LE;
 			break;
 		case 16:
-			resolution = I2S_SR16BIT;
+			resolution = PCM_FORMAT_S16_LE;
 			break;
 		case 20:
-			resolution = I2S_SR20BIT;
+			resolution = PCM_FORMAT_S20_LE;
 			break;
 		case 24:
-			resolution = I2S_SR24BIT;
+			resolution = PCM_FORMAT_S24_LE;
 			break;
 		case 28:
-			resolution = I2S_SR28BIT;
+			resolution = PCM_FORMAT_S28_LE;
 			break;
 		case 32:
-			resolution = I2S_SR32BIT;
+			resolution = PCM_FORMAT_S32_LE;
 			break;
 
 		default:
@@ -253,6 +265,7 @@ static int i2s_read_dma_example(uint32_t size)
 
 static void i2s_test_example(void)
 {
+	i2s_register_example();
 	i2s_init_example();
 
 	i2s_open_example(0, I2S_TEST_SAMPLE_RATE, I2S_TEST_CHANNEL_NUMS, I2S_TEST_RESOLUTION);
@@ -265,6 +278,7 @@ static void i2s_test_example(void)
 	i2s_close_example(1);
 
 	i2s_deinit_example();
+	i2s_unregister_example();
 }
 
 

@@ -42,8 +42,6 @@ extern "C" {
 
 #define ATCMD_CHECK_OVERFLOW		1
 
-#define USE_RECONNECT_FUNCTION 
-
 #define ATCMD_SYSLOG		printf
 #define ATCMD_ABORT()	do { } while (1) //sys_abort()
 

@@ -90,6 +90,7 @@
 #include "common/cmd/cmd_arp.h"
 #include "common/cmd/cmd_lmac.h"
 #include "common/cmd/cmd_rf.h"
+#include "common/cmd/cmd_wlancmd.h"
 #endif /* PRJCONF_NET_EN */
 #include "common/cmd/cmd_etf.h"
 

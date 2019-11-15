@@ -118,9 +118,7 @@ s32_t ping(struct ping_data *data)
 					pecho = (struct icmp_echo_hdr *)(reply_buf + (IPH_HL(iphdr) * 4));
 					if ((pecho->id == PING_IDs) && (pecho->seqno == htons(ping_seq_num))) {
 						/* do some ping result processing */
-						at_dump("%d bytes from %s: icmp_seq=%d	 time=%d ms\n",
-						       (reply_size - sizeof(struct ip_hdr)), inet_ntoa(FromAddr.sin_addr),
-						       htons(pecho->seqno), TimeElapse);
+						at_dump("+%d\n",TimeElapse);
 						ping_pass++;
 						break;
 					}
@@ -134,7 +132,7 @@ s32_t ping(struct ping_data *data)
 				TimeElapse=0xffffffffUL - TimeStart + TimeNow;
 			}
 			if (TimeElapse >= PING_TO) {  /* giveup this wait, if wait timeout */
-				at_dump("Request timeout for icmp_seq=%d\n", ping_seq_num);
+				at_dump("+timeout\n");
 				break;
 			}
 		}

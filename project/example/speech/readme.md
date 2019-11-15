@@ -12,7 +12,7 @@
 > 1. XR872系列芯片：XR872AT
 
 > XRadio Wireless MCU芯片和评估板的更多信息可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ## 工程配置
 
@@ -50,7 +50,7 @@
 > N/A
 
 > XRadio SDK的编译、烧写等操作方式的说明可在以下地址获取：
-> https://github.com/XradioTech/xradiotech-wiki
+> https://docs.xradiotech.com
 
 ### 控制命令
 
@@ -63,7 +63,7 @@
 ├── gcc
 │   ├── localconfig.mk          # 本工程的配置选项，主要用于覆盖默认全局配置
 │   └── Makefile                # 本工程的编译规则，如ld文件、image.cfg、board_config.h等文件指定，可覆盖默认配置
-│   ├── template.ld             # 本工程的使用的ld链接文件
+│   ├── appos.ld                # 本工程的使用的ld链接文件
 ├── image
 │   └── xr872
 │       └── image.cfg           # 本工程的镜像布局配置
@@ -76,6 +76,10 @@
 ├── debug.h
 ├── output.c                    # 本工程语音识别结果处理代码实现
 ├── output.h
+├── kfifo.c                     # 本工程使用的fifo源码
+├── kfifo.h
+├── pcmFifo.c                   # 本工程基于kfifo实现的fifo
+├── pcmFifo.h
 ├── prj_config.h                # 本工程的配置选项，主要用于功能的选择。
 └── readme.md                   # 本工程的说明文档
 
@@ -84,7 +88,7 @@
 └── project
     └── common
         └── board
-            └── xradio_audio           #本工程在Makefile中指定使用xradio_audio的板级配置
+            └── xr872_evb_ai           #本工程在Makefile中指定使用xr872_evb_ai的板级配置
                 ├── board_config.h     #本工程的板级配置，
                 └── board_config.c     #本工程的板级pin mux的配置。
 ```
@@ -160,4 +164,58 @@
 
 > 问：出现“Rx overrun”等打印？
 
-答：这是cpu资源不足，导致录音丢帧。尝试提高cpu频率，将运行频率高的代码放到sram中
+答：这是cpu资源不足，导致录音丢帧。尝试提高cpu频率，将运行频率高的代码放到sram中。cpu频率的配置在project/common/board/xxx/board_config.h的BOARD_CPU_CLK_FACTOR
+
+> 问：如何合并声波配网功能？
+
+答：打断唤醒算法需要使用到录音模块，而声波配网也需要使用到录音模块。当需要进行声波配网的时候，需要先停止打断唤醒模块。其中AecAsr.c模块对外提供两个函数接口，分别为aec_asr_start()，aec_asr_stop()。外部调用aec_asr_stop()即可停止打断唤醒模块
+
+> 问：如何合并播放功能？
+
+答：在运行打断唤醒模型时，进行播放，本质上就是实现同时录播功能，该功能可参考example/audio_play_and_record工程。举例如下（播放sd卡music目录的1.mp3，配置播放重采样为48000Hz）：
+```
+#include "common/framework/fs_ctrl.h"
+#include "common/apps/player_app.h"
+#include "soundStreamControl.h"
+
+{
+	int ret;
+	player_base *player;
+
+	if (fs_ctrl_mount(FS_MNT_DEV_TYPE_SDCARD, 0) != 0) {
+		printf("mount fail\n");
+		return -1;
+	}
+
+	player = player_create();
+	if (player == NULL) {
+		printf("player create fail.\n");
+		return -1;
+	}
+
+    struct SscPcmConfig config;
+    config.channels = 1;
+    config.rate = 48000;
+    player->control(player, PLAYER_CMD_SET_OUTPUT_CONFIG, &config);
+
+	player->setvol(player, 8);
+
+	ret = player->play(player, "file://music/1.mp3");
+	if (ret != 0) {
+		printf("music play fail.\n");
+		return -1;
+	}
+	return 0;
+}
+```
+
+> 问：如何合并云平台功能？
+
+答： output.c模块专门用于处理打断唤醒的结果，该结果包括是否识别到关键词、vad、录音数据等。其中ai_start()表示通知云平台，进行唤醒并开始录音对话；ai_stop()表示通知云平台，对话结束，实际方案需要在这两个函数里添加对应的云平台唤醒函数接口。其中该工程在处理识别效果时，添加了一些唤醒策略，客户可根据自身实际需要进行更改。目前该工程使用的唤醒策略有：
+
+​    1）当没有进行对话时，打断唤醒模块识别到关键词，则唤醒云平台开始录音对话
+​    2）当处于对话阶段，又识别到关键词时，如果对话时长低于2s，则忽略该次唤醒识别，继续进行对话；如果对话时长超过了2s，则会停止当前对话，重新启动录音对话（宏MIN_TIME_TO_RESTART用来配置该时长）
+​    3）一次录音对话，最短时长为1.5s（宏MIN_RECORD_TIME用来配置该时长）
+​    4）启动录音对话后，如果一直不说话，则10s后会终止该次对话（宏MAX_NO_SOUND_TIME用来配置该时长）
+​    5）启动录音对话后，当识别到人声结束超过500ms时，则会终止该次对话（宏MAX_NO_SOUND_TIME2用来配置该时长）
+​    6）识别到唤醒词后的250ms内，都认为不是人声（宏KEYWORD_TO_VAD_THRESHOLD用来配置该阈值）
