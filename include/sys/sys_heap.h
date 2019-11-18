@@ -75,35 +75,10 @@ void *sys_heap_calloc( sys_heap_t *sysHeap, size_t nmemb, size_t size );
 
 int sys_heap_init( sys_heap_t *sysHeap );
 
-#ifdef __CONFIG_PSRAM_MALLOC_TRACE
-
 void *psram_malloc( size_t xWantedSize );
 void *psram_realloc( void *pv, size_t xWantedSize );
-void psram_free( void *pv );
-
-#else
-extern void *_psram_malloc( size_t xWantedSize );
-extern void _psram_free( void *pv );
-extern void *_psram_realloc( void *pv, size_t xWantedSize );
-
-static inline void *psram_malloc(size_t xWantedSize)
-{
-	return _psram_malloc(xWantedSize);
-}
-
-static inline void psram_free(void *pv)
-{
-	_psram_free(pv);
-}
-
-static inline void *psram_realloc(void *pv, size_t xWantedSize)
-{
-	return _psram_realloc(pv, xWantedSize);
-}
-
-#endif
-
 void *psram_calloc( size_t xNmemb, size_t xMembSize );
+void psram_free( void *pv );
 char *psram_strdup(const char *s);
 
 typedef void *(*sys_malloc_fn)(size_t size);

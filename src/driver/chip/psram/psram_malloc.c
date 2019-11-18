@@ -311,7 +311,20 @@ out:
 
 #else
 
-#include "sys/sys_heap.h"
+void *psram_malloc(size_t xWantedSize)
+{
+	return _psram_malloc(xWantedSize);
+}
+
+void psram_free(void *pv)
+{
+	_psram_free(pv);
+}
+
+void *psram_realloc(void *pv, size_t xWantedSize)
+{
+	return _psram_realloc(pv, xWantedSize);
+}
 
 #endif
 
