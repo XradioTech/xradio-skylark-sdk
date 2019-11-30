@@ -12,10 +12,10 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR808系列芯片： XR808CT0
+> 1. XR808系列芯片：XR808CT0
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR808_EVB_IO
+> 1. 底板：XR808_EVB_IO
 > 2. 模组：XR808CT0_MD02
 
 > 本工程在基于“XR808CT0_MD02”的“XR808_EVB_IO”评估板上测试通过。
@@ -27,27 +27,27 @@
 ## 工程配置
 
 > localconfig.mk：
-> * __CONFIG_WLAN_STA: 必选项，配置使用WLAN STA功能
+> * __CONFIG_WLAN_STA：必选项，配置使用WLAN STA功能
 >
 > Makefile：
-> * PRJ_BOARD: 必选项，需要使用自定义的板级配置
+> * PRJ_BOARD：必选项，需要使用自定义的板级配置
 >
 > board_config.h
-> * BOARD_LOSC_EXTERNAL： 必选项，配置为1以使用外部32kHz低频晶振
-> * BOARD_CPU_CLK_FACTOR： 必选项，设置为PRCM_SYS_CLK_FACTOR_160M以使用较低CPU频率
+> * BOARD_LOSC_EXTERNAL：必选项，配置为1以使用外部32kHz低频晶振
+> * BOARD_CPU_CLK_FACTOR：必选项，设置为PRCM_SYS_CLK_FACTOR_160M以使用较低CPU频率
 >
 > board_config.c
 > * N/A
 >
 > prj_config.h
-> * PRJCONF_PM_EN: 必选项，配置PM模式
-> * PRJCONF_NET_EN: 必选项，配置使用网络功能
+> * PRJCONF_PM_EN：必选项，配置PM模式
+> * PRJCONF_NET_EN：必选项，配置使用网络功能
 
 ## 模块依赖
 
 > 必选项
-> 1. wlan模块： 完成STA相关功能
-> 2. pm模块： 完成休眠相关功能
+> 1. wlan模块：完成STA相关功能
+> 2. pm模块：完成休眠相关功能
 > 3. gpio模块：完成外部DC-DC模块控制
 
 > 可选项：N/A

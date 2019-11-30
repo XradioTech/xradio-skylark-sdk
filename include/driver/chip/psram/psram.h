@@ -228,6 +228,7 @@ struct psram_request {
 struct psram_ctrl;
 
 extern uint8_t __PSRAM_BASE[];
+extern uint8_t __PSRAM_END[];
 extern uint8_t __PSRAM_LENGTH[];
 extern uint8_t __psram_start__[];
 extern uint8_t __psram_end__[];
@@ -236,8 +237,10 @@ extern uint8_t __psram_data_end__[];
 extern uint8_t __psram_bss_start__[];
 extern uint8_t __psram_bss_end__[];
 
-#define PSRAM_START_ADDR      ((uint32_t)(__PSRAM_BASE))
-#define PSRAM_END_ADDR        ((uint32_t)(__PSRAM_BASE) + (uint32_t)__PSRAM_LENGTH - 1)
+#define PSRAM_START_ADDR        ((uint32_t)(__PSRAM_BASE))
+#define PSRAM_END_ADDR          ((uint32_t)(__PSRAM_END))
+#define PSRAM_LENGTH            ((uint32_t)(__PSRAM_LENGTH))
+
 
 int32_t psram_init(struct psram_chip *chip, struct psram_ctrl *ctrl, PSRAMChip_InitParam *param);
 int32_t psram_deinit(struct psram_chip *chip);

@@ -102,6 +102,7 @@ static int psram_dma_read_write(uint32_t write, uint32_t addr,
 	DMA_DataWidth dma_data_width;
 	OS_Semaphore_t *dma_sem;
 	uint32_t wt_saddr, wt_eaddr;
+    int32_t dcacheWT_idx = -1;
 
 	dma_ch = HAL_DMA_Request();
 	if (dma_ch == DMA_CHANNEL_INVALID) {
@@ -161,7 +162,11 @@ static int psram_dma_read_write(uint32_t write, uint32_t addr,
 
 	wt_saddr = rounddown2(addr, 16);
 	wt_eaddr = roundup2((uint32_t)addr + len, 16);
-	HAL_Dcache_SetWriteThrough(1, 1, wt_saddr, wt_eaddr);
+	dcacheWT_idx = HAL_Dcache_Enable_WriteThrough(wt_saddr, wt_eaddr);
+    if(dcacheWT_idx == -1) {
+        ret = -1;
+        goto out;
+    }
 
 	if (write)
 		HAL_DMA_Start(dma_ch, (uint32_t)buf, (uint32_t)addr, len);
@@ -169,18 +174,22 @@ static int psram_dma_read_write(uint32_t write, uint32_t addr,
 		HAL_DMA_Start(dma_ch, (uint32_t)addr, (uint32_t)buf, len);
 
 	ret = OS_SemaphoreWait(dma_sem, 2000);
-	if (ret != OS_OK)
-		CMD_PSRAM_ERR("sem wait failed: %d\n", ret);
+	if (ret != OS_OK) {
+        CMD_PSRAM_ERR("sem wait failed: %d\n", ret);
+        ret = -1;
+    }
 
-	HAL_Dcache_SetWriteThrough(1, 0, 0, 0);
+	HAL_Dcache_Disable_WriteThrough(dcacheWT_idx);
 
 	HAL_DMA_Stop(dma_ch);
+
+out:
 	HAL_DMA_DeInit(dma_ch);
 	HAL_DMA_Release(dma_ch);
 
 	OS_SemaphoreDelete(dma_sem);
 
-	return 0;
+	return ret;
 }
 
 typedef int (*psram_read_write)(uint32_t write, uint32_t addr, uint8_t *buf, uint32_t len, void *arg);
@@ -236,8 +245,10 @@ static int psram_sbus_cpu_read_write(uint32_t write, uint32_t addr, uint8_t *buf
 __CMD_SRAM_TEXT
 static int psram_sbus_dma_read_write(uint32_t write, uint32_t addr, uint8_t *buf, uint32_t len, void *arg)
 {
+    int ret = 0;
 	struct psram_chip *chip;
 	uint32_t wt_saddr, wt_eaddr;
+    int32_t dcacheWT_idx = -1;
 
 	chip = psram_open(0);
 	if (!chip) {
@@ -248,18 +259,22 @@ static int psram_sbus_dma_read_write(uint32_t write, uint32_t addr, uint8_t *buf
 	wt_saddr = rounddown2(addr, 16);
 	wt_eaddr = roundup2((uint32_t)addr + len, 16);
 
-	HAL_Dcache_SetWriteThrough(0, 1, wt_saddr, wt_eaddr);
-
+	dcacheWT_idx = HAL_Dcache_Enable_WriteThrough(wt_saddr, wt_eaddr);
+    if(dcacheWT_idx == -1) {
+        ret = -1;
+        goto out;
+    }
 	if (write)
 		psram_sbus_dma_write(chip, addr, buf, len);
 	else
 		psram_sbus_dma_read(chip, addr, buf, len);
 
-	HAL_Dcache_SetWriteThrough(0, 0, 0, 0);
+	HAL_Dcache_Disable_WriteThrough(dcacheWT_idx);
 
+out:
 	psram_close(chip);
 
-	return 0;
+	return ret;
 }
 
 __CMD_SRAM_DATA
@@ -460,7 +475,7 @@ static enum cmd_status cmd_psram_membist_exec(char *cmd)
 	}
 
 	if (mode == 0) {
-		size = IDCACHE_END_ADDR - (uint32_t)__psram_end__;
+		size = DCACHE_END_ADDR - (uint32_t)__psram_end__;
 		while (!add && size >= 1024) {
 			add = psram_malloc(size);
 			size -= 1024;
@@ -468,8 +483,8 @@ static enum cmd_status cmd_psram_membist_exec(char *cmd)
 		}
 		size += 1024;
 	} else if (mode == 1) {
-		add = (uint32_t *)IDCACHE_START_ADDR;
-		size = IDCACHE_END_ADDR - IDCACHE_START_ADDR;
+		add = (uint32_t *)DCACHE_START_ADDR;
+		size = DCACHE_END_ADDR - DCACHE_START_ADDR;
 	}
 	size /= 4;
 	CMD_SRAM_DBG("%s,%d start:%p size:%d KB\n", __func__, __LINE__, add, size / (1024/4));
@@ -524,11 +539,11 @@ static void cmd_psram_bench_task(void *arg)
 	switch (mode) {
 	case 0:
 	case 1:
-		if (start_addr < (uint32_t)__PSRAM_Base ||
-		    start_addr >= ((uint32_t)__PSRAM_Base + 8*1024*1024)) {
+		if (start_addr < (uint32_t)__PSRAM_BASE ||
+		    start_addr >= ((uint32_t)__PSRAM_BASE + 8*1024*1024)) {
 			CMD_PSRAM_ERR("invalid argument start_addr:%x, should >= 0x%x and < 0x%x\n",
-			        start_addr, (uint32_t)__PSRAM_Base,
-			        ((uint32_t)__PSRAM_Base + 8*1024*1024));
+			        start_addr, (uint32_t)__PSRAM_BASE,
+			        ((uint32_t)__PSRAM_BASE + 8*1024*1024));
 			goto out;
 		}
 		break;
@@ -557,11 +572,13 @@ static void cmd_psram_bench_task(void *arg)
 			buf[j] = j;
 
 		//HAL_Dcache_DUMP_MissHit();
-		HAL_Dcache_FlushCleanAll();
+		HAL_Dcache_CleanAll();
+		HAL_Dcache_FlushAll();
 		tick_start = OS_GetTicks();
 		err = psram_rw_op[mode](1, start_addr, (uint8_t *)buf, bench_size, NULL);
 		tick_use1 = OS_GetTicks() - tick_start;
-		HAL_Dcache_FlushCleanAll();
+		HAL_Dcache_CleanAll();
+		HAL_Dcache_FlushAll();
 		tick_use2 = OS_GetTicks() - tick_start;
 		//HAL_Dcache_DUMP_MissHit();
 		if (!tick_use1)
@@ -585,11 +602,13 @@ static void cmd_psram_bench_task(void *arg)
 			buf[j] = 0;
 
 		//HAL_Dcache_DUMP_MissHit();
-		HAL_Dcache_FlushCleanAll();
+		HAL_Dcache_CleanAll();
+		HAL_Dcache_FlushAll();
 		tick_start = OS_GetTicks();
 		err = psram_rw_op[mode](0, start_addr, (uint8_t *)buf, bench_size, NULL);
 		tick_use1 = OS_GetTicks() - tick_start;
-		HAL_Dcache_FlushCleanAll();
+		HAL_Dcache_CleanAll();
+		HAL_Dcache_FlushAll();
 		tick_use2 = OS_GetTicks() - tick_start;
 		//HAL_Dcache_DUMP_MissHit();
 		if (!tick_use1)
@@ -1012,10 +1031,7 @@ static enum cmd_status cmd_psram_malloc_exec(char *cmd)
 	}
 
 	add = psram_malloc(size);
-	printf("%s malloc:%p\n", __func__, add);
-
-	if (wt)
-		HAL_Dcache_SetWriteThrough(0, 1, (uint32_t)add, (uint32_t)add + size);
+	CMD_SYSLOG("%s malloc:%p\n", __func__, add);
 
 	return CMD_STATUS_OK;
 }
@@ -1036,10 +1052,7 @@ static enum cmd_status cmd_psram_free_exec(char *cmd)
 	}
 
 	psram_free(add);
-	printf("%s free:%p\n", __func__, add);
-
-	if (wt)
-		HAL_Dcache_SetWriteThrough(0, 0, 0, 0);
+	CMD_SYSLOG("%s free:%p\n", __func__, add);
 
 	return CMD_STATUS_OK;
 }
@@ -1053,6 +1066,7 @@ static enum cmd_status cmd_psram_wt_exec(char *cmd)
 	void *add;
 	uint32_t idx, en, size;
 	uint32_t cnt;
+    int32_t dcacheWT_idx = -1;
 
 	cnt = cmd_sscanf(cmd, "%d %d 0x%x 0x%x", &idx, &en, (unsigned int *)&add, &size);
 	if (cnt != 4) {
@@ -1067,7 +1081,11 @@ static enum cmd_status cmd_psram_wt_exec(char *cmd)
 		return CMD_STATUS_INVALID_ARG;
 	}
 
-	HAL_Dcache_SetWriteThrough(idx, en, (uint32_t)add, (uint32_t)add + size);
+	dcacheWT_idx = HAL_Dcache_Enable_WriteThrough((uint32_t)add, (uint32_t)add + size);
+    if(dcacheWT_idx == -1) {
+        CMD_ERR("cmd_psram_wt_exec failed\n");
+        return CMD_STATUS_FAIL;
+    }
 
 	return CMD_STATUS_OK;
 }
@@ -1078,8 +1096,8 @@ static enum cmd_status cmd_psram_wt_exec(char *cmd)
 __CMD_SRAM_TEXT
 static enum cmd_status cmd_psram_flush_clean_exec(char *cmd)
 {
-	HAL_Dcache_FlushCleanAll();
-
+	HAL_Dcache_CleanAll();
+	HAL_Dcache_FlushAll();
 	return CMD_STATUS_OK;
 }
 

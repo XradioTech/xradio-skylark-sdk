@@ -36,6 +36,7 @@
 
 #include "hal_base.h"
 #include "driver/chip/hal_gpio.h"
+#include "driver/chip/hal_dcache.h"
 
 #include "sys/io.h"
 #include "driver/chip/hal_sysctl.h"
@@ -141,7 +142,7 @@ static void CSI_JPEG_IRQHandler(void)
 
 	if (jpe_irq & (0xE00182)) {
 		CSI_JPEG_ERR("excption\n");
-		priv->state = CSI_STATE_INVALID;
+		priv->state = CSI_STATE_INIT;
 		HAL_CLR_BIT(CSI->CSI_CAP_REG, CSI_C0_VCAP_EN | CSI_C0_SCAP_EN);
 		if (priv->cb)
 			priv->cb(CSI_JPEG_EVENT_EXCP, NULL);
@@ -340,6 +341,7 @@ HAL_Status HAL_CSI_JPEG_Deinit(void)
 	HAL_CCM_CSI_DisableMClock();
 	HAL_CCM_CSI_JPEG_DisableDevClock();
 	HAL_CCM_BusDisablePeriphClock(CCM_BUS_PERIPH_BIT_CSI_JPEG);
+	HAL_CCM_BusForcePeriphReset(CCM_BUS_PERIPH_BIT_CSI_JPEG);
 
 	priv->state = CSI_STATE_INVALID;
 
@@ -472,6 +474,20 @@ static void JPEG_WriteQtab(uint32_t base_addr)
 HAL_Status HAL_JPEG_Config(JPEG_ConfigParam *cfg)
 {
 	uint32_t reg_val;
+    if(cfg == NULL) {
+        CSI_JPEG_ERR("ERROR: cfg NULL\n");
+        return HAL_ERROR;
+    }
+
+#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+    if((HAL_Dcache_IsCacheable((uint32_t)cfg->csi_output_addr_y, 4))
+        || (HAL_Dcache_IsCacheable((uint32_t)cfg->csi_output_addr_uv, 4))
+        || (HAL_Dcache_IsCacheable((uint32_t)cfg->outstream_start_addr,
+            ((uint32_t)cfg->outstream_end_addr - (uint32_t)cfg->outstream_start_addr + 1)))) {
+        HAL_ERR("CSI_JPEG: Data buf MUST NOT CACHEABLE!!!\n");
+        return HAL_ERROR;
+    }
+#endif
 
 	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
 	if (priv->state != CSI_STATE_INIT && priv->state != CSI_STATE_READY)

@@ -50,7 +50,7 @@ typedef struct _HTTPParameters
 	UINT32 Flags; /*in*/
 	VOID *pData; /*in*/
 	UINT32 pLength; /*in*/
-	UINT32 nTimeout; /*in*/
+	UINT32 nTimeout; /*in, seconds*/
 } HTTPParameters;
 
 int HTTPC_open(HTTPParameters *ClientParams);

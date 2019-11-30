@@ -46,8 +46,8 @@
 ## 模块依赖
 
 > 必选项
-> 1.libxrwireless.a： 网络驱动核心模块
-> 2.libwlan.a： 网络层模块
+> 1.libxrwireless.a：网络驱动核心模块
+> 2.libwlan.a：网络层模块
 
 ---
 

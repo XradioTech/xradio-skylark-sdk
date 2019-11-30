@@ -9,10 +9,10 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片： XR872AT、XR872ET
+> 1. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR872_EVB_AI
+> 1. 底板：XR872_EVB_AI
 > 2. 模组：XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -36,14 +36,14 @@
 > * N/A
 >
 > prj_config.h
-> * PRJCONF_INTERNAL_SOUNDCARD_EN: 必选项，配置使用内置声卡
-> * PRJCONF_NET_EN: 必选项，配置使能网络功能
+> * PRJCONF_INTERNAL_SOUNDCARD_EN：必选项，配置使用内置声卡
+> * PRJCONF_NET_EN：必选项，配置使能网络功能
 
 ## 模块依赖
 
 > 必选项
 >
-> 1. wlan模块： 网络连接需要依赖的库
+> 1. wlan模块：网络连接需要依赖的库
 
 ---
 
@@ -85,7 +85,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 调用voice_print_example()启动声波配网。
+> 1. main()入口：调用voice_print_example()启动声波配网。
 > 3. voice_print_example()函数流程：
 >   A）初始化配网助手
 >   B）启动声波配网

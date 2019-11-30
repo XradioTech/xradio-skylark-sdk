@@ -30,7 +30,7 @@ else
   INCLUDE_PATHS += -I$(ROOT_PATH)/src/rom/rom_bin/include
 endif
 
-SRCS := $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS])))
+SRCS := $(sort $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS]))))
 
 OBJS := $(addsuffix .o,$(SRCS))
 

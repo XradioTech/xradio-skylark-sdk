@@ -238,8 +238,6 @@ static int load_psram_bin_and_set_addr(struct psram_chip *chip)
 		goto out;
 	}
 
-	HAL_Dcache_SetWriteThrough(0, 1, PSRAM_START_ADDR, rounddown2(PSRAM_END_ADDR, 16));
-
 	if (sh.body_len == 0) { /* psram only used to store data */
 		PSRAM_INF("psram only used store data\n");
 		goto clr_bss;
@@ -259,7 +257,7 @@ static int load_psram_bin_and_set_addr(struct psram_chip *chip)
 	if (len != sh.body_len) {
 		PSRAM_ERR("psram body size %u, read %u\n", sh.body_len, len);
 		ret = -1;
-		goto wt_out;
+		goto out;
 	}
 
 	if (image_check_data(&sh, (void *)PSRAM_START_ADDR, sh.body_len,
@@ -267,7 +265,7 @@ static int load_psram_bin_and_set_addr(struct psram_chip *chip)
 		PSRAM_ERR("invalid psram bin body\n");
 		//PSRAM_DUMP((const void *)PSRAM_START_ADDR, sh.body_len);
 		ret = -1;
-		goto wt_out;
+		goto out;
 	}
 
 clr_bss:
@@ -279,8 +277,6 @@ clr_bss:
 	PSRAM_INF("__psram_bss_end__\t%p\n", __psram_bss_end__);
 	PSRAM_INF("__psram_end__\t\t%p\n", __psram_end__);
 
-wt_out:
-    HAL_Dcache_SetWriteThrough(0, 0, 0, 0);
 out:
 	return ret;
 }
@@ -349,7 +345,6 @@ void platform_psram_init(void)
 		goto out;
 	}
 	PSRAM_DBG("load psram bin ok\n");
-	HAL_Dcache_SetWriteThrough(0, 1, rounddown2((uint32_t)__psram_bss_end__, 16), rounddown2(PSRAM_END_ADDR, 16));
     return;
 out:
     psram_deinit(&chip);

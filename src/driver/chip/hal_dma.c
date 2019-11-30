@@ -73,14 +73,9 @@ HAL_Status HAL_DMA_Start(DMA_Channel chan, uint32_t srcAddr, uint32_t dstAddr, u
 	}
 
 	/* TODO: check alignment of @srcAddr and @dstAddr */
-#if (((__CONFIG_CACHE_POLICY & 0xF) != 0) && (defined __CONFIG_PSRAM))
-    if((srcAddr >= IDCACHE_START_ADDR) && (srcAddr < IDCACHE_END_ADDR)
-        && (HAL_Dcache_Cacheable(srcAddr, datalen))) {
-        HAL_Dcache_Clean(srcAddr, datalen);
-    }
-    if((dstAddr >= IDCACHE_START_ADDR) && (dstAddr < IDCACHE_END_ADDR)
-        && (HAL_Dcache_Cacheable(dstAddr, datalen))) {
-        HAL_ERR("DMA: dstAddr 0x%08x must not psram cacheable!\n", dstAddr);
+#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+    if(HAL_Dcache_IsCacheable(srcAddr, datalen) || HAL_Dcache_IsCacheable(dstAddr, datalen)) {
+        HAL_ERR("DMA: dstAddr 0x%08x or srcAddr 0x%08x MUST NOT CACHEABLE!!!\n", dstAddr, srcAddr);
         return HAL_ERROR;
     }
 #endif

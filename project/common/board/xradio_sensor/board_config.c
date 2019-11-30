@@ -227,9 +227,10 @@ static const GPIO_PinMuxParam g_pinmux_csi[] = {
 };
 
 
-#define BOARD_PA_PORT    		GPIO_PORT_A
-#define BOARD_PA_PIN     		GPIO_PIN_3
-#define BOARD_PA_ON_DELAY     	150
+#define BOARD_PA_PORT    			GPIO_PORT_A
+#define BOARD_PA_PIN     			GPIO_PIN_3
+#define BOARD_PA_ON_DELAY_BEFORE	150
+#define BOARD_PA_ON_DELAY_AFTER		100
 
 __xip_rodata
 static const GPIO_PinMuxParam g_pinmux_pa_switch[] = {
@@ -239,7 +240,8 @@ static const GPIO_PinMuxParam g_pinmux_pa_switch[] = {
 __xip_rodata
 static const Pa_Switch_Ctl pa_switch_ctl = {
 	.on_state  = GPIO_PIN_HIGH,
-	.on_delay  = BOARD_PA_ON_DELAY,
+	.on_delay_before = BOARD_PA_ON_DELAY_BEFORE,
+	.on_delay_after  = BOARD_PA_ON_DELAY_AFTER,
 	.pin_param = g_pinmux_pa_switch,
 	.pin_param_cnt = HAL_ARRAY_SIZE(g_pinmux_pa_switch),
 };

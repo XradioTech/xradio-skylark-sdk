@@ -231,56 +231,41 @@ void SPI_SetSclkMode(SPI_T *spi, SPI_SCLK_Mode mode)
 	HAL_MODIFY_REG(spi->TCTRL, SPI_TCTRL_CPOL_MASK | SPI_TCTRL_CPHA_MASK, mode);
 }
 
-typedef enum {
-	SPI_INT_CS_DESELECT = SPI_IER_SS_INT_EN_MASK,
-	SPI_INT_TRANSFER_COMPLETE = SPI_IER_TC_INT_EN_MASK,
-	SPI_INT_TXFIFO_UNDER_RUN = SPI_IER_TF_UDR_INT_EN_MASK,
-	SPI_INT_TXFIFO_OVERFLOW = SPI_IER_TF_OVF_INT_EN_MASK,
-	SPI_INT_RXFIFO_UNDER_RUN = SPI_IER_RF_UDR_INT_EN_MASK,
-	SPI_INT_RXFIFO_OVERFLOW = SPI_IER_RF_OVF_INT_EN_MASK,
-	SPI_INT_TXFIFO_FULL = SPI_IER_TF_FUL_INT_EN_MASK,
-	SPI_INT_TXFIFO_EMPTY = SPI_IER_TX_EMP_INT_EN_MASK,
-	SPI_INT_TXFIFO_READY = SPI_IER_TX_ERQ_INT_EN_MASK,
-	SPI_INT_RXFIFO_FULL = SPI_IER_RF_FUL_INT_EN_MASK,
-	SPI_INT_RXFIFO_EMPTY = SPI_IER_RX_EMP_INT_EN_MASK,
-	SPI_INT_RXFIFO_READY = SPI_IER_RF_RDY_INT_EN_MASK
-} SPI_Int_Type;
-
 /*
  * @brief
  */
 __SPI_STATIC_INLINE__
-void SPI_EnableInt(SPI_T *spi, SPI_Int_Type type)
+void SPI_EnableInt(SPI_T *spi, uint32_t intMask)
 {
-	HAL_SET_BIT(spi->IER, type);
+	HAL_SET_BIT(spi->IER, intMask);
 }
 
 /*
  * @brief
  */
 __SPI_STATIC_INLINE__
-void SPI_DisableInt(SPI_T *spi, SPI_Int_Type type)
+void SPI_DisableInt(SPI_T *spi, uint32_t intMask)
 {
-	HAL_CLR_BIT(spi->IER, type);
+	HAL_CLR_BIT(spi->IER, intMask);
 }
 
 /*
  * @brief
  */
 __SPI_STATIC_INLINE__
-bool SPI_IntState(SPI_T *spi, SPI_Int_Type type)
+bool SPI_IntState(SPI_T *spi, uint32_t intMask)
 {
-	return !!HAL_GET_BIT(spi->STA, type);
+	return !!HAL_GET_BIT(spi->STA, intMask);
 }
 
 /*
  * @brief
  */
 __SPI_STATIC_INLINE__
-bool SPI_ClearInt(SPI_T *spi, SPI_Int_Type type)
+void SPI_ClearInt(SPI_T *spi, uint32_t intMask)
 {
-	HAL_SET_BIT(spi->STA, type);
-	return HAL_GET_BIT(spi->STA, type);
+	HAL_SET_BIT(spi->STA, intMask);
+//	return HAL_GET_BIT(spi->STA, interrputMask);
 }
 
 /*
@@ -514,7 +499,7 @@ typedef enum
 
 typedef struct {
 	SPI_Status status;
-	HAL_Mutex lock;
+	HAL_Semaphore lock;
 } SPI_StateMachine;
 
 typedef struct {
@@ -531,6 +516,8 @@ typedef struct {
 	SPI_IO_Mode			ioMode;
 	bool				cs_idle;
 	SPI_CS				cs_using;
+	SPI_IRQCallback		irqCallback;
+	void				*irqCallbackArg;
 } SPI_Handler;
 
 
@@ -549,7 +536,9 @@ static SPI_Handler spi_handler[SPI_NUM] = {
 			.block			=		{0},
 			.ioMode			= 		SPI_IO_MODE_NORMAL,
 			.cs_idle		=		1,
-			.cs_using		=		SPI_TCTRL_SS_SEL_SS0
+			.cs_using		=		SPI_TCTRL_SS_SEL_SS0,
+			.irqCallback	=		NULL,
+			.irqCallbackArg =		NULL
 		},
 		{
 			.spi 			= 		(SPI_T *)SPI1_BASE,
@@ -564,7 +553,9 @@ static SPI_Handler spi_handler[SPI_NUM] = {
 			.block			= 		{0},
 			.ioMode			= 		SPI_IO_MODE_NORMAL,
 			.cs_idle		=		1,
-			.cs_using		=		SPI_TCTRL_SS_SEL_SS0
+			.cs_using		=		SPI_TCTRL_SS_SEL_SS0,
+			.irqCallback	=		NULL,
+			.irqCallbackArg =		NULL
 		}
 };
 
@@ -727,13 +718,13 @@ HAL_Status HAL_SPI_Init(SPI_Port port, const SPI_Global_Config *gconfig)
 		goto out;
 	}
 
-	if ((ret = HAL_MutexInit(&hdl->sm.lock)) != HAL_OK) {
+	if ((ret = HAL_SemaphoreInit(&hdl->sm.lock, 1, 1)) != HAL_OK) {
 		SPI_ALERT("Mutex init failed\n");
 		goto out;
 	}
 
 	if ((ret = HAL_SemaphoreInit(&hdl->block, 0, 1)) != HAL_OK) {
-		HAL_MutexDeinit(&hdl->sm.lock);
+		HAL_SemaphoreDeinit(&hdl->sm.lock);
 		SPI_ALERT("Semaphore init failed\n");
 		goto out;
 	}
@@ -753,7 +744,7 @@ HAL_Status HAL_SPI_Init(SPI_Port port, const SPI_Global_Config *gconfig)
 	if (HAL_SPI_ConfigCCMU(port, hdl->mclk) != 1) {
 		SPI_ALERT("mclk by CCMU divided too low, config failed. mclk=%d\n", hdl->mclk);
 		HAL_SemaphoreDeinit(&hdl->block);
-		HAL_MutexDeinit(&hdl->sm.lock);
+		HAL_SemaphoreDeinit(&hdl->sm.lock);
 		ret = HAL_ERROR;
 		goto out;
 	}
@@ -796,7 +787,7 @@ HAL_Status HAL_SPI_Deinit(SPI_Port port)
 		goto out;
 	}
 
-	HAL_MutexDeinit(&hdl->sm.lock);
+	HAL_SemaphoreDeinit(&hdl->sm.lock);
 	HAL_SemaphoreDeinit(&hdl->block);
 	SPI_Disable(hdl->spi);
 	HAL_SPI_DisableCCMU(port);
@@ -831,10 +822,14 @@ HAL_Status HAL_SPI_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t m
 	unsigned long flags;
 
 	SPI_ENTRY();
+
+	if ((ret = HAL_SemaphoreWait(&hdl->sm.lock, msec)) != HAL_OK) {
+		SPI_ALERT("get sm.lock fail\n");
+		goto out;
+	}
+
 	flags = HAL_EnterCriticalSection();
 
-	if ((ret = HAL_MutexLock(&hdl->sm.lock, msec)) != HAL_OK)
-		goto out;
 	if (hdl->sm.status != SPI_STATUS_READY) {
 		ret = HAL_ERROR;
 		SPI_ALERT("Changing State incorrectly in %s, state: %d -> busy\n", __func__, hdl->sm.status);
@@ -901,21 +896,25 @@ HAL_Status HAL_SPI_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t m
 	}
 
 	SPI_Disable(spi);
-	HAL_Memcpy(&hdl->config, config, sizeof(*config));
-	SPI_SetMode(spi, config->mode);
-	SPI_SetFirstTransmitBit(spi, config->firstBit);
-	SPI_SetSclkMode(spi, config->sclkMode);
-	ret = SPI_SetClkDiv(spi, hdl->mclk, config->sclk);
-	if (ret != HAL_OK) {
-		if (config->opMode == SPI_OPERATION_MODE_DMA) {
-			HAL_DMA_DeInit(hdl->rx_dmaChannel);
-			HAL_DMA_DeInit(hdl->tx_dmaChannel);
-			HAL_DMA_Release(hdl->rx_dmaChannel);
-			HAL_DMA_Release(hdl->tx_dmaChannel);
+
+	if (HAL_Memcmp(config, &hdl->config, sizeof(*config))) {
+		HAL_Memcpy(&hdl->config, config, sizeof(*config));
+		SPI_SetMode(spi, config->mode);
+		SPI_SetFirstTransmitBit(spi, config->firstBit);
+		SPI_SetSclkMode(spi, config->sclkMode);
+		ret = SPI_SetClkDiv(spi, hdl->mclk, config->sclk);
+		if (ret != HAL_OK) {
+			if (config->opMode == SPI_OPERATION_MODE_DMA) {
+				HAL_DMA_DeInit(hdl->rx_dmaChannel);
+				HAL_DMA_DeInit(hdl->tx_dmaChannel);
+				HAL_DMA_Release(hdl->rx_dmaChannel);
+				HAL_DMA_Release(hdl->tx_dmaChannel);
+			}
+			SPI_ALERT("SPI_SetClkDiv failed \n");
+			goto init_failed;
 		}
-		goto init_failed;
+		SPI_SetDuplex(spi, SPI_TCTRL_DHB_HALF_DUPLEX);
 	}
-	SPI_SetDuplex(spi, SPI_TCTRL_DHB_HALF_DUPLEX);
 
 /*	if (config->csMode == SPI_CS_MODE_AUTO)
 		SPI_AutoChipSelect(spi, cs, 1, hdl->cs_idle);
@@ -937,9 +936,9 @@ init_failed:
 	HAL_BoardIoctl(HAL_BIR_PINMUX_DEINIT, HAL_MKDEV(HAL_DEV_MAJOR_SPI, port), cs);
 	hdl->sm.status = SPI_STATUS_READY;
 failed:
-	HAL_MutexUnlock(&hdl->sm.lock);
-out:
 	HAL_ExitCriticalSection(flags);
+	HAL_SemaphoreRelease(&hdl->sm.lock);
+out:
 	SPI_EXIT(ret);
 	return ret;
 }
@@ -956,8 +955,8 @@ HAL_Status HAL_SPI_Close(SPI_Port port)
 	unsigned long flags;
 
 	SPI_ENTRY();
-	flags = HAL_EnterCriticalSection();
 
+	flags = HAL_EnterCriticalSection();
 
 	if (hdl->sm.status != SPI_STATUS_BUSY) {
 		ret = HAL_ERROR;
@@ -979,7 +978,11 @@ HAL_Status HAL_SPI_Close(SPI_Port port)
 	SPI_Disable(hdl->spi);
 	HAL_SPI_DisableCCMU(port);
 	HAL_SPI_Config(port, SPI_ATTRIBUTION_IO_MODE, SPI_IO_MODE_NORMAL);
-	HAL_MutexUnlock(&hdl->sm.lock);
+	HAL_ExitCriticalSection(flags);
+	HAL_SemaphoreRelease(&hdl->sm.lock);
+	SPI_EXIT(ret);
+	return ret;
+
 out:
 	HAL_ExitCriticalSection(flags);
 	SPI_EXIT(ret);
@@ -1130,9 +1133,9 @@ HAL_Status HAL_SPI_Receive(SPI_Port port, uint8_t *data, uint32_t size)
 
 	SPI_REG_ALL(spi, "receive completed");
 	SPI_DEBUG_TRANSFER_DATA(data, size, "Rx");
+	hdl->sm.status = SPI_STATUS_BUSY;
 
 out:
-	hdl->sm.status = SPI_STATUS_BUSY;
 	SPI_EXIT(ret);
 	return ret;
 }
@@ -1210,9 +1213,9 @@ HAL_Status HAL_SPI_Transmit(SPI_Port port, uint8_t *data, uint32_t size) /* time
 
 	SPI_REG_ALL(spi, "transmit completed");
 	SPI_DEBUG_TRANSFER_DATA(data, size, "Tx");
+	hdl->sm.status = SPI_STATUS_BUSY;
 
 out:
-	hdl->sm.status = SPI_STATUS_BUSY;
 	SPI_EXIT(ret);
 	return ret;
 }
@@ -1304,10 +1307,581 @@ HAL_Status HAL_SPI_TransmitReceive(SPI_Port port, uint8_t *tx_data, uint8_t *rx_
 
 	SPI_DEBUG_TRANSFER_DATA(rx_data, size, "Rx");
 	SPI_DEBUG_TRANSFER_DATA(tx_data, size, "Tx");
+	hdl->sm.status = SPI_STATUS_BUSY;
 
 out:
-	hdl->sm.status = SPI_STATUS_BUSY;
 	return ret;
 }
 
+__nonxip_text
+static void SPI_Slave_IRQHandler(SPI_Port port)
+{
+	SPI_Handler *hdl;
+	uint32_t irqStatus;
+	hdl = HAL_SPI_GetInstance(port);
+	irqStatus = hdl->spi->STA & hdl->spi->IER; /* get pending bits */
+	SPI_ClearInt(hdl->spi, irqStatus); /* clear pending bits */
 
+	if (hdl->irqCallback) {
+		hdl->irqCallback(irqStatus, hdl->irqCallbackArg);
+	}
+}
+
+__nonxip_text
+static void SPI0_Slave_IRQHandler(void)
+{
+	SPI_Slave_IRQHandler(SPI0);
+}
+
+__nonxip_text
+static void SPI1_Slave_IRQHandler(void)
+{
+	SPI_Slave_IRQHandler(SPI1);
+}
+
+HAL_Status HAL_SPI_Slave_EnableIRQ(SPI_Port port, SPI_IrqParam *param)
+{
+	SPI_Handler *hdl;
+	IRQn_Type IRQn;
+	NVIC_IRQHandler IRQHandler;
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	hdl->irqCallback = param->callback;
+	hdl->irqCallbackArg = param->arg;
+
+	if (port == SPI0) {
+		IRQn = SPI0_IRQn;
+		IRQHandler = SPI0_Slave_IRQHandler;
+	} else {
+		IRQn = SPI1_IRQn;
+		IRQHandler = SPI1_Slave_IRQHandler;
+	}
+
+	HAL_NVIC_ConfigExtIRQ(IRQn, IRQHandler, NVIC_PERIPH_PRIO_DEFAULT);
+	SPI_ClearInt(hdl->spi, param->irqMask);
+	hdl->spi->IER = param->irqMask; /* enable irq */
+//	SPI_EnableInt(hdl->spi->IER, param->irqMask);
+
+	return HAL_OK;
+}
+
+HAL_Status HAL_SPI_Slave_DisableIRQ(SPI_Port port)
+{
+	SPI_Handler *hdl;
+	uint32_t irqStatus;
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	irqStatus = hdl->spi->STA & hdl->spi->IER; /* get pending bits */
+	hdl->spi->IER = 0; /* disable all irq */
+	SPI_ClearInt(hdl->spi, irqStatus);
+	HAL_NVIC_DisableIRQ(port == SPI0 ? SPI0_IRQn : SPI1_IRQn);
+
+	hdl->irqCallback = NULL;
+	hdl->irqCallbackArg = NULL;
+
+	return HAL_OK;
+}
+
+static DMA_Channel SPI_HwInitDMA(DMA_Channel chan, const DMA_ChannelInitParam *param)
+{
+#ifdef CONFIG_PM
+	if (chan != DMA_CHANNEL_INVALID) {
+		chan = HAL_DMA_RequestSpecified(chan);
+	} else
+#endif
+	{
+		chan = HAL_DMA_Request();
+	}
+
+	if (chan == DMA_CHANNEL_INVALID) {
+		return chan;
+	}
+
+	HAL_DMA_Init(chan, param);
+
+	return chan;
+}
+
+HAL_Status HAL_SPI_Slave_InitTxDMA(SPI_Port port, const DMA_ChannelInitParam *param)
+{
+
+	SPI_Handler *hdl;
+	DMA_ChannelInitParam txDMA;
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	if (hdl->tx_dmaChannel != DMA_CHANNEL_INVALID) {
+		HAL_DBG("port %d tx dma is inited\n", port);
+		return HAL_ERROR;
+	}
+
+	HAL_Memset(&txDMA, 0, sizeof(DMA_ChannelInitParam));
+	HAL_Memcpy(&txDMA, param, sizeof(DMA_ChannelInitParam));
+
+	if (txDMA.cfg == 0) {
+		txDMA.cfg = HAL_DMA_MakeChannelInitCfg(DMA_WORK_MODE_SINGLE,
+											   DMA_WAIT_CYCLE_2,
+											   DMA_BYTE_CNT_MODE_REMAIN,
+											   DMA_DATA_WIDTH_32BIT,
+											   DMA_BURST_LEN_1,
+											   DMA_ADDR_MODE_FIXED,
+											   (DMA_Periph)(DMA_PERIPH_SPI0 + port),
+											   DMA_DATA_WIDTH_8BIT,
+											   DMA_BURST_LEN_4,
+											   DMA_ADDR_MODE_INC,
+											   DMA_PERIPH_SRAM);
+
+	}
+	SPI_SetTxFifoThreshold(hdl->spi, 4);
+	hdl->tx_dmaChannel = SPI_HwInitDMA(DMA_CHANNEL_INVALID, &txDMA);
+	if (hdl->tx_dmaChannel == DMA_CHANNEL_INVALID) {
+		return HAL_ERROR;
+	}
+
+	return HAL_OK;
+}
+
+HAL_Status HAL_SPI_Slave_InitRxDMA(SPI_Port port, const DMA_ChannelInitParam *param)
+{
+	SPI_Handler *hdl;
+	DMA_ChannelInitParam rxDMA;
+
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	if (hdl->rx_dmaChannel != DMA_CHANNEL_INVALID) {
+		HAL_DBG("port %d tx dma is inited\n", port);
+		return HAL_ERROR;
+	}
+
+	HAL_Memset(&rxDMA, 0, sizeof(DMA_ChannelInitParam));
+	HAL_Memcpy(&rxDMA, param, sizeof(DMA_ChannelInitParam));
+
+	if (rxDMA.cfg == 0) {
+		rxDMA.cfg = HAL_DMA_MakeChannelInitCfg(DMA_WORK_MODE_SINGLE,
+											   DMA_WAIT_CYCLE_2,
+											   DMA_BYTE_CNT_MODE_REMAIN,
+											   DMA_DATA_WIDTH_8BIT,
+											   DMA_BURST_LEN_1,
+											   DMA_ADDR_MODE_INC,
+											   DMA_PERIPH_SRAM,
+											   DMA_DATA_WIDTH_8BIT,
+											   DMA_BURST_LEN_1,
+											   DMA_ADDR_MODE_FIXED,
+											   (DMA_Periph)(DMA_PERIPH_SPI0 + port));
+
+
+	}
+	SPI_SetRxFifoThreshold(hdl->spi, 1);
+	hdl->rx_dmaChannel = SPI_HwInitDMA(DMA_CHANNEL_INVALID, &rxDMA);
+	if (hdl->rx_dmaChannel == DMA_CHANNEL_INVALID) {
+		return HAL_ERROR;
+	}
+
+	return HAL_OK;
+}
+
+HAL_Status HAL_SPI_Slave_DeInitTxDMA(SPI_Port port)
+{
+	SPI_Handler *hdl;
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	if (hdl->tx_dmaChannel != DMA_CHANNEL_INVALID) {
+		HAL_DMA_Stop(hdl->tx_dmaChannel);
+		HAL_DMA_DeInit(hdl->tx_dmaChannel);
+		HAL_DMA_Release(hdl->tx_dmaChannel);
+		hdl->tx_dmaChannel = DMA_CHANNEL_INVALID;
+	}
+
+	return HAL_OK;
+}
+
+HAL_Status HAL_SPI_Slave_DeInitRxDMA(SPI_Port port)
+{
+	SPI_Handler *hdl;
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	if (hdl->rx_dmaChannel != DMA_CHANNEL_INVALID) {
+		HAL_DMA_Stop(hdl->rx_dmaChannel);
+		HAL_DMA_DeInit(hdl->rx_dmaChannel);
+		HAL_DMA_Release(hdl->rx_dmaChannel);
+		hdl->rx_dmaChannel = DMA_CHANNEL_INVALID;
+	}
+
+	return HAL_OK;
+}
+
+HAL_Status HAL_SPI_StartTransmit_DMA(SPI_Port port, const uint8_t *buf, int32_t size)
+{
+	SPI_Handler *hdl;
+
+	if (buf == NULL || size <= 0) {
+		return HAL_ERROR;
+	}
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_WRN("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	if (hdl->tx_dmaChannel == DMA_CHANNEL_INVALID) {
+		HAL_WRN("tx dma not inited\n");
+		return HAL_ERROR;
+	}
+
+	HAL_DMA_Start(hdl->tx_dmaChannel, (uint32_t)buf,
+		      (uint32_t)SPI_TxAddress(hdl->spi), size);
+
+	return HAL_OK;
+}
+
+int32_t HAL_SPI_StopTransmit_DMA(SPI_Port port)
+{
+	SPI_Handler *hdl;
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return -1;
+	}
+
+	HAL_DMA_Stop(hdl->tx_dmaChannel);
+
+	return HAL_DMA_GetByteCount(hdl->tx_dmaChannel);
+}
+
+HAL_Status HAL_SPI_StartReceive_DMA(SPI_Port port, uint8_t *buf, int32_t size)
+{
+	SPI_Handler *hdl;
+
+	if (buf == NULL || size <= 0) {
+		return HAL_ERROR;
+	}
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_DBG("spi %d not inited\n", port);
+		return HAL_ERROR;
+	}
+
+	HAL_DMA_Start(hdl->rx_dmaChannel,
+	              (uint32_t)SPI_RxAddress(hdl->spi),
+	              (uint32_t)buf,
+	              size);
+	return HAL_OK;
+}
+
+int32_t HAL_SPI_StopReceive_DMA(SPI_Port port)
+{
+	SPI_Handler *hdl;
+
+	hdl = HAL_SPI_GetInstance(port);
+	if (hdl == NULL) {
+		HAL_WRN("spi %d not inited\n", port);
+		return -1;
+	}
+
+	if (hdl->rx_dmaChannel == DMA_CHANNEL_INVALID) {
+		HAL_WRN("rx dma not inited\n");
+		return -1;
+	}
+
+	HAL_DMA_Stop(hdl->rx_dmaChannel);
+
+	return HAL_DMA_GetByteCount(hdl->rx_dmaChannel);
+}
+
+HAL_Status HAL_SPI_Slave_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t msec)
+{
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+	SPI_T *spi = hdl->spi;
+	HAL_Status ret = HAL_OK;
+	unsigned long flags;
+
+	SPI_ENTRY();
+
+	if ((ret = HAL_SemaphoreWait(&hdl->sm.lock, msec)) != HAL_OK) {
+		SPI_ALERT("get sm.lock fail\n");
+		goto out;
+	}
+
+	flags = HAL_EnterCriticalSection();
+
+	if (hdl->sm.status != SPI_STATUS_READY) {
+		ret = HAL_ERROR;
+		SPI_ALERT("Changing State incorrectly in %s, state: %d -> busy\n", __func__, hdl->sm.status);
+		goto failed;
+	}
+	hdl->sm.status = SPI_STATUS_BUSY;
+
+	hdl->cs_using = cs;
+	HAL_BoardIoctl(HAL_BIR_PINMUX_INIT, HAL_MKDEV(HAL_DEV_MAJOR_SPI, port), cs);
+
+	HAL_SPI_EnableCCMU(port);
+
+	SPI_Disable(spi);
+
+	if (HAL_Memcmp(config, &hdl->config, sizeof(*config))) {
+		HAL_Memcpy(&hdl->config, config, sizeof(*config));
+		SPI_SetMode(spi, config->mode);
+		SPI_SetFirstTransmitBit(spi, config->firstBit);
+		SPI_SetSclkMode(spi, config->sclkMode);
+		SPI_SetDuplex(spi, SPI_TCTRL_DHB_HALF_DUPLEX);
+	}
+
+	SPI_ManualChipSelect(spi, cs);
+	SPI_SetDataSize(spi, 0, 0);
+	SPI_Enable(spi);
+	SPI_REG_ALL(spi, "opened");
+
+	HAL_ExitCriticalSection(flags);
+	SPI_EXIT(ret);
+	return HAL_OK;
+
+failed:
+	HAL_ExitCriticalSection(flags);
+	HAL_SemaphoreRelease(&hdl->sm.lock);
+out:
+	SPI_EXIT(ret);
+	return ret;
+}
+
+HAL_Status HAL_SPI_Slave_Close(SPI_Port port)
+{
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+	HAL_Status ret = HAL_OK;
+	unsigned long flags;
+
+	SPI_ENTRY();
+	flags = HAL_EnterCriticalSection();
+
+	if (hdl->sm.status != SPI_STATUS_BUSY) {
+		ret = HAL_ERROR;
+		SPI_ALERT("Changing State incorrectly in %s, state: %d -> ready\n", __func__, hdl->sm.status);
+		goto out;
+	}
+	hdl->sm.status = SPI_STATUS_READY;
+
+	HAL_BoardIoctl(HAL_BIR_PINMUX_DEINIT, HAL_MKDEV(HAL_DEV_MAJOR_SPI, port), hdl->cs_using);
+	SPI_Disable(hdl->spi);
+	HAL_SPI_DisableCCMU(port);
+	HAL_SPI_Config(port, SPI_ATTRIBUTION_IO_MODE, SPI_IO_MODE_NORMAL);
+	HAL_ExitCriticalSection(flags);
+	HAL_SemaphoreRelease(&hdl->sm.lock);
+	SPI_EXIT(ret);
+	return ret;
+
+out:
+	HAL_ExitCriticalSection(flags);
+	SPI_EXIT(ret);
+	return ret;
+}
+
+HAL_Status HAL_SPI_Slave_StartReceive_DMA(SPI_Port port, uint8_t *buf, int32_t size)
+{
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+	SPI_TransferBuffer *rx = &hdl->rx;
+	SPI_T *spi = hdl->spi;
+	HAL_Status ret = HAL_OK;
+	unsigned long flags;
+
+	SPI_ENTRY();
+	flags = HAL_EnterCriticalSection();
+
+	if (hdl->sm.status != SPI_STATUS_BUSY) {
+		ret = HAL_INVALID;
+		SPI_ALERT("Changing State incorrectly in %s, state: %d -> rx\n", __func__, hdl->sm.status);
+		HAL_ExitCriticalSection(flags);
+		goto out;
+	}
+	hdl->sm.status = SPI_STATUS_BUSY_RX;
+	HAL_ExitCriticalSection(flags);
+
+	rx->ptr = buf;
+	rx->count = size;
+	rx->size = size;
+	SPI_SetDataSize(spi, 0, size);
+
+	SPI_SetDuplex(hdl->spi, SPI_TCTRL_DHB_HALF_DUPLEX);
+	SPI_ResetRxFifo(spi);
+
+	SPI_REG_ALL(spi, "prepare to receive");
+//	SPI_ClearInt(hdl->spi, SPI_INT_TRANSFER_COMPLETE);
+
+	if (HAL_SPI_StartReceive_DMA(port, buf, size) != HAL_OK) {
+		return HAL_ERROR;
+	}
+
+	SPI_DMA(hdl->spi, 0, 1);
+	SPI_StartTransmit(hdl->spi);
+
+	SPI_REG_ALL(spi, "receive completed");
+
+out:
+	SPI_EXIT(ret);
+	return ret;
+
+}
+
+int32_t HAL_SPI_Slave_StopReceive_DMA(SPI_Port port)
+{
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+	unsigned long flags;
+	int32_t left;
+
+	SPI_ENTRY();
+	flags = HAL_EnterCriticalSection();
+
+	if (hdl->sm.status != SPI_STATUS_BUSY_RX) {
+		SPI_ALERT("Changing State incorrectly in %s, state: %d -> rx\n", __func__, hdl->sm.status);
+		HAL_ExitCriticalSection(flags);
+		return -1;
+	}
+	HAL_ExitCriticalSection(flags);
+	SPI_DMA(hdl->spi, 0, 0);
+
+	left = HAL_SPI_StopReceive_DMA(port);
+	if (left < 0) {
+		return -1;
+	}
+
+	hdl->sm.status = SPI_STATUS_BUSY;
+	return left;
+}
+
+HAL_Status HAL_SPI_Slave_StartTransmit_DMA(SPI_Port port, const uint8_t *buf, int32_t size)
+{
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+	SPI_TransferBuffer *tx = &hdl->tx;
+	SPI_T *spi = hdl->spi;
+	HAL_Status ret = HAL_OK;
+	unsigned long flags;
+
+	flags = HAL_EnterCriticalSection();
+	if (hdl->sm.status != SPI_STATUS_BUSY) {
+		ret = HAL_INVALID;
+		SPI_ALERT("Changing State incorrectly in %s, state: %d -> tx\n", __func__, hdl->sm.status);
+		HAL_ExitCriticalSection(flags);
+		goto out;
+	}
+	hdl->sm.status = SPI_STATUS_BUSY_TX;
+	HAL_ExitCriticalSection(flags);
+
+	// check spi enable?
+
+	SPI_ResetTxFifo(spi);
+	SPI_ResetTxFifo(spi);// avoid the first time without reseting all.
+	SPI_SetDuplex(hdl->spi, SPI_TCTRL_DHB_HALF_DUPLEX);
+
+	tx->ptr = (uint8_t *)buf;
+	tx->count = size;
+	tx->size = size;
+	SPI_SetDataSize(spi, size, 0);
+
+	SPI_REG_ALL(spi, "prepare transmit");
+//	SPI_ClearInt(hdl->spi, SPI_INT_TRANSFER_COMPLETE);
+
+	if (HAL_SPI_StartTransmit_DMA(port, tx->ptr, size) != HAL_OK) {
+		return HAL_ERROR;
+	}
+
+	SPI_DMA(spi, 1, 0);
+	SPI_StartTransmit(spi);
+
+	SPI_REG_ALL(spi, "transmit completed");
+	SPI_DEBUG_TRANSFER_DATA(tx->ptr, size, "Tx");
+
+out:
+	SPI_EXIT(ret);
+	return ret;
+
+}
+
+int32_t HAL_SPI_Slave_StopTransmit_DMA(SPI_Port port)
+{
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+
+	unsigned long flags;
+	int32_t left;
+
+	SPI_ENTRY();
+	flags = HAL_EnterCriticalSection();
+
+	if (hdl->sm.status != SPI_STATUS_BUSY_TX) {
+		SPI_ALERT("Changing State incorrectly in %s, state: %d -> tx\n", __func__, hdl->sm.status);
+		HAL_ExitCriticalSection(flags);
+		return -1;
+	}
+	HAL_ExitCriticalSection(flags);
+
+	SPI_DMA(hdl->spi, 0, 0);
+
+	left = HAL_SPI_StopTransmit_DMA(port);
+	if (left < 0) {
+		return -1;
+	}
+
+	hdl->sm.status = SPI_STATUS_BUSY;
+	return left;
+}
+
+HAL_Status HAL_SPI_Slave_ClearTransferDone(SPI_Port port)
+{
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+
+	if (hdl == NULL) {
+		return HAL_ERROR;
+	}
+
+	SPI_ClearInt(hdl->spi, SPI_INT_TRANSFER_COMPLETE);
+	return HAL_OK;
+}
+
+HAL_Status HAL_SPI_Slave_WaitTransferDone(SPI_Port port, uint32_t timeout)
+{
+	uint32_t timeEnd;
+	SPI_Handler *hdl = HAL_SPI_GetInstance(port);
+
+	if (hdl == NULL) {
+		return HAL_ERROR;
+	}
+
+	timeEnd = HAL_Ticks() + timeout;
+	while (SPI_IntState(hdl->spi, SPI_INT_TRANSFER_COMPLETE) == 0) {
+		if (HAL_TimeAfter(HAL_Ticks(), timeEnd)) {
+			return HAL_TIMEOUT;
+		}
+		HAL_MSleep(1);
+	}
+	SPI_ClearInt(hdl->spi, SPI_INT_TRANSFER_COMPLETE);
+	return HAL_OK;
+}

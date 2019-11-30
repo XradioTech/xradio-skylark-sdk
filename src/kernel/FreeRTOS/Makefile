@@ -22,7 +22,7 @@ else
   DIRS += ./Source/portable/GCC/ARM_CM3
 endif
 
-SRCS := $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS])))
+SRCS := $(sort $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS]))))
 
 ifeq ($(__CONFIG_MALLOC_USE_STDLIB), y)
   SRCS += ./Source/portable/MemMang/heap_stdlib

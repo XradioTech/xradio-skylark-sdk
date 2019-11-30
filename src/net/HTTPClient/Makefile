@@ -18,7 +18,7 @@ DIRS_IGNORE := ./Sample
 DIRS_ALL := $(shell find ./ -type d)
 DIRS := $(filter-out $(DIRS_IGNORE),$(DIRS_ALL))
 
-SRCS := $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS])))
+SRCS := $(sort $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS]))))
 
 OBJS := $(addsuffix .o,$(SRCS))
 

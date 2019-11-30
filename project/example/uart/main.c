@@ -83,7 +83,7 @@ void uart_dma_mode(void)
 								&rx_data,	/*buf Pointer to the data buffer*/
 								1,			/*size The maximum number of bytes to be received*/
 								10000);		/*Timeout value in millisecond to receive data, HAL_WAIT_FOREVER for no timeout*/
-		if (len)
+		if (len > 0)
 			HAL_UART_Transmit_DMA(UARTID,	/*uartID*/
 								&rx_data,	/*buf Pointer to the data buffer*/
 								len);		/*size Number of bytes to be transmitted*/

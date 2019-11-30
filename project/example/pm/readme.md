@@ -19,11 +19,11 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR808系列芯片： XR808CT
-> 2. XR872系列芯片： XR872AT、XR872ET
+> 1. XR808系列芯片：XR808CT
+> 2. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
+> 1. 底板：XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
 > 2. 模组：XR808CT0_MD01、XR808CT0_MD02、XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -47,15 +47,15 @@
 > * N/A
 > 
 > prj_config.h
-> * PRJCONF_PM_EN: 必选项，配置使用pm功能
-> * PRJCONF_NET_PM_EN: 必选项，配置使用网络pm功能
-> * PRJCONF_NET_EN: 必选项，配置使用网络功能
+> * PRJCONF_PM_EN：必选项，配置使用pm功能
+> * PRJCONF_NET_PM_EN：必选项，配置使用网络pm功能
+> * PRJCONF_NET_EN：必选项，配置使用网络功能
 
 ## 模块依赖
 
 > 必选项
-> 1. libpm.a： 电源管理核心模块
-> 2. libxrwireless.a： 网络驱动核心模块
+> 1. libpm.a：电源管理核心模块
+> 2. libxrwireless.a：网络驱动核心模块
 
 > 可选项
 >

@@ -107,7 +107,7 @@ void pm_set_dump_addr(uint32_t addr, uint32_t len, uint32_t idx)
  */
 void pm_standby_sram_retention_only(uint32_t sramN)
 {
-    HAL_MODIFY_REG(PRCM->SYS1_SLEEP_CTRL, (0x7 << 25), ((~sramN) & (0x7 << 25)));
+    HAL_MODIFY_REG(PRCM->SYS1_SLEEP_CTRL, (0xF << 24), ((~sramN) & (0xF << 24)));
 }
 
 void pm_standby_set_resume_entry(uint32_t entry)

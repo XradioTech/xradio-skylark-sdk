@@ -359,7 +359,7 @@ void iperf_udp_send_task(void *arg)
 #if IPERF_OPT_BANDWIDTH
 		if (idata->bandwidth != 0) {
 			run_tm = IPERF_TIME() - run_beg_tm;
-			send_tm = data_total_cnt * 8 / (idata->bandwidth / 1000);
+			send_tm = data_total_cnt * 8 * 1000 / idata->bandwidth;
 			if (send_tm > run_tm) {
 				iperf_msleep(send_tm - run_tm);
 			}
@@ -911,9 +911,9 @@ int iperf_parse_argv(int argc, char *argv[])
 				break;
 #if IPERF_OPT_BANDWIDTH
 			case 'b': {
-				uint32_t value;
+				float value;
 				char suffix = '\0';
-				sscanf(optarg, "%u%c", &value, &suffix);
+				sscanf(optarg, "%f%c", &value, &suffix);
 				if (suffix == 'm' || suffix == 'M') {
 					value *= 1000 * 1000;
 				} else if (suffix == 'k' || suffix == 'K') {

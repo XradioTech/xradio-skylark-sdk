@@ -9,11 +9,11 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片： XR872AT、XR872ET
-> 2. XR808系列芯片： XR808CT
+> 1. XR872系列芯片：XR872AT、XR872ET
+> 2. XR808系列芯片：XR808CT
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR872_EVB_AI、XR872_EVB_IO、XR808_EVB_IO
+> 1. 底板：XR872_EVB_AI、XR872_EVB_IO、XR808_EVB_IO
 > 2. 模组：XR872AT_MD01、XR808CT0_MD01、XR808CT0_MD02
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -84,7 +84,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 调用fdcm_example()进行fdcm操作。
+> 1. main()入口：调用fdcm_example()进行fdcm操作。
 > 2. fdcm_example()函数流程：
 >   A）打开/创建fdcm模块
 >   B）往fdcm区域写入一个wifi ssid和password信息

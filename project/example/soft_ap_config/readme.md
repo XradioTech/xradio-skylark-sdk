@@ -12,11 +12,11 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR808系列芯片： XR808CT
-> 2. XR872系列芯片： XR872AT、XR872ET
+> 1. XR808系列芯片：XR808CT
+> 2. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
+> 1. 底板：XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
 > 2. 模组：XR808CT0_MD01、XR808CT0_MD02、XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -41,15 +41,15 @@
 > * N/A
 >
 > prj_config.h
-> * PRJCONF_NET_EN: 必选项，配置使用网络功能
+> * PRJCONF_NET_EN：必选项，配置使用网络功能
 > * PRJCONF_MAIN_THREAD_STACK_SIZE：可选项，修改main线程的栈大小，若出现main线程栈溢出，则可增加该选项大小
 > * PRJCONF_CONSOLE_EN：可选项，配置使用控制台功能
 
 ## 模块依赖
 
 > 必选项
-> 1. liblwip.a： TCP/IP协议栈需要依赖的库
-> 2. wlan模块： wlan需要依赖的库
+> 1. liblwip.a：TCP/IP协议栈需要依赖的库
+> 2. wlan模块：wlan需要依赖的库
 
 ---
 
@@ -100,7 +100,7 @@
 ```
 ### 代码流程
 
-> 1. 创建一个observer，并添加到sys_ctrl中，用于监控网络连接状态
+> 1. 创建一个observer，并添加到sys_ctrl中，用于监控网络连接状态。因为只有成功切换到ap模式后，才能启动SoftAp配网
 > 2. 设置芯片为AP模式
 > 3. 设置soft ap config的回调函数
 > 4. 等待网络状态为NET_CTRL_MSG_NETWORK_UP，并启动soft ap config
@@ -109,10 +109,17 @@
 
 ## 常见问题
 
-   > 问：在浏览器中点击save按钮后，芯片并未连接设置好的AP
+> 问：在浏览器中点击save按钮后，芯片并未连接设置好的AP
 
-   答：本工程只是演示soft ap config获取配网的wifi名和密码，连接AP不属于soft ap config的范畴，用户在获取到wifi名和密码时，可自行将芯片设置为STA模式并连接AP。
+答：本工程只是演示soft ap config获取配网的wifi名和密码，连接AP不属于soft ap config的范畴，用户在获取到wifi名和密码时，可自行将芯片设置为STA模式并连接AP。
 
+> 问：可以采用哪些方式创建webserver？
+
+答：sdk提供的softap模块采用socket实现webserver，该方式比较复杂，用户可采用shttpd模块来实现webserver，shttpd的使用可参考文档《XRADIO_SHTTPD_Developer_Guide-CN》。
+
+> 问：网络通信方式是采用安全模式还是非安全的？
+
+答：SDK提供的softap模块采用的通信方式是非安全的，用户可采用安全的通信方式，即采用mbedtls创建连接，mbedtls的使用可参考文档《XRADIO_MBEDTLS_Developer_Guide-CN》和《XRADIO_MBEDTS_Appication_Note》。
 ## 参考文档
 
    > 无

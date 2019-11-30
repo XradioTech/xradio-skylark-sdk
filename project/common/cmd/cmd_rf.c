@@ -34,7 +34,7 @@
 #include "net/wlan/wlan_defs.h"
 #include "driver/chip/hal_prcm.h"
 
-char * power_tab_name[11] = {
+char * rate_tab_name[11] = {
 	"DSSS         1,2",
 	"CCK       5.5,11",
 	"BPSK1/2    6,6.5",
@@ -177,7 +177,7 @@ enum cmd_status cmd_rf_get_power_exec(char *cmd)
 	param.PowerTabType = POWER_LEVEL_TAB_TYPE_CUR;
 	ret = wlan_ext_request(g_wlan_netif, WLAN_EXT_CMD_GET_POWER_LEVEL_TAB, (int)(&param));
 	for (i = begin_rate; i <= end_rate; i++) {
-		CMD_LOG(1, "%s: %d\n", power_tab_name[i], param.PowerTab[i]*4/10+2);
+		CMD_LOG(1, "%s: %d\n", rate_tab_name[i], param.PowerTab[i]*4/10+2);
 	}
 	if (ret == -2) {
 		CMD_ERR("%s: command '%s' invalid arg\n", __func__, cmd);
@@ -263,7 +263,7 @@ enum cmd_status cmd_rf_set_power_exec(char *cmd)
 	}
 	CMD_LOG(1, "Set user power level:\n");
 	for (i = 0; i < 11; i++) {
-		CMD_LOG(1, "%s\t%d\n",power_tab_name[i], (int)(param_set.PowerTab[i]*4/10+2));
+		CMD_LOG(1, "%s\t%d\n",rate_tab_name[i], (int)(param_set.PowerTab[i]*4/10+2));
 	}
 
 	return CMD_STATUS_ACKED;
@@ -301,7 +301,7 @@ enum cmd_status cmd_rf_get_sdd_power_exec(char *cmd)
 	}
 	CMD_LOG(1, "Get sdd user power level:\n");
 	for (int i = begin_rate; i <= end_rate; i++) {
-		CMD_LOG(1, "%s\t%d\n",power_tab_name[i], (int)(user_power[i]*4/16+2));
+		CMD_LOG(1, "%s\t%d\n",rate_tab_name[i], (int)(user_power[i]*4/16+2));
 	}
 	return CMD_STATUS_OK;
 }
@@ -378,8 +378,36 @@ enum cmd_status cmd_rf_set_sdd_power_exec(char *cmd)
 	}
 	CMD_LOG(1, "Set sdd user power level:\n");
 	for (i = 0; i < 11; i++) {
-		CMD_LOG(1, "%s\t%d\n",power_tab_name[i], (int)(user_power[i]*4/16+2));
+		CMD_LOG(1, "%s\t%d\n",rate_tab_name[i], (int)(user_power[i]*4/16+2));
 	}
+	return CMD_STATUS_OK;
+}
+
+static enum cmd_status cmd_rf_set_channel_fec(char *cmd)
+{
+	int ret, cnt;
+	int ch1, ch7, ch13;
+	wlan_ext_channel_fec_set_t param;
+
+	cnt = cmd_sscanf(cmd, "%d %d %d", &ch1, &ch7, &ch13);
+	if (cnt != 3) {
+		CMD_ERR("cnt %d\n", cnt);
+		return CMD_STATUS_INVALID_ARG;
+	}
+
+	param.FecChannel1 = ch1 * 2;
+	param.FecChannel7 = ch7 * 2;
+	param.FecChannel13 = ch13 * 2;
+	ret = wlan_ext_request(g_wlan_netif, WLAN_EXT_CMD_SET_CHANNEL_FEC, (int)(&param));
+
+	if (ret == -2) {
+		CMD_ERR("%s: command '%s' invalid arg\n", __func__, cmd);
+		return CMD_STATUS_ACKED;
+	} else if (ret == -1) {
+		CMD_ERR("%s: command '%s' exec failed\n", __func__, cmd);
+		return CMD_STATUS_ACKED;
+	}
+
 	return CMD_STATUS_OK;
 }
 
@@ -396,6 +424,7 @@ static const struct cmd_data g_rf_cmds[] = {
 	{ "set_power",				cmd_rf_set_power_exec },
 	{ "get_power",				cmd_rf_get_power_exec },
 	{ "get_sdd_file",			cmd_rf_get_sdd_file_exec },
+	{ "set_channel_fec",		cmd_rf_set_channel_fec },
 };
 
 enum cmd_status cmd_rf_exec(char *cmd)

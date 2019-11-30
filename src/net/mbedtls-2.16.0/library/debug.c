@@ -26,6 +26,17 @@
 #endif
 
 #if defined(MBEDTLS_DEBUG_C)
+static int debug_threshold = 0;
+#endif
+
+void mbedtls_debug_set_threshold( int threshold )
+{
+#if defined(MBEDTLS_DEBUG_C)
+	debug_threshold = threshold;
+#endif
+}
+
+#if defined(MBEDTLS_DEBUG_C)
 
 #if defined(MBEDTLS_PLATFORM_C)
 #include "mbedtls/platform.h"
@@ -50,12 +61,6 @@
 
 #define DEBUG_BUF_SIZE      512
 
-static int debug_threshold = 0;
-
-void mbedtls_debug_set_threshold( int threshold )
-{
-    debug_threshold = threshold;
-}
 
 /*
  * All calls to f_dbg must be made via this function

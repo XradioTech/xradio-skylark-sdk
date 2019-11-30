@@ -9,11 +9,11 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR808系列芯片： XR808CT
-> 2. XR872系列芯片： XR872AT、XR872ET
+> 1. XR808系列芯片：XR808CT
+> 2. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
+> 1. 底板：XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
 > 2. 模组：XR808CT0_MD01、XR808CT0_MD02、XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -38,13 +38,13 @@
 >
 > prj_config.h
 >
-> * PRJCONF_NET_EN: 必选项，配置使能网络功能
+> * PRJCONF_NET_EN：必选项，配置使能网络功能
 
 ## 模块依赖
 
 > 必选项
 >
-> 1. wlan模块： 网络连接需要依赖的库
+> 1. wlan模块：网络连接需要依赖的库
 
 ---
 
@@ -87,7 +87,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 调用dhcpd_demo()进行dhcpd模块运行。
+> 1. main()入口：调用dhcpd_demo()进行dhcpd模块运行。
 > 3. dhcpd_demo()函数流程：
 >   A）配置系统为AP模式
 >   B）重启dhcpd

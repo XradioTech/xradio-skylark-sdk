@@ -254,9 +254,10 @@ HAL_Status HAL_SndCard_SetRoute(Snd_Card_Num card_num, Audio_Device dev, Audio_D
 #if 0
 	//PA switch control
 	if(sound_card->pa_switch_ctl && dev == AUDIO_OUT_DEV_SPK){
+		//if(state == AUDIO_DEV_EN && sound_card->pa_switch_ctl->on_delay_before)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay_before);
 		HAL_GPIO_WritePin(sound_card->pa_switch_ctl->pin_param->port, sound_card->pa_switch_ctl->pin_param->pin,\
 			state == AUDIO_DEV_EN ? sound_card->pa_switch_ctl->on_state : !sound_card->pa_switch_ctl->on_state);
-		//if(state == AUDIO_DEV_EN)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay);
+		//if(state == AUDIO_DEV_EN && sound_card->pa_switch_ctl->on_delay_after)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay_after);
 	}
 #endif
 
@@ -280,7 +281,6 @@ HAL_Status HAL_SndCard_SetMute(Snd_Card_Num card_num, Audio_Device dev, Audio_Mu
 	if(sound_card->pa_switch_ctl && (dev | AUDIO_OUT_DEV_SPK)){
 		HAL_GPIO_WritePin(sound_card->pa_switch_ctl->pin_param->port, sound_card->pa_switch_ctl->pin_param->pin,\
 			mute == AUDIO_MUTE ? !sound_card->pa_switch_ctl->on_state : sound_card->pa_switch_ctl->on_state);
-		//if(mute == AUDIO_UNMUTE)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay);
 	}
 
 	HAL_MutexUnlock(&sound_card->card_lock);
@@ -497,8 +497,9 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 	/* PA unmute */
 	if(stream_dir == PCM_OUT){
 		if(sound_card->pa_switch_ctl && (sound_card->codec_play_dev | AUDIO_OUT_DEV_SPK)){
-			HAL_MSleep(sound_card->pa_switch_ctl->on_delay);
+			if(sound_card->pa_switch_ctl->on_delay_before)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay_before);
 			HAL_GPIO_WritePin(sound_card->pa_switch_ctl->pin_param->port, sound_card->pa_switch_ctl->pin_param->pin, sound_card->pa_switch_ctl->on_state);
+			if(sound_card->pa_switch_ctl->on_delay_after)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay_after);
 		}
 	}
 

@@ -63,6 +63,8 @@ typedef struct {
 
 typedef struct {
 	uint32_t csi_clk;
+	uint32_t hor_start;
+	uint32_t ver_start;
 } CAMERA_CsiCfg;
 
 typedef struct {

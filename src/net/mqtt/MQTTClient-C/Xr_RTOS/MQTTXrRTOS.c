@@ -691,7 +691,7 @@ int TLSConnectNetwork(Network *n, const char *addr, const char *port,
 	mbedtls_ssl_conf_rng(n->conf, mqtt_ssl_random, NULL);
     mbedtls_ssl_conf_dbg(n->conf, mqtt_ssl_debug, NULL);
 #ifdef MQTT_DBG_ON
-//	mbedtls_debug_set_threshold(TLS_DEBUG_LEVEL);
+	mbedtls_debug_set_threshold(TLS_DEBUG_LEVEL);
 #endif
     if ((ret = mbedtls_ssl_setup(n->ssl, n->conf)) != 0) {
         MQTT_PLATFORM_WARN( "failed ! mbedtls_ssl_setup returned -0x%04x\n", -ret);

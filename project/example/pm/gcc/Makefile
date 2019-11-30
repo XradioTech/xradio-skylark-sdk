@@ -67,7 +67,7 @@ OBJS := $(addsuffix .o,$(SRCS))
 # linker script file
 #   - relative to "./"
 #   - define your own "LINKER_SCRIPT" to override the default one
-LINKER_SCRIPT := project.ld
+#LINKER_SCRIPT :=
 
 # image config file
 #   - relative to "../image/$(__CONFIG_CHIP_TYPE)/", eg. "../image/xr872/"

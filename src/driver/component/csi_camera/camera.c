@@ -119,6 +119,9 @@ static void CAMERA_CsiJpegIrq(CSI_JPEG_IRQEvent event, void *arg)
 			release = 1;
 	} else {
 		CAMERA_DBG(ERROR, "csi jpeg excption\n");
+		HAL_JPEG_Reset();
+		HAL_JPEG_Config(&gJpegCfgParam);
+		HAL_CSI_Config(&gCsiParam);
 		return;
 	}
 
@@ -166,9 +169,9 @@ HAL_Status CAMERA_ConfigCsi(CAMERA_CsiCfg *csi_cfg, SENSOR_PixelSize *pixel_size
 	gCsiParam.input_fmt = CSI_IN_FMT_YUV422;
 	gCsiParam.out_mode = CSI_OUT_MODE_YUV422_TO_YUV420;
 
-	gCsiParam.hor_start = 0;
+	gCsiParam.hor_start = csi_cfg->hor_start;
 	gCsiParam.hor_len = pixel_size->width;
-	gCsiParam.ver_start = 0;
+	gCsiParam.ver_start = csi_cfg->ver_start;
 	gCsiParam.ver_len = pixel_size->height;
 
 	status = HAL_CSI_Config(&gCsiParam);

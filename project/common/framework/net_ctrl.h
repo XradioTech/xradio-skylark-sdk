@@ -35,6 +35,7 @@
 #include "lwip/netif.h"
 #include "net/wlan/wlan.h"
 #include "net/wlan/wlan_defs.h"
+#include "net/wlan/wlan_ext_req.h"
 #include "sys_ctrl/sys_ctrl.h"
 
 #ifdef __cplusplus

@@ -88,7 +88,7 @@ static void httpc_demo_download(char *url, int use_ssl)
 
 	memset(&httpc_demo_param, 0, sizeof(httpc_demo_param));
 	memcpy(httpc_demo_param.Uri, url, strlen(url));
-	httpc_demo_param.nTimeout = 30000; //timeout 30s for every get
+	httpc_demo_param.nTimeout = 30; //timeout 30s for every get
 
 	if (use_ssl) {
 		/* set CA cert */

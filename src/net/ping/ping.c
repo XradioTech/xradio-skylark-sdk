@@ -96,7 +96,6 @@ s32_t ping(struct ping_data *data)
 
 	for (i = 0; i < data->count; i++) {
 		generate_ping_echo(ping_buf, request_size, ping_seq_num);
-		OS_Sleep(1);
 		sendto(iSockID, ping_buf, request_size, 0, (struct sockaddr*)&ToAddr, sizeof(ToAddr));
 		TimeStart = GET_TICKS();
 		while (1) {
@@ -143,6 +142,7 @@ s32_t ping(struct ping_data *data)
 			}
 		}
 		ping_seq_num++;
+		OS_Sleep(1);
 	}
 
 	free(ping_buf);

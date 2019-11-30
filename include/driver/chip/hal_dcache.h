@@ -36,6 +36,7 @@
 #define _DRIVER_CHIP_HAL_DCACHE_H_
 
 #include "driver/chip/hal_def.h"
+#include "driver/chip/psram/psram.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,7 +44,10 @@ extern "C" {
 
 #if (__CONFIG_CHIP_ARCH_VER == 2)
 
-#define DCACHE_ADDR_MAX         3
+#ifdef __CONFIG_PSRAM
+#define DCACHE_START_ADDR      (PSRAM_START_ADDR)
+#define DCACHE_END_ADDR        (PSRAM_END_ADDR)
+#endif
 
 typedef struct
 {
@@ -55,7 +59,7 @@ typedef struct
 typedef struct {
 	__IO uint32_t DCACHE_COM_CFG;   /* ,     Address offset: 0x000   */
 	__I uint32_t RESERVE04[3];
-	WRITE_THROUGH_ADDR_T WT_ADDR[DCACHE_ADDR_MAX];  /* ,     Address offset: 0x010   */
+	WRITE_THROUGH_ADDR_T WT_ADDR[3];  /* ,     Address offset: 0x010   */
 	__I uint32_t RESERVE40[24];
 	__I uint32_t MISS_COUNT_H;      /* ,     Address offset: 0x0A0   */
 	__I uint32_t MISS_COUNT_L;      /* ,     Address offset: 0x0A4   */
@@ -117,16 +121,6 @@ typedef enum {
 #define DCACHE_ASSOCIATE_MODE_TWO_WAY   1
 #define DCACHE_ASSOCIATE_MODE_FOUR_WAY  2
 
-#ifdef __CONFIG_PSRAM
-extern char *__PSRAM_Base[];
-extern uint8_t __PSRAM_BASE[];
-extern uint8_t __PSRAM_LENGTH[];
-#define IDCACHE_START_ADDR      ((uint32_t)(__PSRAM_Base))
-#define IDCACHE_END_ADDR        ((uint32_t)(0x1400000) + (uint32_t)__PSRAM_LENGTH)
-#else
-#define IDCACHE_START_ADDR      ((uint32_t)(0x1400000))
-#endif
-
 typedef struct {
 	uint8_t way_mode;
 	uint8_t vc_en;
@@ -134,14 +128,7 @@ typedef struct {
 	uint32_t mixed_mode;
 } DCache_Config;
 
-#define RANGEOF_CACHEABLE(addr, len, start, end) ((((addr)+(len)) < (end)) && ((addr) >= (start)))
-
-static __INLINE int HAL_Dcache_Cacheable(uint32_t addr, uint32_t len)
-{
-    return !((RANGEOF_CACHEABLE(addr, len, DCACHE_CTRL->WT_ADDR[0].START_ADDR, DCACHE_CTRL->WT_ADDR[0].END_ADDR))
-           || (RANGEOF_CACHEABLE(addr, len, DCACHE_CTRL->WT_ADDR[1].START_ADDR, DCACHE_CTRL->WT_ADDR[1].END_ADDR))
-           || (RANGEOF_CACHEABLE(addr, len, DCACHE_CTRL->WT_ADDR[2].START_ADDR, DCACHE_CTRL->WT_ADDR[2].END_ADDR)));
-}
+#define RANGEOF_CACHEBYPASS(addr, len, start, end) (((addr) >= (start)) && (((addr)+(len)) <= (end)))
 
 static __INLINE void HAL_Dcache_WaitIdle()
 {
@@ -149,14 +136,20 @@ static __INLINE void HAL_Dcache_WaitIdle()
     return;
 }
 
+static __INLINE int8_t HAL_Dcache_IsEnable()
+{
+    return !!(DCACHE_CTRL->DCACHE_COM_CFG & DCACHE_ENABLE_MASK);
+}
+
 
 #ifdef __CONFIG_PSRAM
-void HAL_Dcache_SetWriteThrough(uint32_t idx, uint32_t en, uint32_t sadd, uint32_t eadd);
-void HAL_Dcache_FlushCleanAll(void);
-void HAL_Dcache_FlushClean(uint32_t sadd, uint32_t len);
+int32_t HAL_Dcache_Enable_WriteThrough(uint32_t sadd, uint32_t eadd);
+int32_t HAL_Dcache_Disable_WriteThrough(int32_t idx);
 void HAL_Dcache_Clean(uint32_t sadd, uint32_t len);
 void HAL_Dcache_CleanAll(void);
 #endif
+int32_t HAL_Dcache_IsBypass(uint32_t addr, uint32_t len);
+int32_t HAL_Dcache_IsCacheable(uint32_t addr, uint32_t len);
 void HAL_Dcache_FlushAll(void);
 void HAL_Dcache_Flush(uint32_t sadd, uint32_t len);
 void HAL_Dcache_DUMP_MissHit(void);

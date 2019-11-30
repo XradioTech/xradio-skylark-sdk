@@ -19,6 +19,11 @@ MEMORY
 }
 
 __RAM_BASE = ORIGIN(RAM);
+#if (defined(__CONFIG_XIP))
+__XIP_BASE = ORIGIN(FLASH);
+__XIP_LENGTH = LENGTH(FLASH);
+__XIP_END = ORIGIN(FLASH) + LENGTH(FLASH) -1;
+#endif
 
 /* Linker script to place sections and symbol values. Should be used together
  * with other linker script that defines memory regions FLASH and RAM.
@@ -195,9 +200,6 @@ SECTIONS
     _estack = __StackTop;
     __StackLimit = __StackTop - SIZEOF(.stack_dummy);
     PROVIDE(__stack = __StackTop);
-
-    __FLASH_BASE = ORIGIN(FLASH);
-    PROVIDE(__XIP_Base = __FLASH_BASE);
 
     /* Check if heap + stack exceeds RAM1 limit */
     ASSERT(__StackLimit >= __HeapLimit, "region RAM1 overflowed with stack")

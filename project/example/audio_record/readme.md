@@ -14,10 +14,10 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片： XR872AT、XR872ET
+> 1. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR872_EVB_AI
+> 1. 底板：XR872_EVB_AI
 > 2. 模组：XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -29,7 +29,7 @@
 ## 工程配置
 
 > localconfig.mk：
-> * __CONFIG_XPLAYER: 必选项，配置使用音频功能
+> * __CONFIG_XPLAYER：必选项，配置使用音频功能
 >
 > Makefile：
 > * PRJ_BOARD：必选项，选择板子的板级配置路径
@@ -41,18 +41,18 @@
 > * N/A
 >
 > prj_config.h
-> * PRJCONF_INTERNAL_SOUNDCARD_EN: 必选项，配置使用内置声卡
-> * PRJCONF_MMC_EN:可选项，配置使用sd卡
+> * PRJCONF_INTERNAL_SOUNDCARD_EN：必选项，配置使用内置声卡
+> * PRJCONF_MMC_EN：可选项，配置使用sd卡
 
 ## 模块依赖
 
 > 必选项
-> 1. libcedarx.a： 音频核心模块
-> 2. libreverb.a： 音频混响核心模块
+> 1. libcedarx.a：音频核心模块
+> 2. libreverb.a：音频混响核心模块
 
 > 可选项
 >
-> 1. libamren.a： 录制amr音频需要的编码库
+> 1. libamren.a：录制amr音频需要的编码库
 
 > 音频的数据流、编码格式可根据需求选择，选择说明可在以下地址获取：
 > https://docs.xradiotech.com
@@ -97,7 +97,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 平台初始化，调用录音函数。
+> 1. main()入口：平台初始化，调用录音函数。
 > 2. cedarx_record()函数：
 > A）完成录音准备工作，如sd卡初始化
 > B）完成录音器创建，即recorder_create()

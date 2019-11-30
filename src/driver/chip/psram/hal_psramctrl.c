@@ -540,7 +540,8 @@ int32_t HAL_PsramCtrl_DQS_Delay_Cal_Policy(struct psram_ctrl *ctrl)
     uint8_t baseCal;
     uint8_t minCal = 0;
     uint8_t maxCal = 0;
-    HAL_Dcache_SetWriteThrough(2, 1, PSRAM_START_ADDR, rounddown2(PSRAM_END_ADDR, 16));
+    int32_t dcacheWT_idx = -1;
+    dcacheWT_idx = HAL_Dcache_Enable_WriteThrough(PSRAM_START_ADDR, rounddown2(PSRAM_END_ADDR, 16)); /*no check return*/
     baseCal = HAL_GET_BIT_VAL(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG,
                 PSRAMC_CAL_RESULT_VAL_SHIFT, PSRAMC_CAL_RESULT_VAL_MASK);
     PRC_DBG("auto result cal=%d\n", baseCal);
@@ -577,7 +578,7 @@ int32_t HAL_PsramCtrl_DQS_Delay_Cal_Policy(struct psram_ctrl *ctrl)
     HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
                     PSRAMC_OVERWR_CAL_VAL(baseCal) | PSRAMC_OVERWR_CAL);
     HAL_UDelay(10);
-    HAL_Dcache_SetWriteThrough(2, 0, 0, 0);
+    HAL_Dcache_Disable_WriteThrough(dcacheWT_idx);
     return -1;
 }
 

@@ -28,6 +28,7 @@
  */
 
 #include "pm/pm.h"
+#include "driver/chip/hal_dcache.h"
 #include "driver/chip/hal_flash.h"
 #include "driver/chip/hal_flashctrl.h"
 #include "sys/param.h"
@@ -164,6 +165,13 @@ HAL_Status HAL_Flash_Write(uint32_t flash, uint32_t addr, const uint8_t *data, u
 		return HAL_INVALID;
 	}
 
+#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+    if(HAL_Dcache_IsCacheable((uint32_t)data, size)) {
+        FD_ERROR("data Addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)data);
+        return HAL_ERROR;
+    }
+#endif
+
 	while (left > 0) {
 		pp_size = MIN(left, dev->chip->mPageSize - (address % dev->chip->mPageSize));
 
@@ -217,6 +225,13 @@ HAL_Status HAL_Flash_Read(uint32_t flash, uint32_t addr, uint8_t *data, uint32_t
 		FD_ERROR("Invalid param");
 		return HAL_INVALID;
 	}
+
+#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+    if((HAL_Dcache_IsEnable()) && (HAL_Dcache_IsCacheable((uint32_t)data, size))) {
+        FD_ERROR("data Addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)data);
+        return HAL_ERROR;
+    }
+#endif
 
 	dev->drv->open(dev->chip);
 	ret = dev->chip->read(dev->chip, dev->rmode, addr, data, size);

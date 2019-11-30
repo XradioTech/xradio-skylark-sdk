@@ -1,5 +1,21 @@
 # ChangeLog for XRADIO Skylark SDK
 
+## xradio_skylark_sdk-1.0.0 (20191129)
+  * Driver
+    - CACHE: fix several bugs of cache operations
+    - SPI: support slave mode
+    - CAMERA: fix a bug about CSI exception
+    - Audio Codec: support delay after setting PA on
+
+  * WLAN
+    - Optimize EVM
+    - Add an API to set rx queue size
+
+  * Misc
+    - Fix a bug of setting sram retention
+    - Support decoding QR code
+
+
 ## xradio_skylark_sdk-1.0.0-rc3 (20191115)
   * WLAN
     - Improve the RF performance

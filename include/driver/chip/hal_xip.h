@@ -42,6 +42,14 @@
 extern "C" {
 #endif
 
+extern uint8_t __XIP_BASE[];
+extern uint8_t __XIP_END[];
+extern uint8_t __XIP_LENGTH[];
+
+#define XIP_START_ADDR          ((uint32_t)(__XIP_BASE))
+#define XIP_END_ADDR            ((uint32_t)(__XIP_END))
+
+
 struct XipDrv;
 
 int HAL_Xip_setCmd(struct XipDrv *xip, InstructionField *cmd, InstructionField *addr, InstructionField *dummy, InstructionField *data);

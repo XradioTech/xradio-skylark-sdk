@@ -768,13 +768,11 @@ nopoll_bool __nopoll_conn_set_ssl_client_options (noPollCtx * ctx, noPollConn * 
 }
 #endif
 
-#ifdef NOPOLL_MBEDTLS_DEBUG_C
 static void mbedtls_debug(void *ctx, int level,const char *file,
                                  int line, const char *str)
 {
 	printf("%s:%04d: %s", file, line, str);
 }
-#endif
 
 /**
  * @internal Internal implementation used to do a connect.
@@ -926,10 +924,8 @@ noPollConn * __nopoll_conn_new_common (noPollCtx       * ctx,
 		mbedtls_pk_init(conn->ssl_pkey);
 		mbedtls_entropy_init(conn->ssl_entropy);
 		mbedtls_ctr_drbg_init(conn->ssl_ctr_drbg);
-#if defined(NOPOLL_MBEDTLS_DEBUG_C)
 		mbedtls_debug_set_threshold(3);
 		mbedtls_ssl_conf_dbg(conn->ssl_conf, mbedtls_debug, stdout );
-#endif
 
 		if (options && options->certificate) {
 			if (mbedtls_x509_crt_parse(conn->ssl_cert, (const unsigned char *)options->certificate, options->certificate_size) != 0) {
@@ -5048,10 +5044,8 @@ nopoll_bool __nopoll_conn_accept_complete_common (noPollCtx * ctx, noPollConnOpt
 		mbedtls_pk_init(conn->ssl_pkey);
 		mbedtls_entropy_init(conn->ssl_entropy);
 		mbedtls_ctr_drbg_init(conn->ssl_ctr_drbg);
-#if defined(NOPOLL_MBEDTLS_DEBUG_C)
 		mbedtls_debug_set_threshold(3);
 		mbedtls_ssl_conf_dbg(conn->ssl_conf, mbedtls_debug, stdout );
-#endif
 		if (mbedtls_x509_crt_parse(conn->ssl_cert, (const unsigned char *)certificateFile, certificateFile_size) != 0) {
 			nopoll_log (ctx, NOPOLL_LEVEL_CRITICAL, "failed to parse certificateFile\n");
 			goto exit2;

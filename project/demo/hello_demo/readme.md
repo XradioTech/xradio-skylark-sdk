@@ -12,11 +12,11 @@
 ## 适用平台
 
 > 本工程适用以下芯片类型：
-> 1. XR872系列芯片： XR872AT、XR872ET
-> 2. XR808系列芯片： XR808CT
+> 1. XR872系列芯片：XR872AT、XR872ET
+> 2. XR808系列芯片：XR808CT
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
+> 1. 底板：XR808_EVB_IO、XR872_EVB_IO、XR872_EVB_AI
 > 2. 模组：XR872AT_MD01、XR808CT0_MD01、XR808CT0_MD02
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -28,8 +28,8 @@
 ## 工程配置
 
 > localconfig.mk：
-> * __CONFIG_XIP: 可选项，配置是否开启XIP功能
-> * __CONFIG_OTA: 可选项，配置是否开启OTA功能
+> * __CONFIG_XIP：可选项，配置是否开启XIP功能
+> * __CONFIG_OTA：可选项，配置是否开启OTA功能
 >
 > Makefile：
 > * PRJ_BOARD：必选项，选择板子的板级配置路径
@@ -42,13 +42,13 @@
 >
 > prj_config.h
 >
-> * PRJCONF_NET_EN: 可选项，配置是否开启网络功能
+> * PRJCONF_NET_EN：可选项，配置是否开启网络功能
 
 ## 模块依赖
 
 > 可选项
-> 1. liblwip.a： 开启网络功能需要依赖的库
-> 2. wlan模块： 开启网络功能需要依赖的库
+> 1. liblwip.a：开启网络功能需要依赖的库
+> 2. wlan模块：开启网络功能需要依赖的库
 
 ---
 

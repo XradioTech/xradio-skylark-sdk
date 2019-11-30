@@ -50,8 +50,6 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 
-//#define NOPOLL_MBEDTLS_DEBUG_C
-
 #ifndef EVP_MAX_MD_SIZE
 #define EVP_MAX_MD_SIZE	20
 #endif

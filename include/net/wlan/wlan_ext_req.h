@@ -52,7 +52,7 @@ typedef enum wlan_ext_cmd {
     WLAN_EXT_CMD_GET_BCN_STATUS,
     WLAN_EXT_CMD_SET_PHY_PARAM,
     WLAN_EXT_CMD_SET_SCAN_PARAM,
-    WLAN_EXT_CMD_SET_LISTEN_INTERVAL,
+    WLAN_EXT_CMD_SET_LISTEN_INTERVAL,//10
     WLAN_EXT_CMD_SET_AUTO_SCAN,
     WLAN_EXT_CMD_SET_P2P_SVR,
     WLAN_EXT_CMD_SET_P2P_WKP_CFG,
@@ -62,7 +62,7 @@ typedef enum wlan_ext_cmd {
     WLAN_EXT_CMD_SET_FORCE_B_RATE,
     WLAN_EXT_CMD_SET_RCV_SPECIAL_FRM,
     WLAN_EXT_CMD_SET_SEND_RAW_FRM_CFG,
-    WLAN_EXT_CMD_SET_SNIFF_SYNC_CFG,
+    WLAN_EXT_CMD_SET_SNIFF_SYNC_CFG,//20
     WLAN_EXT_CMD_SET_RCV_FRM_FILTER_CFG,
     WLAN_EXT_CMD_SET_POWER_LEVEL_TAB,
     WLAN_EXT_CMD_GET_POWER_LEVEL_TAB,
@@ -72,8 +72,9 @@ typedef enum wlan_ext_cmd {
     WLAN_EXT_CMD_SET_FRM_FILTER,
     WLAN_EXT_CMD_SET_TEMP_FRM,
     WLAN_EXT_CMD_SET_UPDATE_TEMP_IE,
-    WLAN_EXT_CMD_SET_SYNC_FRM_SEND,
+    WLAN_EXT_CMD_SET_SYNC_FRM_SEND,//30
     WLAN_EXT_CMD_GET_TEMP_VOLT,
+    WLAN_EXT_CMD_SET_CHANNEL_FEC,
 
 	WLAN_EXT_CMD_SET_SDD_FREQ_OFFSET,
 	WLAN_EXT_CMD_GET_SDD_FREQ_OFFSET,
@@ -88,7 +89,8 @@ typedef enum wlan_ext_cmd {
     WLAN_EXT_CMD_SET_MBUF_LIMIT,
     WLAN_EXT_CMD_SET_AMPDU_REORDER_AGE,
     WLAN_EXT_CMD_SET_SCAN_FREQ,
-    WLAN_EXT_CMD_SET_RX_STACK_SIZE,
+    WLAN_EXT_CMD_SET_RX_STACK_SIZE, /* Should be called before wlan_attach() */
+    WLAN_EXT_CMD_SET_RX_QUEUE_SIZE, /* Should be called before wlan_attach() */
 } wlan_ext_cmd_t;
 
 /**
@@ -520,6 +522,17 @@ typedef struct wlan_ext_temp_volt_get
     int32_t    Temperature;
     uint32_t   Voltage;
 } wlan_ext_temp_volt_get_t;
+
+/**
+ * @brief Parameter for WLAN_EXT_CMD_SET_CHANNEL_FEC
+ */
+typedef struct wlan_ext_channel_fec_set
+{
+    int16_t   FecChannel1;
+    int16_t   FecChannel7;
+    int16_t   FecChannel13;
+    int16_t   Reserved;
+} wlan_ext_channel_fec_set_t;
 
 
 int wlan_ext_request(struct netif *nif, wlan_ext_cmd_t cmd, uint32_t param);

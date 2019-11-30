@@ -16,7 +16,7 @@ LIBS := liblibwebsockets.a
 
 DIRS := $(shell find ./ -type d | grep -v programs)
 
-SRCS := $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS])))
+SRCS := $(sort $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS]))))
 
 OBJS := $(addsuffix .o,$(SRCS))
 

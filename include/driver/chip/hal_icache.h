@@ -36,6 +36,7 @@
 #define _DRIVER_CHIP_HAL_ICACHE_H_
 
 #include <stdbool.h>
+#include "driver/chip/hal_xip.h"
 #include "driver/chip/hal_def.h"
 
 #ifdef __cplusplus
@@ -226,9 +227,8 @@ enum ICACHE_ASSO_MOD {
 
 #endif /* __CONFIG_CHIP_ARCH_VER */
 
-extern char *__XIP_Base[];
-#define FLASH_ICACHE_START_ADDR                         ((uint32_t)(__XIP_Base))
-#define FLASH_ICACHE_END_ADDR                           ((uint32_t)(FLASH_ICACHE_START_ADDR + 0x00FFFFF0U))
+#define ICACHE_START_ADDR                         ((uint32_t)(XIP_START_ADDR))
+#define ICACHE_END_ADDR                           ((uint32_t)(XIP_END_ADDR))
 
 void HAL_ICache_Flush(void);
 

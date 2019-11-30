@@ -206,6 +206,9 @@ int stdout_deinit(void)
 
 	if (board_uart_deinit(g_stdout_uart_id) == HAL_OK) {
 		g_stdout_uart_id = UART_NUM;
+#ifdef __CONFIG_LIBC_WRAP_STDIO
+		stdio_set_write(NULL);
+#endif
 		return 0;
 	}
 

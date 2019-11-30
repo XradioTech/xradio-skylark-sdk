@@ -16,7 +16,7 @@ LIBS := libimage.a
 
 DIRS := .
 
-SRCS := $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS])))
+SRCS := $(sort $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS]))))
 
 OBJS := $(addsuffix .o,$(SRCS))
 

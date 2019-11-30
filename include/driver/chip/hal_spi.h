@@ -189,6 +189,7 @@ typedef enum {
 	SPI_SCLK_Mode2 = 2 << SPI_TCTRL_CPHA_SHIFT,
 	SPI_SCLK_Mode3 = 3 << SPI_TCTRL_CPHA_SHIFT
 } SPI_SCLK_Mode;
+
 /*
  * @brief SPI Interrupt Control Register
  */
@@ -474,6 +475,50 @@ void HAL_SPI_TestByFlash();
 #define SPI_MAX_WAIT_MS (2000)
 
 //#define SPI_SOURCE_CLK (24 * 1000 * 1000)
+
+/* for spi slave dma transfer */
+HAL_Status HAL_SPI_Slave_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t msec);
+HAL_Status HAL_SPI_Slave_Close(SPI_Port port);
+
+HAL_Status HAL_SPI_Slave_InitTxDMA(SPI_Port port, const DMA_ChannelInitParam *param);
+HAL_Status HAL_SPI_Slave_InitRxDMA(SPI_Port port, const DMA_ChannelInitParam *param);
+HAL_Status HAL_SPI_Slave_DeInitTxDMA(SPI_Port port);
+HAL_Status HAL_SPI_Slave_DeInitRxDMA(SPI_Port port);
+
+HAL_Status HAL_SPI_Slave_StartTransmit_DMA(SPI_Port port, const uint8_t *buf, int32_t size);
+int32_t HAL_SPI_Slave_StopTransmit_DMA(SPI_Port port);
+
+HAL_Status HAL_SPI_Slave_StartReceive_DMA(SPI_Port port, uint8_t *buf, int32_t size);
+int32_t HAL_SPI_Slave_StopReceive_DMA(SPI_Port port);
+
+typedef enum {
+	SPI_INT_CS_DESELECT = SPI_IER_SS_INT_EN_MASK,
+	SPI_INT_TRANSFER_COMPLETE = SPI_IER_TC_INT_EN_MASK,
+	SPI_INT_TXFIFO_UNDER_RUN = SPI_IER_TF_UDR_INT_EN_MASK,
+	SPI_INT_TXFIFO_OVERFLOW = SPI_IER_TF_OVF_INT_EN_MASK,
+	SPI_INT_RXFIFO_UNDER_RUN = SPI_IER_RF_UDR_INT_EN_MASK,
+	SPI_INT_RXFIFO_OVERFLOW = SPI_IER_RF_OVF_INT_EN_MASK,
+	SPI_INT_TXFIFO_FULL = SPI_IER_TF_FUL_INT_EN_MASK,
+	SPI_INT_TXFIFO_EMPTY = SPI_IER_TX_EMP_INT_EN_MASK,
+	SPI_INT_TXFIFO_READY = SPI_IER_TX_ERQ_INT_EN_MASK,
+	SPI_INT_RXFIFO_FULL = SPI_IER_RF_FUL_INT_EN_MASK,
+	SPI_INT_RXFIFO_EMPTY = SPI_IER_RX_EMP_INT_EN_MASK,
+	SPI_INT_RXFIFO_READY = SPI_IER_RF_RDY_INT_EN_MASK
+} SPI_Int_Type;
+
+typedef void (*SPI_IRQCallback)(uint32_t irq, void *arg);
+
+typedef struct {
+	uint32_t         irqMask;
+	SPI_IRQCallback  callback;
+	void            *arg;
+} SPI_IrqParam;
+
+HAL_Status HAL_SPI_Slave_EnableIRQ(SPI_Port port, SPI_IrqParam *param);
+HAL_Status HAL_SPI_Slave_DisableIRQ(SPI_Port port);
+
+HAL_Status HAL_SPI_Slave_ClearTransferDone(SPI_Port port);
+HAL_Status HAL_SPI_Slave_WaitTransferDone(SPI_Port port, uint32_t timeout);
 
 #ifdef __cplusplus
 }

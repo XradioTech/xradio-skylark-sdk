@@ -35,8 +35,10 @@
 #include "common/framework/platform_init.h"
 #include "fs/fatfs/ff.h"
 #include "audiofifo.h"
+#include "audio/pcm/audio_pcm.h"
+#include "audio/manager/audio_manager.h"
 
-#define PLAYER_THREAD_STACK_SIZE    (1024 * 2)
+#define PLAYER_THREAD_STACK_SIZE    (1024 * 4)
 
 static OS_Thread_t play_thread;
 static player_base *player;
@@ -193,6 +195,67 @@ err1:
     return ret;
 }
 
+static int play_pcm_music()
+{
+    FIL fp;
+    int ret;
+    FRESULT result;
+    unsigned int act_read;
+    unsigned int pcm_buf_size;
+    void *pcm_buf;
+    struct pcm_config config;
+
+    result = f_open(&fp, "music/16000_1.pcm", FA_OPEN_EXISTING | FA_READ);
+    if (result != FR_OK) {
+        printf("open pcm file fail\n");
+        return -1;
+    }
+
+    config.channels = 1;
+    config.format = PCM_FORMAT_S16_LE;
+    config.period_count = 2;
+    config.period_size = 1024;
+    config.rate = 16000;
+    ret = snd_pcm_open(AUDIO_SND_CARD_DEFAULT, PCM_OUT, &config);
+    if (ret != 0) {
+        goto err1;
+    }
+
+    pcm_buf_size = config.channels * config.period_count * config.period_size;
+    pcm_buf = malloc(pcm_buf_size);
+    if (pcm_buf == NULL) {
+        goto err2;
+    }
+
+    while (1) {
+        result = f_read(&fp, pcm_buf, pcm_buf_size, &act_read);
+        if (result != FR_OK) {
+            printf("read fail.\n");
+            break;
+        }
+
+        snd_pcm_write(AUDIO_SND_CARD_DEFAULT, pcm_buf, act_read);
+
+        if (act_read != pcm_buf_size) {
+            printf("reach file end\n");
+            break;
+        }
+    }
+
+    free(pcm_buf);
+    snd_pcm_flush(AUDIO_SND_CARD_DEFAULT);
+    snd_pcm_close(AUDIO_SND_CARD_DEFAULT, PCM_OUT);
+    f_close(&fp);
+
+    return 0;
+
+err2:
+    snd_pcm_close(AUDIO_SND_CARD_DEFAULT, PCM_OUT);
+err1:
+    f_close(&fp);
+    return -1;
+}
+
 static void play_task(void *arg)
 {
     if (fs_ctrl_mount(FS_MNT_DEV_TYPE_SDCARD, 0) != 0) {
@@ -221,6 +284,9 @@ static void play_task(void *arg)
 
         printf("===try to play media by fifo===\n");
         play_fifo_music();
+
+        printf("===try to play pcm by audio driver===\n");
+        play_pcm_music();
     }
 
     player_destroy(player);

@@ -12,7 +12,7 @@
 > 1. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR872_EVB_AI
+> 1. 底板：XR872_EVB_AI
 > 2. 模组：XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -24,7 +24,7 @@
 ## 工程配置
 
 > localconfig.mk：
-> * __CONFIG_XPLAYER: 必选项，配置使用音频播放功能
+> * __CONFIG_XPLAYER：必选项，配置使用音频播放功能
 >
 > Makefile：
 > * PRJ_BOARD：必选项，选择板子的板级配置路径
@@ -36,24 +36,24 @@
 > * N/A
 >
 > prj_config.h
-> * PRJCONF_INTERNAL_SOUNDCARD_EN: 必选项，配置使用内置声卡
-> * PRJCONF_NET_EN: 可选项，配置使用网络功能
-> * PRJCONF_MMC_EN:必选项，配置使用sd卡
+> * PRJCONF_INTERNAL_SOUNDCARD_EN：必选项，配置使用内置声卡
+> * PRJCONF_NET_EN：可选项，配置使用网络功能
+> * PRJCONF_MMC_EN：必选项，配置使用sd卡
 
 ## 模块依赖
 
 > 必选项
-> 1. libcedarx.a： 音频播放核心模块
-> 2. libreverb.a： 音频混响核心模块
+> 1. libcedarx.a：音频播放核心模块
+> 2. libreverb.a：音频混响核心模块
 
 > 可选项
-> 1. libmp3.a： 播放mp3歌曲需要的解码库
-> 2. libamr.a： 播放amr歌曲需要的解码库
-> 3. libaac.a： 播放aac/m4a歌曲需要的解码库
-> 4. libwav.a： 播放wav歌曲需要的解码库
-> 5. liblwip.a： 播放网络歌曲需要依赖的库
-> 6. libmbedtls.a： 播放https歌曲需要依赖的库
-> 7. wlan模块： 播放网络歌曲需要依赖的库
+> 1. libmp3.a：播放mp3歌曲需要的解码库
+> 2. libamr.a：播放amr歌曲需要的解码库
+> 3. libaac.a：播放aac/m4a歌曲需要的解码库
+> 4. libwav.a：播放wav歌曲需要的解码库
+> 5. liblwip.a：播放网络歌曲需要依赖的库
+> 6. libmbedtls.a：播放https歌曲需要依赖的库
+> 7. wlan模块：播放网络歌曲需要依赖的库
 > 8. fatfs、mmc模块：播放sd/tf卡歌曲需要的模块
 
 > 音频的数据流、解码格式可根据需求选择，选择说明可在以下地址获取：
@@ -107,7 +107,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 调用player_task_init()创建播放线程，初始化按键。
+> 1. main()入口：调用player_task_init()创建播放线程，初始化按键。
 > 3. 播放线程函数入口：play_task()
 > 3. play_task()函数流程：
 >   A）完成音频播放准备工作，如sd卡初始化，播放列表初始化，创建播放器

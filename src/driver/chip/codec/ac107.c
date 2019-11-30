@@ -364,7 +364,7 @@ static void ac107_set_amic(bool enable)
 	ac107_multi_chips_update_bits(ANA_ADC2_CTRL5, 0x1<<RX2_GLOBAL_EN, !!enable<<RX2_GLOBAL_EN);
 
 	/* VREF Fast Start-up disable/enable */
-	HAL_MSleep(20*enable);
+	if(enable)	HAL_MSleep(20);
 	ac107_multi_chips_update_bits(PWR_CTRL1, 0x1<<VREF_FSU_DISABLE, !!enable<<VREF_FSU_DISABLE);
 }
 

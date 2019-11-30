@@ -41,6 +41,7 @@
 
 extern uint64_t HAL_RTC_GetFreeRunTime(void);
 extern void stdout_enable(uint8_t en);
+extern void dns_setserver(u8_t numdns, ip_addr_t *dnsserver);
 
 #define FC_DEBUG_EN		0
 #if FC_DEBUG_EN
@@ -187,7 +188,7 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 	fdcm_write(bss_fdcm_hdl, pbss_info, sizeof(bss_info_t));
 	fdcm_close(bss_fdcm_hdl);
 	free(bss_get.bss);
-    printf("Save bss info to done!\n");
+    printf("Save bss info done!\n");
 	return ret;
 }
 
@@ -251,8 +252,7 @@ void connect_ap_fast(bss_info_t * pbss_info)
         OS_MSleep(10);
     }
 	save_time((uint32_t)HAL_RTC_GetFreeRunTime(), 2);
-    OS_MSleep(100);
-    printf("Fast connect AP success!\n");
+    //Fast connect AP success
 }
 
 int get_bss_from_flash(bss_info_t * pbss_info)
@@ -328,11 +328,13 @@ int main(void)
 	save_time(time_eob, 0);
 	save_time(time_eop, 1);
 	fast_connect_example();
-	OS_MSleep(100);
 	get_time();
 
+	ip_addr_t dnsserver;
+	ip4_addr_set_u32(&dnsserver, ipaddr_addr("180.76.76.76"));
+	dns_setserver(0, &dnsserver);
 	printf("Try to ping www.baidu.com\n");
-	cmd_ping_exec("www.baidu.com 1");
+	cmd_ping_exec("www.baidu.com");
 
 	return 0;
 }

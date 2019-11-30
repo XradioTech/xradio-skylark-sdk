@@ -65,6 +65,7 @@
 #include "psram.h"
 #include "driver/chip/psram/psram.h"
 #include "sys/sys_heap.h"
+#include "sys/param.h"
 #endif
 
 #ifdef __CONFIG_XIP
@@ -168,6 +169,15 @@ static void platform_show_info(void)
 #if (defined(__CONFIG_SECURE_BOOT))
 	FWK_LOG(1, "    %-14s: enable\n", "Security Boot");
 #endif
+
+#if (BOARD_LOSC_EXTERNAL == 1)
+	FWK_LOG(1, "    %-14s: enable\n", "EXT LF OSC");
+#elif (BOARD_LOSC_EXTERNAL == 0)
+	FWK_LOG(1, "    %-14s: enable\n", "INT LF OSC");
+#else
+	FWK_LOG(1, "\n%s error(%d)\n", "BOARD_LOSC_EXTERNAL", BOARD_LOSC_EXTERNAL);
+#endif
+
 	FWK_LOG(1, "\n");
 #endif
 
@@ -515,16 +525,19 @@ __weak void platform_init_level0(void)
 #else
 	image_init(PRJCONF_IMG_FLASH, PRJCONF_IMG_ADDR, 0);
 #endif
+#if (defined(__CONFIG_XIP))
+    platform_xip_init();
+#endif
+#if ((defined(__CONFIG_PSRAM)) && ((__CONFIG_CACHE_POLICY & 0xF) != 0))
+    /*psram have to enable dcache*/
+    platform_psram_init();
+#endif
 #if (defined(__CONFIG_XIP) || defined(__CONFIG_PSRAM))
     platform_cache_init();
 #endif
 
-/*psram have to enable dcache*/
-#if ((defined(__CONFIG_PSRAM)) && ((__CONFIG_CACHE_POLICY & 0xF) != 0))
-	platform_psram_init();
-#endif
-#if (defined(__CONFIG_XIP))
-	platform_xip_init();
+#if (defined(__CONFIG_PSRAM))
+	HAL_Dcache_Enable_WriteThrough(rounddown2((uint32_t)__psram_bss_end__, 16), rounddown2(PSRAM_END_ADDR, 16));
 #endif
 }
 
@@ -536,16 +549,6 @@ __weak void platform_init_level1(void)
     {
         platform_avs_init();
     }
-#endif
-
-#if (__CONFIG_WPA_HEAP_MODE == 1)
-	wpa_set_heap_fn(psram_malloc, psram_realloc, psram_free);
-#endif
-#if (__CONFIG_UMAC_HEAP_MODE == 1)
-	umac_set_heap_fn(psram_malloc, psram_free);
-#endif
-#if (__CONFIG_LMAC_HEAP_MODE == 1)
-	lmac_set_heap_fn(psram_malloc, psram_free);
 #endif
 #if PRJCONF_CE_EN
 	HAL_CE_Init();
@@ -577,6 +580,19 @@ __weak void platform_init_level1(void)
 #endif
 
 #if PRJCONF_NET_EN
+#if (__CONFIG_WPA_HEAP_MODE == 1)
+	wpa_set_heap_fn(psram_malloc, psram_realloc, psram_free);
+#endif
+#if (__CONFIG_UMAC_HEAP_MODE == 1)
+	umac_set_heap_fn(psram_malloc, psram_free);
+#endif
+#if (__CONFIG_LMAC_HEAP_MODE == 1)
+	lmac_set_heap_fn(psram_malloc, psram_free);
+#endif
+#if (__CONFIG_MBUF_HEAP_MODE == 1)
+	wlan_ext_request(NULL, WLAN_EXT_CMD_SET_RX_QUEUE_SIZE, 256);
+#endif
+
 #ifndef __CONFIG_ETF
 	net_sys_init();
 #endif

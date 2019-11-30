@@ -12,10 +12,10 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片： XR872AT、XR872ET
+> 1. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR872_EVB_AI
+> 1. 底板：XR872_EVB_AI
 > 2. 模组：XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -27,7 +27,7 @@
 ## 工程配置
 
 > localconfig.mk：
-> * __CONFIG_XPLAYER: 必选项，配置使用音频播放功能
+> * __CONFIG_XPLAYER：必选项，配置使用音频播放功能
 >
 > Makefile：
 > * PRJ_BOARD：必选项，选择板子的板级配置路径
@@ -39,25 +39,25 @@
 > * N/A
 >
 > prj_config.h
-> * PRJCONF_INTERNAL_SOUNDCARD_EN: 必选项，配置使用内置声卡
-> * PRJCONF_AC107_SOUNDCARD_EN:可选项，配置使用AC107
-> * PRJCONF_NET_EN: 可选项，配置使用网络功能
-> * PRJCONF_MMC_EN:可选项，配置使用sd卡
+> * PRJCONF_INTERNAL_SOUNDCARD_EN：必选项，配置使用内置声卡
+> * PRJCONF_AC107_SOUNDCARD_EN：可选项，配置使用AC107
+> * PRJCONF_NET_EN：可选项，配置使用网络功能
+> * PRJCONF_MMC_EN：可选项，配置使用sd卡
 
 ## 模块依赖
 
 > 必选项
-> 1. libcedarx.a： 音频播放核心模块
-> 2. libreverb.a： 音频混响核心模块
+> 1. libcedarx.a：音频播放核心模块
+> 2. libreverb.a：音频混响核心模块
 
 > 可选项
-> 1. libmp3.a： 播放mp3歌曲需要的解码库
-> 2. libamr.a： 播放amr歌曲需要的解码库
-> 3. libaac.a： 播放aac/m4a歌曲需要的解码库
-> 4. libwav.a： 播放wav歌曲需要的解码库
-> 5. liblwip.a： 播放网络歌曲需要依赖的库
-> 6. libmbedtls.a： 播放https歌曲需要依赖的库
-> 7. wlan模块： 播放网络歌曲需要依赖的库
+> 1. libmp3.a：播放mp3歌曲需要的解码库
+> 2. libamr.a：播放amr歌曲需要的解码库
+> 3. libaac.a：播放aac/m4a歌曲需要的解码库
+> 4. libwav.a：播放wav歌曲需要的解码库
+> 5. liblwip.a：播放网络歌曲需要依赖的库
+> 6. libmbedtls.a：播放https歌曲需要依赖的库
+> 7. wlan模块：播放网络歌曲需要依赖的库
 
 > 音频的数据流、解码格式可根据需求选择，选择说明可在以下地址获取：
 > https://docs.xradiotech.com
@@ -109,7 +109,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 调用check_sample_rate()检查录音采样率和播放采样率是否合理，调用audio_play_start()创建播放线程，调用audio_record_start创建录音线程。
+> 1. main()入口：调用check_sample_rate()检查录音采样率和播放采样率是否合理，调用audio_play_start()创建播放线程，调用audio_record_start创建录音线程。
 > 2. 同时录播时，播放的采样率和录音的采样率有一定的关联。两者必须都属于[8000, 12000, 16000, 24000, 32000, 48000]或都属于[11025, 22050, 44100]。示例这里播放采用48k采样率，录音采样16k采样率，表示播放的音频会重采样为48k再进行播放，录音就是直接使用16k进行录音
 > 3. 播放线程函数入口：play_task()
 > 4. play_task()函数流程：

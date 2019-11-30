@@ -89,6 +89,7 @@ LIBRARIES += -lpcm
 LIBRARIES += -ladt
 LIBRARIES += -lutil
 LIBRARIES += -ljpeg
+LIBRARIES += -lzbar
 
 endif # __CONFIG_BOOTLOADER
 

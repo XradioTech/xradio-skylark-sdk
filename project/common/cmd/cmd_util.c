@@ -206,9 +206,8 @@ void cmd_print_uint8_array(uint8_t *buf, int32_t size)
 void cmd_print_uint32_array(uint32_t *buf, int32_t size)
 {
 	for(int i=0; i<size; i++) {
-		if(i%8 == 0) printf("  ");
-		if(i%32 == 0) printf("\n");
-		printf("%08x ", buf[i]);
+		if(i%4 == 0) printf("\n0x%08x: ", (uint32_t)&buf[i]);
+		printf("%08x  ", buf[i]);
 	}
 	printf("\n");
 }

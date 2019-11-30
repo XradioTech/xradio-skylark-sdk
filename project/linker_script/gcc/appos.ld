@@ -37,9 +37,15 @@ MEMORY
 }
 
 __RAM_BASE = ORIGIN(RAM);
+#if (defined(__CONFIG_XIP))
+__XIP_BASE = ORIGIN(FLASH);
+__XIP_LENGTH = LENGTH(FLASH);
+__XIP_END = ORIGIN(FLASH) + LENGTH(FLASH) -1;
+#endif
 #if (defined(__CONFIG_PSRAM))
 __PSRAM_BASE = ORIGIN(PSRAM);
 __PSRAM_LENGTH = LENGTH(PSRAM);
+__PSRAM_END = ORIGIN(PSRAM) + LENGTH(PSRAM) -1;
 #endif
 
 /* Linker script to place sections and symbol values. Should be used together
@@ -123,6 +129,7 @@ SECTIONS
         *libxz.a: (.text .text.* .rodata .rodata.*)
         *libconsole.a: (.text .text.* .rodata .rodata.*)
         *libutil.a: (.text .text.* .rodata .rodata.*)
+        *libzbar.a: (.text .text.* .rodata .rodata.*)
 
         *libchip.a:hal_wdg.o (.text .text.* .rodata .rodata.*)
         *libchip.a:hal_timer.o (.text .text.* .rodata .rodata.*)
@@ -649,14 +656,6 @@ SECTIONS
     _estack = __StackTop;
     __StackLimit = __StackTop - SIZEOF(.stack_dummy);
     PROVIDE(__stack = __StackTop);
-
-    __FLASH_BASE = ORIGIN(FLASH);
-    PROVIDE(__XIP_Base = __FLASH_BASE);
-
-#if (defined(__CONFIG_PSRAM))
-    __PSRAM_BASE = ORIGIN(PSRAM);
-    PROVIDE(__PSRAM_Base = __PSRAM_BASE);
-#endif
 
     /* Check if data + heap + stack exceeds RAM limit */
     ASSERT(__StackLimit >= __HeapLimit, "region RAM overflowed with stack")

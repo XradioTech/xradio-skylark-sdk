@@ -17,10 +17,10 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片： XR872AT、XR872ET
+> 1. XR872系列芯片：XR872AT、XR872ET
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR872_EVB_IO、XR872_EVB_AI
+> 1. 底板：XR872_EVB_IO、XR872_EVB_AI
 > 2. 模组：XR872AT_MD01
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -51,9 +51,9 @@
 >
 > prj_config.h
 >
-> - PRJCONF_MMC_EN: 必选项，配置使用SD卡功能，需使能。
+> - PRJCONF_MMC_EN：必选项，配置使用SD卡功能，需使能。
 >
-> - PRJCONF_CONSOLE_EN： 可选项，配置使用控制台功能，需要禁用。若使能需要在当前目录下添加command文件。
+> - PRJCONF_CONSOLE_EN：可选项，配置使用控制台功能，需要禁用。若使能需要在当前目录下添加command文件。
 
 ## 模块依赖
 
@@ -98,7 +98,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 执行FATFS常用功能点的操作示例。
+> 1. main()入口：执行FATFS常用功能点的操作示例。
 > 
 
 > 更详细的开发指南请参考《XRADIO_FatFs_Developer_Guide-CN.doc》

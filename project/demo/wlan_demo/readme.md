@@ -17,13 +17,13 @@
 ## 工程配置
 
 > localconfig.mk：
-> * __CONFIG_WLAN_STA: 使用STA模式时将此项置为y
-> * __CONFIG_WLAN_STA_WPS： 使用STA模式并且使用WPS功能时，将此项置为y，注意不能与__CONFIG_WLAN_STA同时置为y
-> * __CONFIG_WLAN_AP： 使用AP模式时将此项置为y
+> * __CONFIG_WLAN_STA：使用STA模式时将此项置为y
+> * __CONFIG_WLAN_STA_WPS：使用STA模式并且使用WPS功能时，将此项置为y，注意不能与__CONFIG_WLAN_STA同时置为y
+> * __CONFIG_WLAN_AP：使用AP模式时将此项置为y
 >
 > Makefile：
-> * IMAGE_CFG: 选择工程的flash布局文件。如无，则使用默认配置
-> * LINKER_SCRIPT: 选择工程的ld文件。如无，则使用默认ld文件
+> * IMAGE_CFG：选择工程的flash布局文件。如无，则使用默认配置
+> * LINKER_SCRIPT：选择工程的ld文件。如无，则使用默认ld文件
 > * PRJ_BOARD：必选项，选择板子的板级配置路径
 >
 > board_config.h
@@ -34,13 +34,13 @@
 >
 > prj_config.h
 >
-> * PRJCONF_CONSOLE_EN: 必选项，配置使用控制台
-> * PRJCONF_NET_EN: 必选项，配置使用网络
+> * PRJCONF_CONSOLE_EN：必选项，配置使用控制台
+> * PRJCONF_NET_EN：必选项，配置使用网络
 
 ## 模块依赖
 
-> libwireless.a: 网络底层驱动
-> libwlan.a: 网络框架层
+> libwireless.a：网络底层驱动
+> libwlan.a：网络框架层
 
 ---
 
@@ -90,7 +90,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 初始化平台。
+> 1. main()入口：初始化平台。
 > 2. 等待控制台输入联网等操作。
 
 ---

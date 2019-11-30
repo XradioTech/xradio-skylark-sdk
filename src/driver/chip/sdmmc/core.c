@@ -32,6 +32,8 @@
 #ifdef CONFIG_USE_SDIO
 #include "driver/chip/sdmmc/sdio.h"
 #endif
+#include "driver/chip/private/hal_debug.h"
+#include "driver/chip/hal_dcache.h"
 
 #include "../hal_base.h"
 
@@ -56,6 +58,12 @@ extern int32_t _mmc_block_write(struct mmc_card *card, const uint8_t *buf, uint6
 int32_t mmc_block_read(struct mmc_card *card, uint8_t *buf, uint64_t sblk, uint32_t nblk)
 {
 	int32_t err;
+#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+    if(HAL_Dcache_IsCacheable((uint32_t)buf, (uint32_t)(sblk*nblk))) {
+        HAL_ERR("SDMMC: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
+        return -1;
+    }
+#endif
 
 	HAL_SDC_Claim_Host(card->host);
 	err = _mmc_block_read(card, buf, sblk, nblk);
@@ -66,7 +74,12 @@ int32_t mmc_block_read(struct mmc_card *card, uint8_t *buf, uint64_t sblk, uint3
 int32_t mmc_block_write(struct mmc_card *card, const uint8_t *buf, uint64_t sblk, uint32_t nblk)
 {
 	int32_t err;
-
+#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+    if(HAL_Dcache_IsCacheable((uint32_t)buf, (uint32_t)(sblk*nblk))) {
+        HAL_ERR("SDMMC: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
+        return -1;
+    }
+#endif
 	HAL_SDC_Claim_Host(card->host);
 	err = _mmc_block_write(card, buf, sblk, nblk);
 	HAL_SDC_Release_Host(card->host);

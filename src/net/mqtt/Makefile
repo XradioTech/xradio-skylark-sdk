@@ -19,7 +19,7 @@ DIRS := ./MQTTPacket \
 	./MQTTClient-C/Xr_RTOS \
 	./MQTTClient-C/Xr_RTOS/utest
 
-SRCS := $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS])))
+SRCS := $(sort $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS]))))
 
 OBJS := $(addsuffix .o,$(SRCS))
 

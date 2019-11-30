@@ -332,7 +332,8 @@ struct pcm_config {
 
 /* PA Switch Control */
 typedef struct {
-	uint16_t	  on_delay;
+	uint16_t on_delay_before;
+	uint16_t on_delay_after;
 	GPIO_PinState on_state;
 	const GPIO_PinMuxParam *pin_param;
 	uint8_t		  pin_param_cnt;

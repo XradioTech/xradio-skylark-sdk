@@ -9,11 +9,11 @@
 
 > 本工程适用以下芯片类型：
 >
-> 1. XR872系列芯片： XR872AT、XR872ET
-> 2. XR808系列芯片： XR808CT
+> 1. XR872系列芯片：XR872AT、XR872ET
+> 2. XR808系列芯片：XR808CT
 
 > 本工程适用以下评估板类型：
-> 1. 底板： XR872_EVB_AI、XR872_EVB_IO、XR808_EVB_IO
+> 1. 底板：XR872_EVB_AI、XR872_EVB_IO、XR808_EVB_IO
 > 2. 模组：XR872AT_MD01、XR808CT0_MD01、XR808CT0_MD02
 
 > 本工程在基于"XR872AT_MD01"的“XR872_EVB_AI”板上测试通过。
@@ -84,7 +84,7 @@
 ```
 ### 代码流程
 
-> 1. main()入口： 调用efpg_read_example()读取efuse信息；调用efpg_write_example往efuse用户区域填充数据。
+> 1. main()入口：调用efpg_read_example()读取efuse信息；调用efpg_write_example往efuse用户区域填充数据。
 > 2. efpg_read_example()函数流程：
 >   A）读取hosc信息
 >   B）读取boot信息
