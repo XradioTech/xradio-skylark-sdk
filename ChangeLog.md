@@ -1,5 +1,17 @@
 # ChangeLog for XRADIO Skylark SDK
 
+## xradio_skylark_sdk-1.0.1 (20191211)
+
+  * WLAN
+    - Optimize RF power calibration algorithm
+
+  * Misc
+    - Improve the flow of setting PRNG seed
+    - Adjust the flow of setting SoC voltages
+    - Improve the configuration flow of D-Cache
+    - Add the QR example
+
+
 ## xradio_skylark_sdk-1.0.0 (20191129)
   * Driver
     - CACHE: fix several bugs of cache operations

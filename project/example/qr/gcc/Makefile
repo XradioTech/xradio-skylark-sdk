@@ -25,8 +25,6 @@ PRJ_ROOT_PATH := $(ROOT_PATH)/project/example/$(PROJECT)
 # ----------------------------------------------------------------------------
 ifeq ($(__CONFIG_CHIP_TYPE), xr872)
 PRJ_BOARD := $(ROOT_PATH)/project/common/board/xr872_evb_ai
-else ifeq ($(__CONFIG_CHIP_TYPE), xr808)
-PRJ_BOARD := $(ROOT_PATH)/project/common/board/xr808_evb_io
 else
 PRJ_BOARD := null
 endif
@@ -67,12 +65,12 @@ OBJS := $(addsuffix .o,$(SRCS))
 # linker script file
 #   - relative to "./"
 #   - define your own "LINKER_SCRIPT" to override the default one
-#LINKER_SCRIPT :=
+# LINKER_SCRIPT :=
 
 # image config file
 #   - relative to "../image/$(__CONFIG_CHIP_TYPE)/", eg. "../image/xr872/"
 #   - define your own "IMAGE_CFG" to override the default one
-# IMAGE_CFG := image.cfg
+# IMAGE_CFG :=
 
 # image name, default to xr_system
 # IMAGE_NAME :=

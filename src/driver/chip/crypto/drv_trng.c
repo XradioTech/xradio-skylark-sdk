@@ -3,6 +3,7 @@
 #include "sys/io.h"
 #include "pm/pm.h"
 #include "drv_trng.h"
+#include "driver/chip/hal_util.h"
 
 #if (__CONFIG_CHIP_ARCH_VER == 2)
 #define TRNG_ALE	(DRV_ALE)
@@ -80,6 +81,7 @@ static void trng_extract_config(uint32_t div1, uint32_t div2, uint32_t type, uin
 static void trng_enable(uint64_t* time)
 {
 	HAL_SET_BIT(TRNG->CTRL_CFG, (CC_ENABLE_MASK | CC_RO_CRTL_MASK));	//trng_en = 1, trngro_ctrl = 0xff
+	HAL_UDelay(10);
 	HAL_SET_BIT(TRNG->MONITOR_RCT, MR_MONITOR_EN_MASK);					//trng_monitor_en = 1
 	*time += 4;
 }
@@ -186,7 +188,7 @@ DRV_Status DRV_Trng_Extract(uint8_t type, uint32_t random[4], uint64_t *actime)
 	DRV_Status ret = DRV_OK;
 	uint32_t div1 = 0;
 	uint32_t div2 = 0;
-	uint32_t ratio = 127;
+	uint32_t ratio = 4095;
 
 	if((NULL == random) || (type > 1)) {
 		TRNG_PRINT(TRNG_ERR, "invalid argc\n");

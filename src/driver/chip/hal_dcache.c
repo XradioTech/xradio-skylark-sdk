@@ -109,6 +109,36 @@ int32_t HAL_Dcache_Disable_WriteThrough(int32_t idx)
 }
 
 #ifdef __CONFIG_ROM
+void HAL_Dcache_Config(DCache_Config *cfg)
+{
+	HAL_ASSERT_PARAM(cfg);
+
+	HAL_CCM_BusReleasePeriphReset(CCM_BUS_PERIPH_BIT_DCACHE);
+	HAL_UDelay(20);
+	HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_ENABLE_MASK);
+	HAL_SET_BIT(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_COUNTER_EN_MASK);
+
+	if (cfg->vc_en)
+		HAL_MODIFY_REG(DCACHE_CTRL->DCACHE_COM_CFG,
+		               DCACHE_EN_VICTIM_MASK, DCACHE_EN_VICTIM);
+	else
+		HAL_CLR_BIT(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_EN_VICTIM);
+
+	if (cfg->wrap_en)
+		HAL_MODIFY_REG(DCACHE_CTRL->DCACHE_COM_CFG,
+		               DCACHE_EN_RD_WRAP_MASK, DCACHE_EN_RD_WRAP);
+	else
+		HAL_CLR_BIT(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_EN_RD_WRAP);
+
+	HAL_MODIFY_REG(DCACHE_CTRL->DCACHE_COM_CFG, DCACHE_ASSOCIATE_MODE_MASK,
+	               (cfg->way_mode << DCACHE_ASSOCIATE_MODE_SHIFT));
+
+	HAL_MODIFY_REG(DCACHE_CTRL->DCACHE_COM_CFG,
+	               DCACHE_MIXED_MODE_DCACHE | DCACHE_MIXED_IDBUS_EN,
+	               cfg->mixed_mode);
+
+	HAL_Dcache_FlushAll();
+}
 
 void HAL_Dcache_Flush(uint32_t sadd, uint32_t len)
 {

@@ -223,7 +223,6 @@ HAL_CCM_SYSTICK_SetRefClock = 0x9721;
 HAL_CCM_SYSTICK_SetTENMS = 0x979d;
 HAL_Dcache_DeConfig = 0x9bc5;
 HAL_Dcache_DUMP_MissHit = 0x9af1;
-HAL_Dcache_Config = 0x9b35;
 HAL_DMA_DeInit = 0x9e79;
 HAL_DMA_GetByteCount = 0x9f4d;
 __HAL_DMA_Init = 0x9ddd;

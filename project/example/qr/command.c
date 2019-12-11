@@ -27,23 +27,35 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _VERSION_H_
-#define _VERSION_H_
+#include "common/cmd/cmd_util.h"
+#include "common/cmd/cmd.h"
 
-#define SDK_VERSION_MAJOR 1
-#define SDK_VERSION_MINOR 0
-#define SDK_VERSION_PATCH 1
+/*
+ * main commands
+ */
+static const struct cmd_data g_main_cmds[] = {
+	{ "echo",   cmd_echo_exec },
+	{ "mem",    cmd_mem_exec },
+	{ "upgrade",cmd_upgrade_exec },
+	{ "reboot", cmd_reboot_exec },
+	{ "heap",   cmd_heap_exec },
+};
 
-#define SDK_VERSION_NUM ((SDK_VERSION_MAJOR << 16) | \
-                         (SDK_VERSION_MINOR << 8)  | \
-                         (SDK_VERSION_PATCH))
+void main_cmd_exec(char *cmd)
+{
+	enum cmd_status status;
 
-#define __SDK_VERSTR(x)	#x
-#define _SDK_VERSTR(x)	__SDK_VERSTR(x)
-#define SDK_VERSION_STR _SDK_VERSTR(SDK_VERSION_MAJOR) "." \
-                        _SDK_VERSTR(SDK_VERSION_MINOR) "." \
-                        _SDK_VERSTR(SDK_VERSION_PATCH)
+	if (cmd[0] == '\0') { /* empty command */
+		CMD_LOG(1, "$\n");
+		return;
+	}
 
-#define SDK_STAGE_STR ""
+	CMD_LOG(CMD_DBG_ON, "$ %s\n", cmd);
 
-#endif /* _VERSION_H_ */
+	status = cmd_exec(cmd, g_main_cmds, cmd_nitems(g_main_cmds));
+	if (status == CMD_STATUS_ACKED) {
+		return; /* already acked, just return */
+	}
+
+	cmd_write_respond(status, cmd_get_status_desc(status));
+}

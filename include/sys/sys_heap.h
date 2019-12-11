@@ -57,8 +57,8 @@ typedef struct sys_heap
 } sys_heap_t;
 
 #define SYSHEAP_DEFAULT_INIT(sysHeap, baseAddr, total_size) (sysHeap)->heapBits_Per_Byte = ( size_t ) 8; \
-    (sysHeap)->portByte_Alignment = 8; \
-    (sysHeap)->portByte_Alignment_Mask = 0x7; \
+    (sysHeap)->portByte_Alignment = 16; \
+    (sysHeap)->portByte_Alignment_Mask = 0xF; \
     (sysHeap)->xHeapStructSize = ( sizeof( BlockLink_t ) + ( ( size_t ) ( (sysHeap)->portByte_Alignment - 1 ) ) ) & ~( ( size_t ) (sysHeap)->portByte_Alignment_Mask ); \
     (sysHeap)->heapMinmun_Block_Size = ( ( size_t ) ( (sysHeap)->xHeapStructSize << 1 ) ); \
     (sysHeap)->xFreeBytesRemaining = 0; \

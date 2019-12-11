@@ -45,7 +45,7 @@
 #define TEST_STANDBY        1
 #define TEST_HIBERNATION    1
 #define TEST_STANDBY_DTIM   0
-#define TEST_STANDBY_MIN_SRAM_RETENTION 0
+//#define TEST_STANDBY_MIN_SRAM_RETENTION 0 /*NOT support now*/
 
 #define WAKEUP_IO_PIN_DEF   (5)
 #define WAKEUP_IO_MODE_DEF  (WKUPIO_WK_MODE_FALLING_EDGE)
@@ -370,7 +370,7 @@ int main(void)
 #endif
 
 #if TEST_STANDBY_MIN_SRAM_RETENTION
-    printf("\n\nEnter standby min sram retention mode, setup wakeup source button&timer\n\n");
+    printf("\n\nEnter standby min sram retention mode, setup wakeup source button&timer, BUT NOT support now\n\n");
     section_header_t sh;
     register uint32_t entry;
     if (image_read(IMAGE_BOOT_ID, IMAGE_SEG_HEADER, 0, &sh,

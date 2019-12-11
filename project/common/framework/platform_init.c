@@ -350,9 +350,9 @@ static void platform_wdg_start(void)
 #endif /* PRJCONF_WDG_EN */
 
 #if (PRJCONF_CE_EN && PRJCONF_PRNG_INIT_SEED)
-#if (__CONFIG_CHIP_ARCH_VER == 1)
 #define RAND_SYS_TICK() ((SysTick->VAL & 0xffffff) | (OS_GetTicks() << 24))
 
+#if (__CONFIG_CHIP_ARCH_VER == 1)
 static void platform_prng_init_seed(void)
 {
 	uint32_t seed[6];
@@ -395,15 +395,40 @@ static void platform_prng_init_seed(void)
 {
 	uint32_t seed[6];
 	HAL_Status status;
+	int i;
 
-	status = HAL_TRNG_Extract(0, seed);
+	for (i = 0; i < 5; ++i) {
+		status = HAL_TRNG_Extract(0, seed);
+		if (status == HAL_OK) {
+			seed[4] = seed[0] ^ seed[1];
+			seed[5] = seed[2] ^ seed[3];
+			FWK_DBG("prng seed %08x %08x %08x %08x %08x %08x\n",
+					seed[0], seed[1], seed[2], seed[3], seed[4], seed[5]);
+			break;
+		} else {
+			FWK_WRN("gen trng fail %d\n", status);
+		}
+	}
+
 	if (status != HAL_OK) {
-		FWK_WRN("gen trng fail %d\n", status);
-	} else {
-		seed[4] = seed[0] ^ seed[1];
-		seed[5] = seed[2] ^ seed[3];
-		FWK_DBG("prng seed %08x %08x %08x %08x %08x %08x\n",
-		        seed[0], seed[1], seed[2], seed[3], seed[4], seed[5]);
+		ADC_InitParam initParam;
+		initParam.delay = 0;
+		initParam.freq = 1000000;
+		initParam.mode = ADC_CONTI_CONV;
+		status = HAL_ADC_Init(&initParam);
+		if (status != HAL_OK) {
+			FWK_WRN("adc init err %d\n", status);
+		} else {
+			status = HAL_ADC_Conv_Polling(ADC_CHANNEL_VBAT, &seed[0], 1000);
+			if (status != HAL_OK) {
+				FWK_WRN("adc conv err %d\n", status);
+			}
+			HAL_ADC_DeInit();
+		}
+
+		seed[0] ^= RAND_SYS_TICK();
+		efpg_read(EFPG_FIELD_CHIPID, (uint8_t *)&seed[1]); /* 16-byte */
+		seed[5] = RAND_SYS_TICK();
 	}
 
 	HAL_PRNG_SetSeed(seed);

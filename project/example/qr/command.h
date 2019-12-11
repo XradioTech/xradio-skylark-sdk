@@ -27,23 +27,17 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _VERSION_H_
-#define _VERSION_H_
+#ifndef _COMMAND_H_
+#define _COMMAND_H_
 
-#define SDK_VERSION_MAJOR 1
-#define SDK_VERSION_MINOR 0
-#define SDK_VERSION_PATCH 1
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define SDK_VERSION_NUM ((SDK_VERSION_MAJOR << 16) | \
-                         (SDK_VERSION_MINOR << 8)  | \
-                         (SDK_VERSION_PATCH))
+void main_cmd_exec(char *cmd);
 
-#define __SDK_VERSTR(x)	#x
-#define _SDK_VERSTR(x)	__SDK_VERSTR(x)
-#define SDK_VERSION_STR _SDK_VERSTR(SDK_VERSION_MAJOR) "." \
-                        _SDK_VERSTR(SDK_VERSION_MINOR) "." \
-                        _SDK_VERSTR(SDK_VERSION_PATCH)
+#ifdef __cplusplus
+}
+#endif
 
-#define SDK_STAGE_STR ""
-
-#endif /* _VERSION_H_ */
+#endif /* _COMMAND_H_ */
