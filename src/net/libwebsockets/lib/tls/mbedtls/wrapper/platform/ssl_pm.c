@@ -107,8 +107,6 @@ int ssl_pm_new(SSL *ssl)
     struct ssl_pm *ssl_pm;
     int ret;
 
-	SSL_DEBUG(SSL_PLATFORM_ERROR_LEVEL, "%s():%d\n", __FUNCTION__, __LINE__);
-
     const unsigned char pers[] = "OpenSSL PM";
     size_t pers_len = sizeof(pers);
 
@@ -290,7 +288,7 @@ int ssl_pm_handshake(SSL *ssl)
 {
     int ret;
     struct ssl_pm *ssl_pm = (struct ssl_pm *)ssl->ssl_pm;
-	SSL_DEBUG(SSL_PLATFORM_DEBUG_LEVEL, "%s():%d\n", __FUNCTION__, __LINE__);
+
     ret = ssl_pm_reload_crt(ssl);
     if (ret)
         return 0;
@@ -601,7 +599,6 @@ failed1:
 void x509_pm_free(X509 *x)
 {
     struct x509_pm *x509_pm = (struct x509_pm *)x->x509_pm;
-	SSL_DEBUG(SSL_PKEY_ERROR_LEVEL, "%s():%d\n", __FUNCTION__, __LINE__);
 
     if (x509_pm->x509_crt) {
         mbedtls_x509_crt_free(x509_pm->x509_crt);
@@ -609,11 +606,9 @@ void x509_pm_free(X509 *x)
         ssl_mem_free(x509_pm->x509_crt);
         x509_pm->x509_crt = NULL;
     }
-	SSL_DEBUG(SSL_PKEY_ERROR_LEVEL, "%s():%d\n", __FUNCTION__, __LINE__);
 
     ssl_mem_free(x->x509_pm);
     x->x509_pm = NULL;
-	SSL_DEBUG(SSL_PKEY_ERROR_LEVEL, "%s():%d\n", __FUNCTION__, __LINE__);
 }
 
 int x509_pm_load(X509 *x, const unsigned char *buffer, int len)

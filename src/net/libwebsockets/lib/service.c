@@ -1160,15 +1160,11 @@ lws_service_fd_tsi(struct lws_context *context, struct lws_pollfd *pollfd,
 	 * at intervals, check for ws connections needing ping-pong checks
 	 */
 
-//	lwsl_debug("%s %d ws_ping_pong_interval=%d last_ws_ping_pong_check_s=%ld\n",
-//				__FUNCTION__, __LINE__, context->ws_ping_pong_interval,
-//				context->last_ws_ping_pong_check_s);
-
 	if (context->ws_ping_pong_interval &&
 	    context->last_ws_ping_pong_check_s < now + 10) {
 		struct lws_vhost *vh = context->vhost_list;
 		context->last_ws_ping_pong_check_s = now;
-		lwsl_debug("%s %d vh=%p\n", __FUNCTION__, __LINE__, vh);
+
 		while (vh) {
 			for (n = 0; n < vh->count_protocols; n++) {
 				wsi = vh->same_vh_protocol_list[n];
@@ -1219,7 +1215,6 @@ lws_service_fd_tsi(struct lws_context *context, struct lws_pollfd *pollfd,
 
 	/* no, here to service a socket descriptor */
 	wsi = wsi_from_fd(context, pollfd->fd);
-	lwsl_debug("%s %d wsi=%p\n", __FUNCTION__, __LINE__, wsi);
 	if (!wsi)
 		/* not lws connection ... leave revents alone and return */
 		return 0;
@@ -1273,8 +1268,6 @@ lws_service_fd_tsi(struct lws_context *context, struct lws_pollfd *pollfd,
 
 	/* okay, what we came here to do... */
 
-	lwsl_debug("%s %d mode=%d\n", __FUNCTION__, __LINE__, wsi->mode);
-
 	switch (wsi->mode) {
 	case LWSCM_EVENT_PIPE:
 	{
@@ -1311,7 +1304,6 @@ lws_service_fd_tsi(struct lws_context *context, struct lws_pollfd *pollfd,
 	case LWSCM_SERVER_LISTENER:
 	case LWSCM_SSL_ACK_PENDING:
 	case LWSCM_SSL_ACK_PENDING_RAW:
-		lwsl_debug("%s %d state=%d\n", __FUNCTION__, __LINE__, wsi->state);
 		if (wsi->state == LWSS_CLIENT_HTTP_ESTABLISHED)
 			goto handled;
 

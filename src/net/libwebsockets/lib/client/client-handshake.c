@@ -99,7 +99,7 @@ lws_client_connect_2(struct lws *wsi)
 		ads = lws_hdr_simple_ptr(wsi, _WSI_TOKEN_CLIENT_PEER_ADDRESS);
 		port = wsi->c_port;
 	}
-
+#if 0
 	/*
 	 * prepare the actual connection
 	 * to whatever we decided to connect to
@@ -207,8 +207,7 @@ lws_client_connect_2(struct lws *wsi)
 
 	if (result)
 		freeaddrinfo(result);
-
-	lwsl_debug("%s():%d sock=%d\n", __FUNCTION__, __LINE__, wsi->desc.sockfd);
+#endif
 
 	/* now we decided on ipv4 or ipv6, set the port */
 
@@ -282,6 +281,116 @@ lws_client_connect_2(struct lws *wsi)
 		}
 	}
 
+#if 1
+		/*
+		 * prepare the actual connection
+		 * to whatever we decided to connect to
+		 */
+
+		   lwsl_notice("%s: %p: address %s\n", __func__, wsi, ads);
+
+		   n = lws_getaddrinfo46(wsi, ads, &result);
+
+#ifdef LWS_WITH_IPV6
+		if (wsi->ipv6) {
+
+			if (n) {
+				/* lws_getaddrinfo46 failed, there is no usable result */
+				lwsl_notice("%s: lws_getaddrinfo46 failed %d\n",
+						__func__, n);
+				cce = "ipv6 lws_getaddrinfo46 failed";
+				goto oom4;
+			}
+
+			memset(&sa46, 0, sizeof(sa46));
+
+			sa46.sa6.sin6_family = AF_INET6;
+			switch (result->ai_family) {
+			case AF_INET:
+				if (ipv6only)
+					break;
+				/* map IPv4 to IPv6 */
+				bzero((char *)&sa46.sa6.sin6_addr,
+							sizeof(sa46.sa6.sin6_addr));
+				sa46.sa6.sin6_addr.s6_addr[10] = 0xff;
+				sa46.sa6.sin6_addr.s6_addr[11] = 0xff;
+				memcpy(&sa46.sa6.sin6_addr.s6_addr[12],
+					&((struct sockaddr_in *)result->ai_addr)->sin_addr,
+								sizeof(struct in_addr));
+				lwsl_notice("uplevelling AF_INET to AF_INET6\n");
+				break;
+
+			case AF_INET6:
+				memcpy(&sa46.sa6.sin6_addr,
+				  &((struct sockaddr_in6 *)result->ai_addr)->sin6_addr,
+							sizeof(struct in6_addr));
+				sa46.sa6.sin6_scope_id = ((struct sockaddr_in6 *)result->ai_addr)->sin6_scope_id;
+				sa46.sa6.sin6_flowinfo = ((struct sockaddr_in6 *)result->ai_addr)->sin6_flowinfo;
+				break;
+			default:
+				lwsl_err("Unknown address family\n");
+				freeaddrinfo(result);
+				cce = "unknown address family";
+				goto oom4;
+			}
+		} else
+#endif /* use ipv6 */
+
+		/* use ipv4 */
+		{
+			void *p = NULL;
+
+			if (!n) {
+				struct addrinfo *res = result;
+
+				/* pick the first AF_INET (IPv4) result */
+
+				while (!p && res) {
+					switch (res->ai_family) {
+					case AF_INET:
+						p = &((struct sockaddr_in *)res->ai_addr)->sin_addr;
+						break;
+					}
+
+					res = res->ai_next;
+				}
+#if defined(LWS_FALLBACK_GETHOSTBYNAME)
+			} else if (n == EAI_SYSTEM) {
+				struct hostent *host;
+
+				lwsl_info("getaddrinfo (ipv4) failed, trying gethostbyname\n");
+				host = gethostbyname(ads);
+				if (host) {
+					p = host->h_addr;
+				} else {
+					lwsl_err("gethostbyname failed\n");
+					cce = "gethostbyname (ipv4) failed";
+					goto oom4;
+				}
+#endif
+			} else {
+				lwsl_err("getaddrinfo failed\n");
+				cce = "getaddrinfo failed";
+				goto oom4;
+			}
+
+			if (!p) {
+				if (result)
+					freeaddrinfo(result);
+				lwsl_err("Couldn't identify address\n");
+				cce = "unable to lookup address";
+				goto oom4;
+			}
+
+			sa46.sa4.sin_family = AF_INET;
+			sa46.sa4.sin_addr = *((struct in_addr *)p);
+			bzero(&sa46.sa4.sin_zero, 8);
+		}
+
+		if (result)
+			freeaddrinfo(result);
+#endif
+
 #ifdef LWS_WITH_IPV6
 	if (wsi->ipv6) {
 		sa46.sa6.sin6_port = htons(port);
@@ -293,7 +402,6 @@ lws_client_connect_2(struct lws *wsi)
 		n = sizeof(struct sockaddr);
 	}
 
-	lwsl_debug("port=%d, addr=%s\n", port, inet_ntoa(sa46.sa4.sin_addr.s_addr));
 
 	int val = 0;
 	ioctlsocket(wsi->desc.sockfd, FIONBIO,  (void *)&val);

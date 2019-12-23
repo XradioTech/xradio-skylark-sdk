@@ -55,14 +55,18 @@ static void *_realloc(void *ptr, size_t size, const char *reason)
 		lwsl_notice("%s: size %lu: %s\n", __func__,
 			    (unsigned long)size, reason);
 #else
-		lwsl_debug("%s: size %lu: %s\n", __func__,
-			   (unsigned long)size, reason);
 #endif
 #if defined(LWS_PLAT_OPTEE)
 		return (void *)TEE_Realloc(ptr, size);
 #else
-		return (void *)realloc(ptr, size);
+		void *p = (void *)realloc(ptr, size);
+
+		lwsl_debug("%s: p %p: size %lu: %s\n", __func__,
+			   p, (unsigned long)size, reason);
+		return p;
 #endif
+	} else {
+		lwsl_debug("%s: p %p: %s\n", __func__, ptr, reason);
 	}
 	if (ptr)
 		free(ptr);

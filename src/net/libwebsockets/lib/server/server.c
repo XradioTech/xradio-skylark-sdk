@@ -2292,7 +2292,7 @@ lws_server_socket_service(struct lws_context *context, struct lws *wsi,
 		/* handle http headers coming in */
 
 		/* pending truncated sends have uber priority */
-		lwsl_debug("%s %d\n", __FUNCTION__, __LINE__);
+
 		if (wsi->trunc_len) {
 			if (!(pollfd->revents & LWS_POLLOUT))
 				break;
@@ -2310,8 +2310,6 @@ lws_server_socket_service(struct lws_context *context, struct lws *wsi,
 		}
 
 		/* any incoming data ready? */
-		lwsl_debug("%s %d revents=%d events=%d\n",
-					__FUNCTION__, __LINE__, pollfd->revents, pollfd->events);
 
 		if (!(pollfd->revents & pollfd->events & LWS_POLLIN))
 			goto try_pollout;
@@ -2553,8 +2551,7 @@ try_pollout:
 
 #if LWS_POSIX
 		/* pollin means a client has connected to us then */
-		lwsl_debug("%s %d revents=%d events=%d\n",
-					__FUNCTION__, __LINE__, pollfd->revents, pollfd->revents);
+
 		do {
 			if (!(pollfd->revents & LWS_POLLIN) ||
 			    !(pollfd->events & LWS_POLLIN))

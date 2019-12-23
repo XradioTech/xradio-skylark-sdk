@@ -282,6 +282,19 @@ static HAL_Status board_get_cfg(uint32_t major, uint32_t minor, uint32_t param)
 	return ret;
 }
 
+#ifdef __CONFIG_PM
+void board_flash_pinmux_deinit(const GPIO_PinMuxParam *pinmux, uint32_t count)
+{
+	uint32_t i;
+
+	for (i = 0; i < count; ++i) {
+		/* reset driving and mode, but keep pull to avoid current leakage */
+		HAL_GPIO_SetDriving(pinmux[i].port, pinmux[i].pin, GPIO_DRIVING_LEVEL_1);
+		HAL_GPIO_SetMode(pinmux[i].port, pinmux[i].pin, GPIOx_Pn_F7_DISABLE);
+	}
+}
+#endif
+
 HAL_Status board_ioctl(HAL_BoardIoctlReq req, uint32_t param0, uint32_t param1)
 {
 	HAL_Status ret = HAL_OK;
@@ -299,6 +312,16 @@ HAL_Status board_ioctl(HAL_BoardIoctlReq req, uint32_t param0, uint32_t param1)
 			if (minor == SDC1) {
 				; /* do nothing */
 			}
+#ifdef __CONFIG_PM
+		} else if (major == HAL_DEV_MAJOR_FLASHC && req == HAL_BIR_PINMUX_DEINIT) {
+			for (i = 0; i < BOARD_PINMUX_INFO_MAX; ++i) {
+				if (info[i].pinmux != NULL && info[i].count != 0) {
+					board_flash_pinmux_deinit(info[i].pinmux, info[i].count);
+				} else {
+					break;
+				}
+			}
+#endif
 		} else {
 			for (i = 0; i < BOARD_PINMUX_INFO_MAX; ++i) {
 				if (info[i].pinmux != NULL && info[i].count != 0) {

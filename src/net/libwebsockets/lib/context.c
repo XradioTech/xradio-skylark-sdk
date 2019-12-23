@@ -858,7 +858,7 @@ lws_create_vhost(struct lws_context *context,
 
 	/* for the case we are adding a vhost much later, after server init */
 
-	if (!context->protocol_init_done)
+	if (context->protocol_init_done)
 		if (lws_protocol_init(context))
 			goto bail1;
 

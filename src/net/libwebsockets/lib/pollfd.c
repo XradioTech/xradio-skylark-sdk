@@ -601,7 +601,6 @@ lws_callback_on_writable_all_protocol_vhost(const struct lws_vhost *vhost,
 	}
 
 	wsi = vhost->same_vh_protocol_list[protocol - vhost->protocols];
-	lwsl_debug("%s %d wsi=%p\n", __FUNCTION__, __LINE__, wsi);
 	while (wsi) {
 		assert(wsi->protocol == protocol);
 		assert(*wsi->same_vh_protocol_prev == wsi);

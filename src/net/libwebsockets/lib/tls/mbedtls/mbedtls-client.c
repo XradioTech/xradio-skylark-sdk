@@ -148,11 +148,7 @@ lws_tls_client_create_vhost_context(struct lws_vhost *vh,
 		return 1;
 	}
 	/* create context */
-#if defined(LWS_WITH_XRADIO)
-	vh->ssl_ctx = vh->ssl_client_ctx = SSL_CTX_new(method);
-#else
 	vh->ssl_client_ctx = SSL_CTX_new(method);
-#endif
 	if (!vh->ssl_client_ctx) {
 		error = ERR_get_error();
 		lwsl_err("problem creating ssl context %lu: %s\n",
@@ -175,13 +171,11 @@ lws_tls_client_create_vhost_context(struct lws_vhost *vh,
 		lwsl_err("client CA: x509 parse failed\n");
 		return 1;
 	}
-	lwsl_debug("%s():%d %p\n", __FUNCTION__, __LINE__, vh->ssl_ctx);
 
 	// SSL_CTX_add_client_CA(vh->ssl_client_ctx, vh->x509_client_CA);
 	SSL_CTX_add_client_CA(vh->ssl_ctx, vh->x509_client_CA);
 
-	//lwsl_notice("client loaded CA for verification %s\n", ca_filepath);
-	lwsl_debug("%s():%d\n", __FUNCTION__, __LINE__);
+	lwsl_notice("client loaded CA for verification %s\n", ca_filepath);
 
 	return 0;
 }

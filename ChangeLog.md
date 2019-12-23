@@ -1,5 +1,17 @@
 # ChangeLog for XRADIO Skylark SDK
 
+## xradio_skylark_sdk-1.0.2 (20191223)
+
+  * Driver
+    - FLASH: Optimize PM operation
+
+  * Network
+    - libwebsocket: Fix a bug about memory leakage
+
+  * Misc
+    - SDD Editor Ex: update to v2.5.1912a
+    - Sound Config Apk: update to v1.1.2s
+
 ## xradio_skylark_sdk-1.0.1 (20191211)
 
   * WLAN

@@ -107,7 +107,27 @@ lws_poll_listen_fd(struct lws_pollfd *fd)
 
 LWS_VISIBLE void lwsl_emit_syslog(int level, const char *line)
 {
-	printf("%d: %s", level, line);
+	char *level_str = NULL;
+
+	switch (level) {
+		case LLL_ERR: 		level_str = "LLL_ERR"; break;
+		case LLL_WARN: 		level_str = "LLL_WARN"; break;
+		case LLL_NOTICE:	level_str = "LLL_NOTICE"; break;
+		case LLL_INFO: 		level_str = "LLL_INFO"; break;
+		case LLL_DEBUG:		level_str = "LLL_DEBUG"; break;
+		case LLL_PARSER:	level_str = "LLL_PARSER"; break;
+		case LLL_HEADER:	level_str = "LLL_HEADER"; break;
+		case LLL_CLIENT:	level_str = "LLL_CLIENT"; break;
+		case LLL_LATENCY:	level_str = "LLL_LATENCY"; break;
+		case LLL_USER:		level_str = "LLL_USER"; break;
+		case LLL_COUNT:		level_str = "LLL_COUNT"; break;
+		default:        	break;
+	}
+
+	if (level_str != NULL)
+		printf("[%s] %s", level_str, line);
+	else
+		printf("%s", line);
 }
 
 LWS_VISIBLE LWS_EXTERN int
