@@ -92,8 +92,26 @@ typedef struct ota_verify_data {
 	uint8_t ov_data[OTA_VERIFY_DATA_SIZE];
 } ota_verify_data_t;
 
+typedef enum ota_upgrade_status {
+	OTA_UPGRADE_STOP,
+	OTA_UPGRADE_START,
+	OTA_UPGRADE_SUCCESS,
+	OTA_UPGRADE_FAIL,
+	OTA_UPGRADE_UPDATING
+} ota_upgrade_status_t;
+
+typedef void (*ota_callback) (ota_upgrade_status_t status, uint32_t data_size, uint32_t percentage);
+
 ota_status_t ota_init(void);
 void ota_deinit(void);
+ota_status_t ota_set_skip_size(int32_t skip_size);
+ota_status_t ota_set_cb(ota_callback cb);
+
+ota_status_t ota_push_init(void);
+ota_status_t ota_push_start(void);
+ota_status_t ota_push_data(uint8_t *data, uint32_t size);
+ota_status_t ota_push_finish(void);
+ota_status_t ota_push_stop(void);
 
 ota_status_t ota_get_image(ota_protocol_t protocol, void *url);
 ota_status_t ota_get_verify_data(ota_verify_data_t *data);

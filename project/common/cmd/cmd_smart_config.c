@@ -158,17 +158,26 @@ enum cmd_status cmd_smart_config_set_key_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+static enum cmd_status cmd_smart_config_help_exec(char *cmd);
+
 static const struct cmd_data g_smart_config_cmds[] = {
-    { "start",		cmd_smart_config_start_exec},
-    { "stop",		cmd_smart_config_stop_exec},
-    { "set_key",	cmd_smart_config_set_key_exec},
+    { "start",		cmd_smart_config_start_exec, CMD_DESC("start smart config") },
+    { "stop",		cmd_smart_config_stop_exec, CMD_DESC("stop smart config") },
+    { "set_key",	cmd_smart_config_set_key_exec, CMD_DESC("set smart config key") },
+    { "help",	    cmd_smart_config_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_smart_config_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_smart_config_cmds, cmd_nitems(g_smart_config_cmds), 8);
+}
 
 enum cmd_status cmd_smart_config_exec(char *cmd)
 {
 	if (g_wlan_netif == NULL) {
 		return CMD_STATUS_FAIL;
 	}
+
 	return cmd_exec(cmd, g_smart_config_cmds, cmd_nitems(g_smart_config_cmds));
 }
 

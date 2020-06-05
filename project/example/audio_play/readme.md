@@ -154,6 +154,7 @@
 | 本地file | amr      | 4%        |-         |
 | 本地file | wav      | 1%        |-         |
 | 本地file | aac/m4a  | 6%~20%    |-         |
+| 本地file | ts       | 10%       |-         |
 
 > 不同类型的音频，播放时需要的内存资源差别较大，具体数据如下：
 
@@ -164,6 +165,7 @@
 | 本地file | mp2      | 67k      |-         |
 | 本地file | amr(nb)  | 37k      |-         |
 | 本地file | m4a      | 132k     |-         |
+| 本地file | ts       | 138k     |-         |
 | 网络http | m4a      | 142k     |-         |
 | 网络http | mp3      | 75k      |-         |
 
@@ -211,6 +213,7 @@ __weak void platform_cedarx_init(void)
 	CedarxParserRegisterAMR();
 	CedarxParserRegisterMP3();
 	CedarxParserRegisterWAV();
+	CedarxParserRegisterTS();
 
 	CedarxDecoderListInit();
 	CedarxDecoderRegisterAAC();

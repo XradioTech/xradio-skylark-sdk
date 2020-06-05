@@ -841,27 +841,66 @@ static enum cmd_status cmd_nopoll_client_deinit_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+#if CMD_DESCRIBE
+#define np_ser_init_help_info "init d=<debug>, 0:debug off, 1:debug on, init the server"
+#define np_ser_open_help_info "open h=<host_ip> p=<host_port> t=<tls> v=<verify>, open the server"
+#define np_ser_start_help_info "start the server"
+#define np_ser_stop_help_info "stop the server"
+#define np_ser_close_help_info "close the server"
+#define np_ser_deinit_help_info "deinit the server"
+#endif
+
+static enum cmd_status cmd_nopoll_server_help_exec(char *cmd);
+
 static const struct cmd_data g_nopoll_server_cmds[] = {
-	{ "init",	cmd_nopoll_server_init_exec },
-	{ "open",	cmd_nopoll_server_open_exec },
-	{ "start",	cmd_nopoll_server_start_exec },
-	{ "stop",	cmd_nopoll_server_stop_exec },
-	{ "close",	cmd_nopoll_server_close_exec },
-	{ "deinit",	cmd_nopoll_server_deinit_exec },
+	{ "init",	cmd_nopoll_server_init_exec, CMD_DESC(np_ser_init_help_info) },
+	{ "open",	cmd_nopoll_server_open_exec, CMD_DESC(np_ser_open_help_info) },
+	{ "start",	cmd_nopoll_server_start_exec, CMD_DESC(np_ser_start_help_info) },
+	{ "stop",	cmd_nopoll_server_stop_exec, CMD_DESC(np_ser_stop_help_info) },
+	{ "close",	cmd_nopoll_server_close_exec, CMD_DESC(np_ser_close_help_info) },
+	{ "deinit",	cmd_nopoll_server_deinit_exec, CMD_DESC(np_ser_deinit_help_info) },
+	{ "help",	cmd_nopoll_server_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
 
+#if CMD_DESCRIBE
+#define np_cli_init_help_info "init d=<debug>, 0:debug off, 1:debug on, init the client"
+#define np_cli_open_help_info \
+"open h=<server_ip> p=<server_port> t=<tls> v=<verify> c=<cert>, "\
+"open the client and connect the server"
+#define np_cli_send_help_info \
+"send s=<string_len>, send data to server, "\
+"need to input data in the serial port after inputting this command, "\
+"and the data length must be consistent with the parameter string_len"
+#define np_cli_recv_help_info "receive data from server"
+#define np_cli_close_help_info "disconnet from server"
+#define np_cli_deinit_help_info "deinit the client"
+#endif
+
+static enum cmd_status cmd_nopoll_client_help_exec(char *cmd);
+
 static const struct cmd_data g_nopoll_client_cmds[] = {
-	{ "init",	cmd_nopoll_client_init_exec },
-	{ "open",	cmd_nopoll_client_open_exec },
-	{ "send",	cmd_nopoll_client_send_exec },
-	{ "recv",	cmd_nopoll_client_recv_exec },
-	{ "close",	cmd_nopoll_client_close_exec },
-	{ "deinit",	cmd_nopoll_client_deinit_exec },
+	{ "init",	cmd_nopoll_client_init_exec, CMD_DESC(np_cli_init_help_info) },
+	{ "open",	cmd_nopoll_client_open_exec, CMD_DESC(np_cli_open_help_info) },
+	{ "send",	cmd_nopoll_client_send_exec, CMD_DESC(np_cli_send_help_info) },
+	{ "recv",	cmd_nopoll_client_recv_exec, CMD_DESC(np_cli_recv_help_info) },
+	{ "close",	cmd_nopoll_client_close_exec, CMD_DESC(np_cli_close_help_info) },
+	{ "deinit",	cmd_nopoll_client_deinit_exec, CMD_DESC(np_cli_deinit_help_info) },
+	{ "help",	cmd_nopoll_client_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_nopoll_server_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_nopoll_server_cmds, cmd_nitems(g_nopoll_server_cmds), 8);
+}
 
 static enum cmd_status cmd_nopoll_server_exec(char *cmd)
 {
 	return cmd_exec(cmd, g_nopoll_server_cmds, cmd_nitems(g_nopoll_server_cmds));
+}
+
+static enum cmd_status cmd_nopoll_client_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_nopoll_client_cmds, cmd_nitems(g_nopoll_client_cmds), 8);
 }
 
 static enum cmd_status cmd_nopoll_client_exec(char *cmd)
@@ -869,10 +908,18 @@ static enum cmd_status cmd_nopoll_client_exec(char *cmd)
 	return cmd_exec(cmd, g_nopoll_client_cmds, cmd_nitems(g_nopoll_client_cmds));
 }
 
+static enum cmd_status cmd_nopoll_help_exec(char *cmd);
+
 static const struct cmd_data g_nopoll_cmds[] = {
-	{ "srv",	cmd_nopoll_server_exec },
-	{ "cli",	cmd_nopoll_client_exec },
+	{ "srv",	cmd_nopoll_server_exec, CMD_DESC("nopoll server command") },
+	{ "cli",	cmd_nopoll_client_exec, CMD_DESC("nopoll client command") },
+	{ "help",	cmd_nopoll_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_nopoll_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_nopoll_cmds, cmd_nitems(g_nopoll_cmds), 8);
+}
 
 enum cmd_status cmd_nopoll_exec(char *cmd)
 {

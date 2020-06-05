@@ -102,7 +102,7 @@ static uint8_t sample_rate_to_num(uint16_t sample_rate)
 static enum cmd_status cmd_codec_open_exec(char *cmd)
 {
 	int cnt;
-	uint32_t direction, channels, resolution, sampleRate;
+	uint32_t direction, channels, resolution, sampleRate, cmd_param;
 
 	cnt = cmd_sscanf(cmd, "d=%u c=%u r=%u s=%u", &direction, &channels, &resolution, &sampleRate);
 	if (cnt != 4) {
@@ -162,6 +162,12 @@ static enum cmd_status cmd_codec_open_exec(char *cmd)
 		cmd_codec_priv.rec_sample_rate = sampleRate;
 		cmd_codec_priv.rec_channels = channels;
 		cmd_codec_priv.rec_sample_res = resolution;
+
+		//cmd_param = 0x03<<8 | 0x00;
+		//audio_maneger_ioctl(CMD_CODEC_SND_CARD, CODEC_IOCTL_HW_CONFIG, &cmd_param, 1);
+
+		cmd_param = 256<<16 | 256;
+		audio_maneger_ioctl(CMD_CODEC_SND_CARD, CODEC_IOCTL_SW_CONFIG, &cmd_param, 1);
 	} else {
 		pcm_cfg.period_size = play_dat_size[sample_rate_to_num(sampleRate)][channels-1][resolution/8-2]\
 			/(pcm_format_to_bits(pcm_cfg.format)/8*channels)/pcm_cfg.period_count;
@@ -170,6 +176,12 @@ static enum cmd_status cmd_codec_open_exec(char *cmd)
 		cmd_codec_priv.play_sample_rate = sampleRate;
 		cmd_codec_priv.play_channels = channels;
 		cmd_codec_priv.play_sample_res = resolution;
+
+		//cmd_param = 0x03<<8 | 0x00;
+		//audio_maneger_ioctl(CMD_CODEC_SND_CARD, CODEC_IOCTL_HW_CONFIG, &cmd_param, 1);
+
+		cmd_param = 256<<16 | 256;
+		audio_maneger_ioctl(CMD_CODEC_SND_CARD, CODEC_IOCTL_SW_CONFIG, &cmd_param, 1);
 	}
 
 	if (snd_pcm_open(CMD_CODEC_SND_CARD, (Audio_Stream_Dir)direction, &pcm_cfg)) {

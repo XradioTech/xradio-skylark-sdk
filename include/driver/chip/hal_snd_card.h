@@ -46,8 +46,10 @@
 
 
 /* Codec name */
+#define XRADIO_CODEC_NULL_NAME			"xradio_codec_null"
 #define XRADIO_INTERNAL_CODEC_NAME		"xradio_internal_codec"
 #define AC107_CODEC_NAME				"ac107_codec"
+#define AC101_CODEC_NAME				"ac101_codec"
 
 /* Platform name */
 #define XRADIO_PLATFORM_I2S_NAME		"xradio_platform_i2s"
@@ -80,9 +82,14 @@ typedef enum {
 	CODEC_IOCTL_PCM_READ,
 	CODEC_IOCTL_PCM_WRITE,
 	CODEC_IOCTL_HW_CONFIG,
+	CODEC_IOCTL_SW_CONFIG,
 	CODEC_IOCTL_SET_ADDA_DIRECT,
 	CODEC_IOCTL_CMD_MAX = CODEC_IOCTL_SET_ADDA_DIRECT,
-}Codec_Ioctl_Cmd;
+
+	PLATFORM_IOCTL_HW_CONFIG,
+	PLATFORM_IOCTL_SW_CONFIG,
+	PLATFORM_IOCTL_CMD_MAX = PLATFORM_IOCTL_SW_CONFIG,
+}Snd_Card_Ioctl_Cmd;
 
 
 #define I2S_ROLE_MASK		0x000f
@@ -139,6 +146,7 @@ typedef enum {
 	XRADIO_CODEC_NULL,
 	XRADIO_CODEC_INTERNAL,
 	XRADIO_CODEC_AC107,
+	XRADIO_CODEC_AC101,
 }Codec_Attr;
 
 /* platform driver select */
@@ -152,7 +160,9 @@ typedef enum {
 typedef enum {
 	SND_CARD_0,
 	SND_CARD_1,
-	SND_CARD_MAX = SND_CARD_1,
+	SND_CARD_2,
+	SND_CARD_3,
+	SND_CARD_MAX = SND_CARD_3,
 }Snd_Card_Num;
 
 
@@ -160,7 +170,6 @@ typedef enum {
 #define VOLUME_SET_LEVEL	(0x0000)
 #define VOLUME_SET_GAIN		(0x8000)
 #define VOLUME_SET_MASK		(0x8000)
-#define VOLUME_INVALID		(0x7fff)
 
 /* Volume Level */
 typedef enum {
@@ -253,6 +262,20 @@ typedef enum {
 	VOLUME_GAIN_48dB,
 	VOLUME_GAIN_49dB,
 	VOLUME_GAIN_50dB,
+	VOLUME_GAIN_51dB,
+	VOLUME_GAIN_52dB,
+	VOLUME_GAIN_53dB,
+	VOLUME_GAIN_54dB,
+	VOLUME_GAIN_55dB,
+	VOLUME_GAIN_56dB,
+	VOLUME_GAIN_57dB,
+	VOLUME_GAIN_58dB,
+	VOLUME_GAIN_59dB,
+	VOLUME_GAIN_60dB,
+	VOLUME_GAIN_61dB,
+	VOLUME_GAIN_62dB,
+	VOLUME_GAIN_63dB,
+	VOLUME_GAIN_64dB,
 
 	//minus gain
 	VOLUME_GAIN_MINUS_1dB,
@@ -305,6 +328,22 @@ typedef enum {
 	VOLUME_GAIN_MINUS_48dB,
 	VOLUME_GAIN_MINUS_49dB,
 	VOLUME_GAIN_MINUS_50dB,
+	VOLUME_GAIN_MINUS_51dB,
+	VOLUME_GAIN_MINUS_52dB,
+	VOLUME_GAIN_MINUS_53dB,
+	VOLUME_GAIN_MINUS_54dB,
+	VOLUME_GAIN_MINUS_55dB,
+	VOLUME_GAIN_MINUS_56dB,
+	VOLUME_GAIN_MINUS_57dB,
+	VOLUME_GAIN_MINUS_58dB,
+	VOLUME_GAIN_MINUS_59dB,
+	VOLUME_GAIN_MINUS_60dB,
+	VOLUME_GAIN_MINUS_61dB,
+	VOLUME_GAIN_MINUS_62dB,
+	VOLUME_GAIN_MINUS_63dB,
+	VOLUME_GAIN_MINUS_64dB,
+
+	VOLUME_GAIN_MUTE = 0xff,
 }Volume_Gain;
 
 
@@ -360,7 +399,6 @@ struct snd_card_board_config {
 
 #define AUDIO_IN_DEV_SHIFT		(0)
 #define AUDIO_OUT_DEV_SHIFT		(8)
-#define AUDIO_DEFAULT_DEV_MASK	(HAL_BIT(31))
 
 typedef enum {
 	AUDIO_IN_DEV_AMIC	= HAL_BIT(AUDIO_IN_DEV_SHIFT),		/*< AMIC > */
@@ -390,6 +428,8 @@ HAL_Status HAL_SndCard_CodecRegisterInternal(void);
 HAL_Status HAL_SndCard_CodecUnregisterInternal(void);
 HAL_Status HAL_SndCard_CodecRegisterAc107(void);
 HAL_Status HAL_SndCard_CodecUnregisterAc107(void);
+HAL_Status HAL_SndCard_CodecRegisterAc101(void);
+HAL_Status HAL_SndCard_CodecUnregisterAc101(void);
 HAL_Status HAL_SndCard_PlatformRegisterI2S(void);
 HAL_Status HAL_SndCard_PlatformUnregisterI2S(void);
 
@@ -398,7 +438,7 @@ HAL_Status HAL_SndCard_Close(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir)
 HAL_Status HAL_SndCard_SetVolume(Snd_Card_Num card_num, Audio_Device dev, uint16_t volume);
 HAL_Status HAL_SndCard_SetRoute(Snd_Card_Num card_num, Audio_Device dev, Audio_Dev_State state);
 HAL_Status HAL_SndCard_SetMute(Snd_Card_Num card_num, Audio_Device dev, Audio_Mute_State mute);
-HAL_Status HAL_SndCard_Ioctl(Snd_Card_Num card_num, Codec_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len);
+HAL_Status HAL_SndCard_Ioctl(Snd_Card_Num card_num, Snd_Card_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len);
 
 int HAL_SndCard_PcmRead(Snd_Card_Num card_num, uint8_t *buf, uint32_t size);
 int HAL_SndCard_PcmWrite(Snd_Card_Num card_num, uint8_t *buf, uint32_t size);

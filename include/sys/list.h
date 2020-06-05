@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include "compiler.h"
+#include "sys/defs.h"
 
 /*
  * Simple doubly linked list implementation.

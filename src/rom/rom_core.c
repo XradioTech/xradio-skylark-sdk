@@ -63,7 +63,14 @@ int __wrap_putc(int c, FILE *stream);
 int __wrap_fputc(int c, FILE *stream);
 int __wrap_fflush(FILE *stream);
 
+#ifdef __CONFIG_OS_FREERTOS
+#include "FreeRTOS.h"
+#include "task.h"
+
+#define RAM_OS_HZ configTICK_RATE_HZ
+
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName);
+#endif
 
 /* SDC */
 struct mmc_request;
@@ -81,16 +88,6 @@ static int ram_OS_SemaphoreIsValid(OS_Semaphore_t *sem)
 static void ram_OS_SemaphoreSetInvalid(OS_Semaphore_t *sem)
 {
 	OS_SemaphoreSetInvalid(sem);
-}
-
-static void ram_OS_MSleep(OS_Time_t msec)
-{
-	OS_MSleep(msec);
-}
-
-static OS_Time_t ram_OS_GetTicks(void)
-{
-	return OS_GetTicks();
 }
 
 #define RAM_TBL_SET(name, val)	[RAM_TBL_IDX_##name] = (unsigned int)(val)
@@ -118,11 +115,13 @@ unsigned int ram_table[256] __attribute__((section(".ram_table"))) = {
 	RAM_TBL_SET(__wrap_fputc, __wrap_fputc),
 	RAM_TBL_SET(__wrap_fflush, __wrap_fflush),
 
+#ifdef __CONFIG_OS_FREERTOS
 	/* FreeRTOS */
 	RAM_TBL_SET(configMINIMAL_STACK_SIZE, configMINIMAL_STACK_SIZE),
 	RAM_TBL_SET(configTIMER_QUEUE_LENGTH, configTIMER_QUEUE_LENGTH),
 	RAM_TBL_SET(configTIMER_TASK_STACK_DEPTH, configTIMER_TASK_STACK_DEPTH),
 	RAM_TBL_SET(vApplicationStackOverflowHook, vApplicationStackOverflowHook),
+#endif
 
 	/* OS */
 	RAM_TBL_SET(OS_SemaphoreCreate, OS_SemaphoreCreate),
@@ -154,9 +153,9 @@ unsigned int ram_table[256] __attribute__((section(".ram_table"))) = {
 	RAM_TBL_SET(OS_TimerStop, OS_TimerStop),
 	RAM_TBL_SET(OS_TimerIsActive, OS_TimerIsActive),
 
-	RAM_TBL_SET(OS_HZ, OS_HZ),
-	RAM_TBL_SET(OS_GetTicks, ram_OS_GetTicks),
-	RAM_TBL_SET(OS_MSleep, ram_OS_MSleep),
+	RAM_TBL_SET(OS_HZ, RAM_OS_HZ),
+	RAM_TBL_SET(OS_GetTicks, OS_GetTicks),
+	RAM_TBL_SET(OS_MSleep, OS_MSleep),
 
 	RAM_TBL_SET(HAL_UDelay, HAL_UDelay),
 	RAM_TBL_SET(HAL_Alive, HAL_WDG_Feed),

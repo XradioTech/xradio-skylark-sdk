@@ -36,28 +36,10 @@
 static const struct cmd_data g_main_cmds[] = {
 	{ "upgrade",cmd_upgrade_exec },
 	{ "mem",	cmd_mem_exec },
+	{ "camera",	cmd_camera_exec },
 };
 
 void main_cmd_exec(char *cmd)
 {
-	enum cmd_status status;
-
-	if (cmd[0] != '\0') {
-#if (!CONSOLE_ECHO_EN)
-		if (cmd_strcmp(cmd, "efpg"))
-			CMD_LOG(CMD_DBG_ON, "$ %s\n", cmd);
-#endif
-		status = cmd_exec(cmd, g_main_cmds, cmd_nitems(g_main_cmds));
-		if (status != CMD_STATUS_ACKED) {
-			cmd_write_respond(status, cmd_get_status_desc(status));
-		}
-	}
-#if (!CONSOLE_ECHO_EN)
-	else { /* empty command */
-		CMD_LOG(1, "$\n");
-	}
-#endif
-#if CONSOLE_ECHO_EN
-	console_write((uint8_t *)"$ ", 2);
-#endif
+	cmd_main_exec(cmd, g_main_cmds, cmd_nitems(g_main_cmds));
 }

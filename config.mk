@@ -31,6 +31,12 @@ __CONFIG_PSRAM_MALLOC_TRACE ?= n
 # os
 __CONFIG_OS_FREERTOS ?= y
 
+ifeq ($(__CONFIG_OS_FREERTOS), y)
+#   - 80203: FreeRTOS 8.2.3
+#   - 100201: FreeRTOS 10.2.1
+__CONFIG_OS_FREERTOS_VER ?= 80203
+endif
+
 # lwIP
 #   - y: lwIP 1.4.1, support IPv4 stack only
 #   - n: lwIP 2.x.x, support dual IPv4/IPv6 stack
@@ -118,7 +124,11 @@ endif
 
 # rom of FreeRTOS
 ifeq ($(__CONFIG_ROM), y)
-  __CONFIG_ROM_FREERTOS ?= y
+  ifeq ($(__CONFIG_OS_FREERTOS_VER), 80203)
+    __CONFIG_ROM_FREERTOS ?= y
+  else
+    __CONFIG_ROM_FREERTOS ?= n
+  endif
 else
   __CONFIG_ROM_FREERTOS ?= n
 endif
@@ -149,6 +159,8 @@ __CONFIG_OTA_POLICY ?= 0x00
 
 # bin compression
 __CONFIG_BIN_COMPRESS ?= n
+__CONFIG_BIN_COMPRESS_APP ?= y
+__CONFIG_BIN_COMPRESS_APP_PSRAM ?= y
 
 # xplayer
 __CONFIG_XPLAYER ?= n
@@ -166,6 +178,18 @@ ifeq ($(__CONFIG_MALLOC_USE_STDLIB), y)
   endif
 endif
 __CONFIG_MIX_HEAP_MANAGE ?= n
+
+# config dma_malloc using psram
+# unit KB, 0 is disable
+ifeq ($(__CONFIG_PSRAM), y)
+ifeq ($(__CONFIG_JPEG), y)
+__CONFIG_DMAHEAP_PSRAM_SIZE ?= 768
+else
+__CONFIG_DMAHEAP_PSRAM_SIZE ?= 256
+endif
+else
+__CONFIG_DMAHEAP_PSRAM_SIZE := 0
+endif
 
 # icache and dcache configure, sort by size sum of icache+dcache
 #   - 0x00: icache  0 KB, dcache  0 KB
@@ -220,6 +244,13 @@ __CONFIG_AUDIO_HEAP_MODE := 0
 __CONFIG_CODEC_HEAP_MODE := 0
 endif
 
+ifeq ($(__CONFIG_PSRAM), y)
+__CONFIG_PSRAM_ALL_CACHEABLE ?= y
+endif
+
+# support setting cpu clock to 349MHz
+__CONFIG_CPU_SUPPORT_349MHZ ?= n
+
 # ----------------------------------------------------------------------------
 # config symbols
 # ----------------------------------------------------------------------------
@@ -255,6 +286,7 @@ endif
 
 ifeq ($(__CONFIG_OS_FREERTOS), y)
   CONFIG_SYMBOLS += -D__CONFIG_OS_FREERTOS
+  CONFIG_SYMBOLS += -D__CONFIG_OS_FREERTOS_VER=$(__CONFIG_OS_FREERTOS_VER)
 endif
 
 ifeq ($(__CONFIG_LWIP_V1), y)
@@ -370,7 +402,16 @@ CONFIG_SYMBOLS += -D__CONFIG_OTA_POLICY=$(__CONFIG_OTA_POLICY)
 
 ifeq ($(__CONFIG_BIN_COMPRESS), y)
   CONFIG_SYMBOLS += -D__CONFIG_BIN_COMPRESS
+
+ifeq ($(__CONFIG_BIN_COMPRESS_APP), y)
+  CONFIG_SYMBOLS += -D__CONFIG_BIN_COMPRESS_APP
 endif
+
+ifeq ($(__CONFIG_BIN_COMPRESS_APP_PSRAM), y)
+  CONFIG_SYMBOLS += -D__CONFIG_BIN_COMPRESS_APP_PSRAM
+endif
+
+endif # __CONFIG_BIN_COMPRESS
 
 ifeq ($(__CONFIG_XPLAYER), y)
   CONFIG_SYMBOLS += -D__CONFIG_XPLAYER
@@ -389,6 +430,7 @@ ifeq ($(__CONFIG_MIX_HEAP_MANAGE), y)
 endif
 
 CONFIG_SYMBOLS += -D__CONFIG_CACHE_POLICY=$(__CONFIG_CACHE_POLICY)
+CONFIG_SYMBOLS += -D__CONFIG_DMAHEAP_PSRAM_SIZE=$(__CONFIG_DMAHEAP_PSRAM_SIZE)
 
 CONFIG_SYMBOLS += -D__CONFIG_MBUF_HEAP_MODE=$(__CONFIG_MBUF_HEAP_MODE)
 CONFIG_SYMBOLS += -D__CONFIG_MBEDTLS_HEAP_MODE=$(__CONFIG_MBEDTLS_HEAP_MODE)
@@ -401,3 +443,12 @@ CONFIG_SYMBOLS += -D__CONFIG_LMAC_HEAP_MODE=$(__CONFIG_LMAC_HEAP_MODE)
 CONFIG_SYMBOLS += -D__CONFIG_CEDARX_HEAP_MODE=$(__CONFIG_CEDARX_HEAP_MODE)
 CONFIG_SYMBOLS += -D__CONFIG_AUDIO_HEAP_MODE=$(__CONFIG_AUDIO_HEAP_MODE)
 CONFIG_SYMBOLS += -D__CONFIG_CODEC_HEAP_MODE=$(__CONFIG_CODEC_HEAP_MODE)
+
+ifeq ($(__CONFIG_PSRAM_ALL_CACHEABLE), y)
+  CONFIG_SYMBOLS += -D__CONFIG_PSRAM_ALL_CACHEABLE
+endif
+
+ifeq ($(__CONFIG_CPU_SUPPORT_349MHZ), y)
+  CONFIG_SYMBOLS += -D__CONFIG_CPU_SUPPORT_349MHZ
+endif
+

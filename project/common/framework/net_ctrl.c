@@ -361,7 +361,7 @@ struct netif *net_open(enum wlan_mode mode, wlan_event_cb_func cb)
 #if (NET_CTRL_OPT_CHG_CPU_CLK || NET_CTRL_OPT_DIS_LOW_PWR)
 	if (HAL_GetCPUClock() > NET_CTRL_OPT_CPU_CLK_THRESH) {
 #if NET_CTRL_OPT_CHG_CPU_CLK
-		PRCM_CPUClkSrc old_factor = HAL_GET_BIT(PRCM->SYS_CLK1_CTRL, PRCM_SYS_CLK_FACTOR_MASK);
+		PRCM_SysClkFactor old_factor = HAL_GET_BIT(PRCM->SYS_CLK1_CTRL, PRCM_SYS_CLK_FACTOR_MASK);
 		platform_set_cpu_clock(NET_CTRL_OPT_CPU_CLK_FACTOR);
 #endif
 #if NET_CTRL_OPT_DIS_LOW_PWR
@@ -381,6 +381,7 @@ struct netif *net_open(enum wlan_mode mode, wlan_event_cb_func cb)
 	if (nif == NULL) {
 		return NULL;
 	}
+	g_wlan_netif = nif;
 
 #if LWIP_NETIF_LINK_CALLBACK
 	netif_set_link_callback(nif, netif_link_callback);
@@ -436,7 +437,7 @@ void net_close(struct netif *nif)
 #endif
 #if (NET_CTRL_OPT_CHG_CPU_CLK)
 	if (HAL_GetCPUClock() > NET_CTRL_OPT_CPU_CLK_THRESH) {
-		PRCM_CPUClkSrc old_factor = HAL_GET_BIT(PRCM->SYS_CLK1_CTRL, PRCM_SYS_CLK_FACTOR_MASK);
+		PRCM_SysClkFactor old_factor = HAL_GET_BIT(PRCM->SYS_CLK1_CTRL, PRCM_SYS_CLK_FACTOR_MASK);
 		platform_set_cpu_clock(NET_CTRL_OPT_CPU_CLK_FACTOR);
 		wlan_netif_delete(nif);
 		platform_set_cpu_clock(old_factor);

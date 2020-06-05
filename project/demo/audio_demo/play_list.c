@@ -41,7 +41,7 @@
 #define LIST_LOGE(fmt, arg...)  printf("[LIST_ERR][F:%s][L:%d] " fmt, __func__, __LINE__, ##arg)
 #define LIST_LOGD(fmt, arg...)  printf("[LIST_DBG][F:%s][L:%d] " fmt, __func__, __LINE__, ##arg)
 
-static char *support_suffix[] = {".mp3", ".amr", ".wav", ".m4a", ".aac", ".mp2", ".mp1"};
+static char *support_suffix[] = {".mp3", ".amr", ".wav", ".m4a", ".aac", ".mp2", ".mp1", ".ts"};
 
 struct play_list_info {
     FIL fp;

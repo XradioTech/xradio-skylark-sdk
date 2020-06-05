@@ -34,1410 +34,1187 @@
 
 #ifndef __CONFIG_BOOTLOADER
 
+#include <stdbool.h>
+#include "pm/pm.h"
+#include "hal_base.h"
 #include "driver/chip/hal_dma.h"
 #include "driver/chip/hal_i2s.h"
-#include "hal_base.h"
-#include "pm/pm.h"
+
 #include "./codec/audio_arch.h"
 
-#define I2D_DBG_ON                0
-#define LOOP_EN					  0
 
-#if (I2D_DBG_ON == 1)
-#define I2S_DEBUG(fmt, arg...)    HAL_LOG(I2D_DBG_ON, "[I2S] "fmt, ##arg)
+//Debug config
+#define XRADIO_I2S_DBG_EN               0
+#define XRADIO_I2S_ERR_EN               1
+
+#define XRADIO_I2S_DBG(fmt, arg...)    	HAL_LOG(XRADIO_I2S_DBG_EN, "[I2S] "fmt, ##arg)
+#define XRADIO_I2S_ERR(fmt, arg...)    	HAL_LOG(XRADIO_I2S_ERR_EN, "[I2S] "fmt, ##arg)
+#define XRADIO_I2S_ALWAYS(fmt, arg...)  HAL_LOG(1, "[I2S] "fmt, ##arg)
+#define XRADIO_I2S_IT_ERR(fmt, arg...)	HAL_IT_LOG(XRADIO_I2S_ERR_EN, "[I2S] "fmt, ##arg)
+
+//Xradio I2S config
+#define XRADIO_I2S_DEF_UNDERRUN_THRES	3
+#define XRADIO_I2S_DEF_OVERRUN_THRES	3
+#define XRADIO_I2S_MODULE_CLK_SRC		CCM_DAUDIO_MCLK_SRC_1X
+
+//Interface define
+#define XRADIO_I2S_MALLOC				HAL_Malloc
+#define XRADIO_I2S_FREE					HAL_Free
+#define XRADIO_I2S_MEMCPY				HAL_Memcpy
+#define XRADIO_I2S_MEMSET				HAL_Memset
+
+
+//Xradio I2S priv struct
+struct Xradio_I2S_Priv{
+	//i2s status control
+    bool isI2SInit;
+    bool isTxInit;
+    bool isRxInit;
+    volatile bool txRunning;
+    volatile bool rxRunning;
+
+	//buffer control
+    uint8_t *txBuf;
+    uint8_t *rxBuf;
+    uint8_t *readPointer;
+    uint8_t *writePointer;
+	uint32_t rxBufSize;
+	uint32_t txBufSize;
+
+	//DMA control
+    uint8_t *txDmaPointer;
+    uint8_t *rxDmaPointer;
+    DMA_Channel txDMAChan;
+    DMA_Channel rxDMAChan;
+	DMA_DataWidth tx_data_width;
+	DMA_DataWidth rx_data_width;
+    volatile uint8_t txHalfCallCount;
+    volatile uint8_t rxHalfCallCount;
+    volatile uint8_t txEndCallCount;
+    volatile uint8_t rxEndCallCount;
+
+	//Semaphore control
+    bool isTxSemaphore;
+    bool isRxSemaphore;
+    HAL_Semaphore txReady;
+    HAL_Semaphore rxReady;
+
+	//Misc control
+	uint8_t mclk_div;
+	uint8_t i2s_mode;
+	uint8_t slot_width;
+	uint8_t loop_back_en;
+	uint8_t pcm_frame_mode;
+	uint32_t lrck_period;
+	uint32_t daudio_clk_freq;
+	uint16_t tx_underrun_threshold;
+	uint16_t rx_overrun_threshold;
+};
+
+static struct Xradio_I2S_Priv *xradio_i2s_priv;
+
+
+//const array define
+struct real_val_to_reg_val {
+	uint32_t real_val;
+	uint32_t reg_val;
+};
+
+struct pll_param {
+	uint32_t hosc_freq;
+	Audio_Clk_Freq pll_freq_out;
+	uint32_t pllParam;
+	uint32_t pllPatParam;
+};
+
+static const struct real_val_to_reg_val xradio_i2s_bclk_div[] = {
+	{0,  0},
+	{1,  1},
+	{2,  2},
+	{4,  3},
+	{6,  4},
+	{8,  5},
+	{12, 6},
+	{16, 7},
+	{24, 8},
+	{32, 9},
+	{48, 10},
+	{64, 11},
+	{96, 12},
+	{128,13},
+	{176,14},
+	{192,15},
+};
+
+static const struct real_val_to_reg_val xradio_i2s_mclk_div[] = {
+	{0,  0},
+	{1,  1},
+	{2,  2},
+	{4,  3},
+	{6,  4},
+	{8,  5},
+	{12, 6},
+	{16, 7},
+	{24, 8},
+	{32, 9},
+	{48, 10},
+	{64, 11},
+	{96, 12},
+	{128,13},
+	{176,14},
+	{192,15},
+};
+
+static const struct pll_param xradio_i2s_pll_params[] = {
+    {HOSC_CLOCK_26M, AUDIO_CLK_24M, PRCM_AUD_PLL24M_PARAM_HOSC26M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC26M},
+    {HOSC_CLOCK_26M, AUDIO_CLK_22M, PRCM_AUD_PLL22M_PARAM_HOSC26M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC26M},
+    {HOSC_CLOCK_24M, AUDIO_CLK_24M, PRCM_AUD_PLL24M_PARAM_HOSC24M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC24M},
+    {HOSC_CLOCK_24M, AUDIO_CLK_22M, PRCM_AUD_PLL22M_PARAM_HOSC24M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC24M},
+    {HOSC_CLOCK_40M, AUDIO_CLK_24M, PRCM_AUD_PLL24M_PARAM_HOSC40M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC40M},
+    {HOSC_CLOCK_40M, AUDIO_CLK_22M, PRCM_AUD_PLL22M_PARAM_HOSC40M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC40M},
+    {HOSC_CLOCK_52M, AUDIO_CLK_24M, PRCM_AUD_PLL24M_PARAM_HOSC52M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC52M},
+    {HOSC_CLOCK_52M, AUDIO_CLK_22M, PRCM_AUD_PLL22M_PARAM_HOSC52M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC52M},
+};
+
+
+//Base read/write Interface
+__nonxip_text
+static int xradio_i2s_reg_read(uint32_t reg)
+{
+	return HAL_REG_32BIT(reg+I2S_BASE);
+}
+
+__nonxip_text
+static int xradio_i2s_reg_write(uint32_t reg, uint32_t val)
+{
+	HAL_REG_32BIT(reg+I2S_BASE) = val;
+
+	return HAL_OK;
+}
+
+__nonxip_text
+static int xradio_i2s_reg_update_bits(uint32_t reg, uint32_t mask, uint32_t val)
+{
+	uint32_t val_old,val_new;
+
+	val_old = xradio_i2s_reg_read(reg);
+	val_new = (val_old & ~mask) | (val & mask);
+
+	if(val_new != val_old){
+		xradio_i2s_reg_write(reg, val_new);
+	}
+
+	return HAL_OK;
+}
+
+
+/*************************** XRADIO I2S DMA Control ****************************/
+__nonxip_text
+static void xradio_i2s_dma_trigger(Audio_Stream_Dir dir, bool enable)
+{
+	uint32_t flags;
+	uint8_t doProtection = !HAL_IsISRContext();
+
+	if (doProtection) {
+		flags = HAL_EnterCriticalSection();
+	}
+
+	if (enable) {
+		if (dir == PCM_OUT) {
+			//Flush TX_FIFO
+			xradio_i2s_reg_update_bits(DA_FCTL, 0x1<<I2S_FTX_BIT, 0x1<<I2S_FTX_BIT);
+			if(xradio_i2s_priv->txDMAChan != DMA_CHANNEL_INVALID){
+				//TX DRQ Enable
+				xradio_i2s_reg_update_bits(DA_INT, 0x1<<I2S_TXE_DRQ_EN_BIT, 0x1<<I2S_TXE_DRQ_EN_BIT);
+				//DMA Start
+				HAL_DMA_Start(xradio_i2s_priv->txDMAChan, (uint32_t)xradio_i2s_priv->txBuf, (uint32_t)(DA_TXFIFO+I2S_BASE), xradio_i2s_priv->txBufSize);
+			}
+			xradio_i2s_priv->txRunning = true;
+		} else {
+			//Flush RX_FIFO
+			xradio_i2s_reg_update_bits(DA_FCTL, 0x1<<I2S_FRX_BIT, 0x1<<I2S_FRX_BIT);
+			if(xradio_i2s_priv->rxDMAChan != DMA_CHANNEL_INVALID){
+				//RX DRQ Enable
+				xradio_i2s_reg_update_bits(DA_INT, 0x1<<I2S_RXA_DRQ_EN_BIT, 0x1<<I2S_RXA_DRQ_EN_BIT);
+				//DMA Start
+				HAL_DMA_Start(xradio_i2s_priv->rxDMAChan, (uint32_t)(DA_RXFIFO+I2S_BASE), (uint32_t)xradio_i2s_priv->rxBuf, xradio_i2s_priv->rxBufSize);
+			}
+			xradio_i2s_priv->rxRunning = true;
+		}
+	} else {
+		if (dir == PCM_OUT) {
+			//Flush TX_FIFO
+			xradio_i2s_reg_update_bits(DA_FCTL, 0x1<<I2S_FTX_BIT, 0x1<<I2S_FTX_BIT);
+			if(xradio_i2s_priv->txDMAChan != DMA_CHANNEL_INVALID){
+				//TX DRQ Disable
+				xradio_i2s_reg_update_bits(DA_INT, 0x1<<I2S_TXE_DRQ_EN_BIT, 0x0<<I2S_TXE_DRQ_EN_BIT);
+				//DMA Stop
+				HAL_DMA_Stop(xradio_i2s_priv->txDMAChan);
+			}
+			xradio_i2s_priv->txRunning = false;
+		} else {
+			//Flush RX_FIFO
+			xradio_i2s_reg_update_bits(DA_FCTL, 0x1<<I2S_FRX_BIT, 0x1<<I2S_FRX_BIT);
+			if(xradio_i2s_priv->rxDMAChan != DMA_CHANNEL_INVALID){
+				//RX DRQ Disable
+				xradio_i2s_reg_update_bits(DA_INT, 0x1<<I2S_RXA_DRQ_EN_BIT, 0x0<<I2S_RXA_DRQ_EN_BIT);
+				//DMA Stop
+				HAL_DMA_Stop(xradio_i2s_priv->rxDMAChan);
+			}
+			xradio_i2s_priv->rxRunning = false;
+		}
+	}
+
+	if (doProtection) {
+		HAL_ExitCriticalSection(flags);
+	}
+}
+
+__nonxip_text
+static int xradio_i2s_dma_threshold_check(Audio_Stream_Dir dir)
+{
+	if (dir == PCM_OUT) {
+		if (xradio_i2s_priv->txHalfCallCount >= xradio_i2s_priv->tx_underrun_threshold ||
+			xradio_i2s_priv->txEndCallCount  >= xradio_i2s_priv->tx_underrun_threshold) {
+			XRADIO_I2S_IT_ERR("Tx : underrun and stop dma tx...\n");
+			xradio_i2s_dma_trigger(PCM_OUT, false);
+			//xradio_i2s_priv->txRunning = false;	//has been config in trigger interface
+			xradio_i2s_priv->writePointer = NULL;
+			xradio_i2s_priv->txDmaPointer = NULL;
+			xradio_i2s_priv->txHalfCallCount = 0;
+			xradio_i2s_priv->txEndCallCount = 0;
+			return HAL_ERROR;
+		}
+	} else {
+		if (xradio_i2s_priv->rxHalfCallCount >= xradio_i2s_priv->rx_overrun_threshold ||
+			xradio_i2s_priv->rxEndCallCount  >= xradio_i2s_priv->rx_overrun_threshold) {
+			XRADIO_I2S_IT_ERR("Rx : overrun and stop dma rx...\n");
+			xradio_i2s_dma_trigger(PCM_IN, false);
+			//xradio_i2s_priv->rxRunning = false;	//has been config in trigger interface
+			xradio_i2s_priv->readPointer = NULL;
+			xradio_i2s_priv->rxDmaPointer = NULL;
+			xradio_i2s_priv->rxHalfCallCount = 0;
+			xradio_i2s_priv->rxEndCallCount = 0;
+			return HAL_ERROR;
+		}
+	}
+
+	return HAL_OK;
+}
+
+__nonxip_text
+static void xradio_i2s_dma_half_callback(void *arg)
+{
+	if (arg == &xradio_i2s_priv->txReady) {
+		xradio_i2s_priv->txHalfCallCount++;
+		if(xradio_i2s_priv->isTxSemaphore){
+			xradio_i2s_priv->isTxSemaphore = false;
+			HAL_SemaphoreRelease((HAL_Semaphore *)arg);
+		}
+		if(xradio_i2s_dma_threshold_check(PCM_OUT))
+			return;
+		xradio_i2s_priv->txDmaPointer = xradio_i2s_priv->txBuf + xradio_i2s_priv->txBufSize/2;
+	} else {
+		xradio_i2s_priv->rxHalfCallCount++;
+		if(xradio_i2s_priv->isRxSemaphore){
+			xradio_i2s_priv->isRxSemaphore = false;
+			HAL_SemaphoreRelease((HAL_Semaphore *)arg);
+		}
+		if(xradio_i2s_dma_threshold_check(PCM_IN))
+			return;
+		xradio_i2s_priv->rxDmaPointer = xradio_i2s_priv->rxBuf + xradio_i2s_priv->rxBufSize/2;
+	}
+}
+
+__nonxip_text
+static void xradio_i2s_dma_end_callback(void *arg)
+{
+	if (arg == &xradio_i2s_priv->txReady) {
+		xradio_i2s_priv->txEndCallCount++;
+		if (xradio_i2s_priv->isTxSemaphore) {
+			xradio_i2s_priv->isTxSemaphore = false;
+			HAL_SemaphoreRelease((HAL_Semaphore *)arg);
+		}
+		if (xradio_i2s_dma_threshold_check(PCM_OUT))
+			return;
+		xradio_i2s_priv->txDmaPointer = xradio_i2s_priv->txBuf;
+	} else {
+		xradio_i2s_priv->rxEndCallCount++;
+		if (xradio_i2s_priv->isRxSemaphore) {
+			xradio_i2s_priv->isRxSemaphore = false;
+			HAL_SemaphoreRelease((HAL_Semaphore *)arg);
+		}
+		if (xradio_i2s_dma_threshold_check(PCM_IN))
+			return;
+		xradio_i2s_priv->rxDmaPointer = xradio_i2s_priv->rxBuf;
+	}
+}
+
+static int xradio_i2s_dma_init(Audio_Stream_Dir dir, DMA_Channel channel)
+{
+#if HAL_DMA_OPT_TRANSFER_HALF_IRQ
+
+	DMA_ChannelInitParam dmaParam;
+	HAL_Memset(&dmaParam, 0, sizeof(dmaParam));
+
+	if (dir == PCM_OUT) {
+		dmaParam.cfg = HAL_DMA_MakeChannelInitCfg(
+						DMA_WORK_MODE_CIRCULAR,
+						DMA_WAIT_CYCLE_2,
+						DMA_BYTE_CNT_MODE_REMAIN,
+						xradio_i2s_priv->tx_data_width,
+						DMA_BURST_LEN_1,
+						DMA_ADDR_MODE_FIXED,
+						DMA_PERIPH_DAUDIO,
+						xradio_i2s_priv->tx_data_width,
+						DMA_BURST_LEN_1,
+						DMA_ADDR_MODE_INC,
+						DMA_PERIPH_SRAM);
+
+		dmaParam.endArg = &xradio_i2s_priv->txReady;
+		dmaParam.halfArg = &xradio_i2s_priv->txReady;
+	} else {
+		dmaParam.cfg = HAL_DMA_MakeChannelInitCfg(
+						DMA_WORK_MODE_CIRCULAR,
+						DMA_WAIT_CYCLE_2,
+						DMA_BYTE_CNT_MODE_REMAIN,
+						xradio_i2s_priv->rx_data_width,
+						DMA_BURST_LEN_1,
+						DMA_ADDR_MODE_INC,
+						DMA_PERIPH_SRAM,
+						xradio_i2s_priv->rx_data_width,
+						DMA_BURST_LEN_1,
+						DMA_ADDR_MODE_FIXED,
+						DMA_PERIPH_DAUDIO);
+
+		dmaParam.endArg = &xradio_i2s_priv->rxReady;
+		dmaParam.halfArg = &xradio_i2s_priv->rxReady;
+	}
+
+	dmaParam.irqType = DMA_IRQ_TYPE_BOTH;
+	dmaParam.halfCallback = xradio_i2s_dma_half_callback;
+	dmaParam.endCallback = xradio_i2s_dma_end_callback;
+
+	return HAL_DMA_Init(channel, &dmaParam);
+
 #else
-#define I2S_DEBUG(fmt, arg...)
+
+	XRADIO_I2S_ERR("DMA don't support Half IRQ, dma init Fail!\n");
+	return HAL_ERROR;
+
 #endif
-#define I2S_ERROR(fmt, arg...)    HAL_LOG(1, "[I2S] "fmt, ##arg)
-
-/* debug in interrupt handler */
-#ifdef __CONFIG_SECTION_ATTRIBUTE_NONXIP
-#define I2S_IT_ERROR(fmt, arg...) HAL_IT_LOG(1, "[I2S] "fmt, ##arg)
-#else
-#define I2S_IT_ERROR              I2S_ERROR
-#endif /* __CONFIG_SECTION_ATTRIBUTE_NONXIP */
-
-struct I2S_Private{
-    volatile bool               isHwInit;
-    volatile bool               txRunning;
-    volatile bool               rxRunning;
-
-    uint8_t                     *txBuf;
-    uint8_t                     *rxBuf;
-    uint8_t                     *readPointer;
-    uint8_t                     *writePointer;
-	uint32_t					rxBufSize;
-	uint32_t					txBufSize;
-
-    DMA_Channel                 txDMAChan;
-    DMA_Channel                 rxDMAChan;
-    I2S_HWParam                 *hwParam;
-    I2S_DataParam               pdataParam;
-    I2S_DataParam               cdataParam;
-    volatile uint8_t           txHalfCallCount;
-    volatile uint8_t           rxHalfCallCount;
-    volatile uint8_t           txEndCallCount;
-    volatile uint8_t           rxEndCallCount;
-    uint8_t                     *txDmaPointer;
-    uint8_t                     *rxDmaPointer;
-
-    HAL_Semaphore               txReady;
-    HAL_Semaphore               rxReady;
-    bool                        isTxSemaphore;
-    bool                        isRxSemaphore;
-    bool                        isTxInitiate;
-    bool                        isRxInitiate;
-
-    HAL_Mutex                   devSetLock;
-
-    uint32_t                    audioPllParam;
-    uint32_t                    audioPllPatParam;
-#ifdef CONFIG_PM
-	uint32_t                    suspend;
-	struct soc_device           dev;
-#endif
-};
-
-typedef struct {
-        uint32_t        hosc;
-        uint32_t        audio;
-        uint32_t        pllParam;
-        uint32_t        pllPatParam;
-} HOSC_I2S_Type;
-
-typedef enum {
-        I2S_PLL_24M        = 0U,
-        I2S_PLL_22M        = 1U,
-} I2S_PLLMode;
-
-typedef struct {
-	uint8_t       clkDiv;
-	I2S_BCLKDIV   bregVal;
-	I2S_MCLKDIV   mregVal;
-} CLK_DIVRegval;
-
-#define AUDIO_PLL_SRC               (CCM_DAUDIO_MCLK_SRC_1X)
-#define AUDIO_DEVICE_PLL             AUDIO_CLK_22M
-
-#define I2S_MEMCPY                   HAL_Memcpy
-#define I2S_MALLOC                   HAL_Malloc
-#define I2S_FREE                     HAL_Free
-#define I2S_MEMSET                   HAL_Memset
-
-#define UNDERRUN_THRESHOLD           (LOOP_EN ? 256 :3)
-#define OVERRUN_THRESHOLD            (LOOP_EN ? 256 :3)
-
-#ifdef RESERVERD_MEMORY_FOR_I2S_TX
-static uint8_t I2STX_BUF[I2S_BUF_LENGTH];
-#endif
-#ifdef RESERVERD_MEMORY_FOR_I2S_RX
-static uint8_t I2SRX_BUF[I2S_BUF_LENGTH];
-#endif
-
-void HAL_I2S_Trigger(bool enable,Audio_Stream_Dir dir);
-static struct I2S_Private *gI2sPrivate;
-
-/*
- *default hw configuration
- */
-static I2S_HWParam gHwParam = {
-        0,                  /*0:I2S,1:PCM*/
-        DAIFMT_CBS_CFS,
-        DAIFMT_I2S,
-        DAIFMT_NB_NF,
-        32,                 /*16,32,64,128,256*/
-        I2S_SHORT_FRAME,
-        I2S_TX_MSB_FIRST,
-        I2S_RX_MSB_FIRST,
-        0x40,
-        0xF,
-        {AUDIO_DEVICE_PLL,1},
-        1,
-};
-
-static const CLK_DIVRegval DivRegval[] = {
-        {1,   I2S_BCLKDIV_1,   I2S_MCLKDIV_1},
-        {2,   I2S_BCLKDIV_2,   I2S_MCLKDIV_2},
-        {4,   I2S_BCLKDIV_4,   I2S_MCLKDIV_4},
-        {6,   I2S_BCLKDIV_6,   I2S_MCLKDIV_6},
-        {8,   I2S_BCLKDIV_8,   I2S_MCLKDIV_8},
-        {12,  I2S_BCLKDIV_12,  I2S_MCLKDIV_12},
-        {16,  I2S_BCLKDIV_16,  I2S_MCLKDIV_16},
-        {24,  I2S_BCLKDIV_24,  I2S_MCLKDIV_24},
-        {32,  I2S_BCLKDIV_32,  I2S_MCLKDIV_32},
-        {48,  I2S_BCLKDIV_48,  I2S_MCLKDIV_48},
-        {64,  I2S_BCLKDIV_64,  I2S_MCLKDIV_64},
-        {96,  I2S_BCLKDIV_96,  I2S_MCLKDIV_96},
-        {128, I2S_BCLKDIV_128, I2S_MCLKDIV_128},
-        {176, I2S_BCLKDIV_176, I2S_MCLKDIV_176},
-        {192, I2S_BCLKDIV_192, I2S_MCLKDIV_192},
-};
-
-static const HOSC_I2S_Type i2s_hosc_aud_type[] = {
-        {HOSC_CLOCK_26M, I2S_PLL_24M, PRCM_AUD_PLL24M_PARAM_HOSC26M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC26M},
-        {HOSC_CLOCK_26M, I2S_PLL_22M, PRCM_AUD_PLL22M_PARAM_HOSC26M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC26M},
-        {HOSC_CLOCK_24M, I2S_PLL_24M, PRCM_AUD_PLL24M_PARAM_HOSC24M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC24M},
-        {HOSC_CLOCK_24M, I2S_PLL_22M, PRCM_AUD_PLL22M_PARAM_HOSC24M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC24M},
-        {HOSC_CLOCK_40M, I2S_PLL_24M, PRCM_AUD_PLL24M_PARAM_HOSC40M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC40M},
-        {HOSC_CLOCK_40M, I2S_PLL_22M, PRCM_AUD_PLL22M_PARAM_HOSC40M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC40M},
-        {HOSC_CLOCK_52M, I2S_PLL_24M, PRCM_AUD_PLL24M_PARAM_HOSC52M, PRCM_AUD_PLL24M_PAT_PARAM_HOSC52M},
-        {HOSC_CLOCK_52M, I2S_PLL_22M, PRCM_AUD_PLL22M_PARAM_HOSC52M, PRCM_AUD_PLL22M_PAT_PARAM_HOSC52M},
-};
-
-/**
-  * @internal
-  * @brief Set i2s clock frequency
-  * @pll I2S clock identifier
-  *         This parameter can be one of the following values:
-  *            @arg @ref I2S_PLL_22M
-  *            @arg @ref I2S_PLL_24M
-  * @retval return 0 means success otherwise fail
-  */
-uint32_t I2S_PLLAUDIO_Update(I2S_PLLMode pll)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-
-        if (pll != I2S_PLL_24M &&  pll != I2S_PLL_22M)
-                return -1;
-
-        uint32_t hoscClock = HAL_GetHFClock();
-
-        int i = 0;
-        for (i = 0; i < HAL_ARRAY_SIZE(i2s_hosc_aud_type); i++) {
-                if ((i2s_hosc_aud_type[i].hosc == hoscClock) && (i2s_hosc_aud_type[i].audio == pll)) {
-                        i2sPrivate->audioPllParam = i2s_hosc_aud_type[i].pllParam;
-                        i2sPrivate->audioPllPatParam = i2s_hosc_aud_type[i].pllPatParam;
-                        break;
-                }
-        }
-        if (i == HAL_ARRAY_SIZE(i2s_hosc_aud_type)) {
-                I2S_ERROR("Update audio pll failed....\n");
-                return -1;
-        }
-        return 0;
 }
 
-/**
-  * @internal
-  * @brief Enable/disable I2S tx
-  * @retval None
-  */
-static void I2S_DisableTx()
+/*****************************************************************************/
+
+
+static void xradio_i2s_reset(void)
 {
-        HAL_CLR_BIT(I2S->DA_CTL, I2S_TX_EN_BIT);
+	XRADIO_I2S_DBG("%s, reset all register to their default value\n",__FUNCTION__);
+	HAL_CCM_BusForcePeriphReset(CCM_BUS_PERIPH_BIT_DAUDIO);
+	HAL_CCM_BusReleasePeriphReset(CCM_BUS_PERIPH_BIT_DAUDIO);
 }
 
-static void I2S_EnableTx()
+static void xradio_i2s_hw_common_init(Audio_Stream_Dir dir)
 {
-        HAL_SET_BIT(I2S->DA_CTL, I2S_TX_EN_BIT);
+	//MCLK Output Enable
+	xradio_i2s_reg_update_bits(DA_CLKD, 0x1<<I2S_MCLK_OUT_EN_BIT, 0x1<<I2S_MCLK_OUT_EN_BIT);
+
+	//PCM frame mode and LRCK Period and slot width config
+	xradio_i2s_reg_update_bits(DA_FMT0, 0x1<<I2S_LRCK_WIDTH_BIT | 0x3ff<<I2S_LRCK_PERIOD_BIT | 0x7<<I2S_SLOT_WIDTH_BIT,\
+		!!xradio_i2s_priv->pcm_frame_mode<<I2S_LRCK_WIDTH_BIT | (xradio_i2s_priv->lrck_period-1)<<I2S_LRCK_PERIOD_BIT | (xradio_i2s_priv->slot_width/4-1)<<I2S_SLOT_WIDTH_BIT);
+
+	//MSB/LSB and PCM Data mode config
+	xradio_i2s_reg_update_bits(DA_FMT1, 0x1<<I2S_RX_MLS_BIT | 0x1<<I2S_TX_MLS_BIT | 0x3<<I2S_RX_PDM_BIT | 0x3<<I2S_TX_PDM_BIT,\
+										0x0<<I2S_RX_MLS_BIT | 0x0<<I2S_TX_MLS_BIT | 0x0<<I2S_RX_PDM_BIT | 0x0<<I2S_TX_PDM_BIT);
+
+	//TX/RX trigger level and FIFO mode config
+	xradio_i2s_reg_update_bits(DA_FCTL, 0x7f<<I2S_TXTL_BIT | 0x3f<<I2S_RXTL_BIT, 0x40<<I2S_TXTL_BIT | 0x0f<<I2S_RXTL_BIT);
+
+	/* I2S Loopback test enable */
+	xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_LOOP_EN_BIT, !!xradio_i2s_priv->loop_back_en<<I2S_LOOP_EN_BIT);
+
+	if(dir == PCM_OUT){
+		//SDO0 Output Enable
+		xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_SDO0_EN_BIT, 0x1<<I2S_SDO0_EN_BIT);
+		//TX channel map
+		xradio_i2s_reg_write(DA_TX0CHMAP, 0x76543210);
+		//TX block Enable
+		xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_TX_EN_BIT, 0x1<<I2S_TX_EN_BIT);
+	} else {
+		//RX channel map
+		xradio_i2s_reg_write(DA_RXCHMAP, 0x76543210);
+		//RX block Enable
+		xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_RX_EN_BIT, 0x1<<I2S_RX_EN_BIT);
+	}
 }
 
-/**
-  * @internal
-  * @brief Enable/disable I2S rx
-  * @retval None
-  */
-static void I2S_DisableRx()
+static void xradio_i2s_hw_common_deinit(Audio_Stream_Dir dir)
 {
-        HAL_CLR_BIT(I2S->DA_CTL, I2S_RX_EN_BIT);
+	if(!xradio_i2s_priv->isTxInit && !xradio_i2s_priv->isRxInit){
+		//MCLK Output Disable
+		xradio_i2s_reg_update_bits(DA_CLKD, 0x1<<I2S_MCLK_OUT_EN_BIT, 0x0<<I2S_MCLK_OUT_EN_BIT);
+		//I2S Globle Disable
+		xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_GEN_BIT, 0x0<<I2S_GEN_BIT);
+	}
+
+	if(dir == PCM_OUT){
+		//SDO0 Output Disable
+		xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_SDO0_EN_BIT, 0x0<<I2S_SDO0_EN_BIT);
+		//TX channel map
+		xradio_i2s_reg_write(DA_TX0CHMAP, 0x0);
+		//TX block Disable
+		xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_TX_EN_BIT, 0x0<<I2S_TX_EN_BIT);
+	} else {
+		//RX channel map
+		xradio_i2s_reg_write(DA_RXCHMAP, 0x0);
+		//RX block Disable
+		xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_RX_EN_BIT, 0x0<<I2S_RX_EN_BIT);
+	}
 }
 
-static void I2S_EnableRx()
+static int xradio_i2s_set_audio_pll(Audio_Clk_Freq pll_freq_out)
 {
-        HAL_SET_BIT(I2S->DA_CTL, I2S_RX_EN_BIT);
+	uint32_t i,hosc_freq,audioPllParam,audioPllPatParam;
+
+	if(pll_freq_out != AUDIO_CLK_24M && pll_freq_out != AUDIO_CLK_22M){
+		return HAL_INVALID;
+	}
+
+	hosc_freq = HAL_GetHFClock();
+
+	for(i=0; i<HAL_ARRAY_SIZE(xradio_i2s_pll_params); i++){
+		if(xradio_i2s_pll_params[i].hosc_freq == hosc_freq && xradio_i2s_pll_params[i].pll_freq_out == pll_freq_out){
+			audioPllParam = xradio_i2s_pll_params[i].pllParam;
+			audioPllPatParam = xradio_i2s_pll_params[i].pllPatParam;
+			XRADIO_I2S_DBG("Xradio I2S PLL freq_in match:%u, freq_out:%u\n",hosc_freq,pll_freq_out);
+			break;
+		}
+	}
+
+	if(i == HAL_ARRAY_SIZE(xradio_i2s_pll_params)){
+		XRADIO_I2S_ERR("Match audio pll input/output freq failed\n");
+		return HAL_ERROR;
+	}
+
+	HAL_PRCM_SetAudioPLLParam(audioPllParam);
+	HAL_PRCM_SetAudioPLLPatternParam(audioPllPatParam);
+	HAL_PRCM_EnableAudioPLL();
+	HAL_PRCM_EnableAudioPLLPattern();
+
+	return HAL_OK;
 }
 
-/**
-  * @internal
-  * @brief set the i2s module clock frequency for a given peripheral clk
-  * @param isEnable: flag for i2s mclk output
-  * @param clkSource: Peripheral clock freq
-  * @param pll: the freq of mclk
-  * @retval HAL status
-  */
-static HAL_Status I2S_SET_Mclk(uint32_t isEnable, uint32_t clkSource, uint32_t pll)
+
+static int xradio_i2s_dai_set_fmt(uint32_t fmt)
 {
-        if (isEnable == 0) {
-                HAL_CLR_BIT(I2S->DA_CLKD, I2S_MCLK_OUT_EN_BIT);
-        } else {
-                uint32_t mclkDiv;
-                const CLK_DIVRegval *divRegval;
+	uint8_t tx_rx_offset, i2s_mode, sign_ext, lrck_polarity, brck_polarity;
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
 
-                if (clkSource == 0) {
-                        I2S_ERROR("invalid clkSource %u\n", clkSource);
-                        return HAL_INVALID;
-                }
-                mclkDiv = clkSource / pll;
-                divRegval = DivRegval;
+	/* I2S config Master/Slave mode */
+	switch (fmt & I2S_ROLE_MASK) {
+		case DAIFMT_CBM_CFM:	//I2S Slave
+			XRADIO_I2S_DBG("I2S set to work as Slave\n");
+			xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_BCLK_OUT_BIT | 0x1<<I2S_LRCK_OUT_BIT, 0x0<<I2S_BCLK_OUT_BIT | 0x0<<I2S_LRCK_OUT_BIT);	//BCLK & LRCK input
+			break;
+		case DAIFMT_CBS_CFS:	//I2S Master
+			XRADIO_I2S_DBG("I2S set to work as Master\n");
+			xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_BCLK_OUT_BIT | 0x1<<I2S_LRCK_OUT_BIT, 0x1<<I2S_BCLK_OUT_BIT | 0x1<<I2S_LRCK_OUT_BIT); 	//BCLK & LRCK output
+			break;
+		default:
+			XRADIO_I2S_ERR("I2S Master/Slave mode config error:%u\n\n",(fmt & I2S_ROLE_MASK)>>0);
+			return HAL_INVALID;
+	}
 
-                do {
-                        if (divRegval->clkDiv == mclkDiv) {
-                                HAL_MODIFY_REG(I2S->DA_CLKD, I2S_MCLKDIV_MASK, divRegval->mregVal);
-                                break;
-                        }
-                        divRegval++;
-                } while (divRegval->mregVal < I2S_MCLKDIV_192);
-                HAL_SET_BIT(I2S->DA_CLKD, I2S_MCLK_OUT_EN_BIT);
-        }
-        return HAL_OK;
+	/* I2S config I2S/LJ/RJ/PCM format */
+	xradio_i2s_priv->i2s_mode = 1;
+	switch (fmt & I2S_FORMAT_MASK) {
+		case DAIFMT_I2S:
+			XRADIO_I2S_DBG("I2S config I2S format\n");
+			i2s_mode = LEFT_JUSTIFIED_FORMAT;
+			tx_rx_offset = 1;
+			sign_ext = TRANSFER_ZERO_AFTER;
+			break;
+		case DAIFMT_RIGHT_J:
+			XRADIO_I2S_DBG("I2S config RIGHT-JUSTIFIED format\n");
+			i2s_mode = RIGHT_JUSTIFIED_FORMAT;
+			tx_rx_offset = 0;
+			sign_ext = SIGN_EXTENSION_MSB;
+			break;
+		case DAIFMT_LEFT_J:
+			XRADIO_I2S_DBG("I2S config LEFT-JUSTIFIED format\n");
+			i2s_mode = LEFT_JUSTIFIED_FORMAT;
+			tx_rx_offset = 0;
+			sign_ext = TRANSFER_ZERO_AFTER;
+			break;
+		case DAIFMT_DSP_A:
+			XRADIO_I2S_DBG("I2S config PCM-A format\n");
+			i2s_mode = PCM_FORMAT;
+			tx_rx_offset = 1;
+			sign_ext = TRANSFER_ZERO_AFTER;
+			xradio_i2s_priv->i2s_mode = 0;
+			break;
+		case DAIFMT_DSP_B:
+			XRADIO_I2S_DBG("I2S config PCM-B format\n");
+			i2s_mode = PCM_FORMAT;
+			tx_rx_offset = 0;
+			sign_ext = TRANSFER_ZERO_AFTER;
+			xradio_i2s_priv->i2s_mode = 0;
+			break;
+		default:
+			XRADIO_I2S_ERR("I2S I2S format config error:%u\n\n",(fmt & I2S_FORMAT_MASK)>>4);
+			return HAL_INVALID;
+	}
+	xradio_i2s_reg_update_bits(DA_CTL, 0x3<<I2S_MODE_SEL_BIT, i2s_mode<<I2S_MODE_SEL_BIT);
+	xradio_i2s_reg_update_bits(DA_TX0CHSEL, 0x1<<I2S_TX0_OFFSET_BIT, tx_rx_offset<<I2S_TX0_OFFSET_BIT);
+	xradio_i2s_reg_update_bits(DA_RXCHSEL, 0x1<<I2S_RX_OFFSET_BIT, tx_rx_offset<<I2S_RX_OFFSET_BIT);
+	xradio_i2s_reg_update_bits(DA_FMT1, 0x3<<I2S_SEXT_BIT, sign_ext<<I2S_SEXT_BIT);
+
+	/* I2S config BCLK&LRCK polarity */
+	switch (fmt & I2S_POLARITY_MASK) {
+		case DAIFMT_NB_NF:
+			XRADIO_I2S_DBG("I2S config BCLK&LRCK polarity: BCLK_normal,LRCK_normal\n");
+			brck_polarity = BCLK_NORMAL_DRIVE_N_SAMPLE_P;
+			lrck_polarity = LRCK_LEFT_LOW_RIGHT_HIGH;
+			break;
+		case DAIFMT_NB_IF:
+			XRADIO_I2S_DBG("I2S config BCLK&LRCK polarity: BCLK_normal,LRCK_invert\n");
+			brck_polarity = BCLK_NORMAL_DRIVE_N_SAMPLE_P;
+			lrck_polarity = LRCK_LEFT_HIGH_RIGHT_LOW;
+			break;
+		case DAIFMT_IB_NF:
+			XRADIO_I2S_DBG("I2S config BCLK&LRCK polarity: BCLK_invert,LRCK_normal\n");
+			brck_polarity = BCLK_INVERT_DRIVE_P_SAMPLE_N;
+			lrck_polarity = LRCK_LEFT_LOW_RIGHT_HIGH;
+			break;
+		case DAIFMT_IB_IF:
+			XRADIO_I2S_DBG("I2S config BCLK&LRCK polarity: BCLK_invert,LRCK_invert\n");
+			brck_polarity = BCLK_INVERT_DRIVE_P_SAMPLE_N;
+			lrck_polarity = LRCK_LEFT_HIGH_RIGHT_LOW;
+			break;
+		default:
+			XRADIO_I2S_ERR("I2S config BCLK/LRCLK polarity error:%u\n\n",(fmt & I2S_POLARITY_MASK)>>8);
+			return HAL_INVALID;
+	}
+	xradio_i2s_reg_update_bits(DA_FMT0,  0x1<<I2S_LRCK_POLARITY_BIT | 0x1<<I2S_BCLK_POLARITY_BIT, lrck_polarity<<I2S_LRCK_POLARITY_BIT | brck_polarity<<I2S_BCLK_POLARITY_BIT);
+
+	return HAL_OK;
 }
 
-/**
-  * @internal
-  * @brief set the Sample Resolution
-  * @param param: pointer to a I2S_DataParam structure that contains
-  *        data format information
-  * @retval HAL status
-  */
-static HAL_Status I2S_SET_SampleResolution(I2S_DataParam *param)
+static int xradio_i2s_set_clkdiv(uint32_t sample_rate)
 {
-        if (!param)
-                return HAL_INVALID;
-        uint8_t sample_resolution = pcm_format_to_sampleresolution(param->resolution);
+	int ret;
+	uint8_t i, bclk_div;
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
 
-        if (8 <= sample_resolution &&  sample_resolution <= 32)
-                HAL_MODIFY_REG(I2S->DA_FMT0, I2S_SR_MASK, (sample_resolution/4-1)<<I2S_SR_SHIFT);
-        else {
-                I2S_ERROR("Invalid sample resolution (%d) failed\n",sample_resolution);
-                return HAL_ERROR;
-        }
-        return HAL_OK;
+	//Config Audio PLL
+	ret = xradio_i2s_set_audio_pll(xradio_i2s_priv->daudio_clk_freq = sample_rate%1000 ? AUDIO_CLK_22M : AUDIO_CLK_24M);
+	if(ret != HAL_OK){
+		XRADIO_I2S_ERR("Config Audio PLL Fail!\n");
+		return HAL_ERROR;
+	}
+
+	//Set MCLK Div
+	for(i=0; i<HAL_ARRAY_SIZE(xradio_i2s_mclk_div); i++){
+		if(xradio_i2s_mclk_div[i].real_val == xradio_i2s_priv->mclk_div){
+			xradio_i2s_reg_update_bits(DA_CLKD, 0xf<<I2S_MCLK_DIV_BIT, xradio_i2s_mclk_div[i].reg_val<<I2S_MCLK_DIV_BIT);
+			break;
+		}
+	}
+
+	if(i == HAL_ARRAY_SIZE(xradio_i2s_mclk_div)){
+		XRADIO_I2S_ERR("Don't match MCLK DIV-%d!\n",xradio_i2s_priv->mclk_div);
+		return HAL_ERROR;
+	}
+
+	//Set BCLK Div
+	bclk_div = xradio_i2s_priv->daudio_clk_freq / ((xradio_i2s_priv->i2s_mode+1)*xradio_i2s_priv->lrck_period) / sample_rate;
+	for(i=0; i<HAL_ARRAY_SIZE(xradio_i2s_bclk_div); i++){
+		if(xradio_i2s_bclk_div[i].real_val == bclk_div){
+			xradio_i2s_reg_update_bits(DA_CLKD, 0xf<<I2S_BCLK_DIV_BIT, xradio_i2s_bclk_div[i].reg_val<<I2S_BCLK_DIV_BIT);
+			break;
+		}
+	}
+
+	if(i == HAL_ARRAY_SIZE(xradio_i2s_bclk_div)){
+		XRADIO_I2S_ERR("Don't match BCLK DIV-%d!\n",bclk_div);
+		return HAL_ERROR;
+	}
+
+	return HAL_OK;
 }
 
-/**
-  * @internal
-  * @brief set the i2s bclk lrck freq
-  * @param param: pointer to a I2S_DataParam structure that contains
-  *        data format information
-  * @param hwParam: pointer to a I2S_HWParam structure that contains
-  *        the configuration for clk/mode/format.
-  * @retval HAL status
-  */
-static HAL_Status I2S_SET_ClkDiv(I2S_DataParam *param,  I2S_HWParam *hwParam)
+static int xradio_i2s_dai_hw_params(Audio_Stream_Dir dir, struct pcm_config *pcm_cfg)
 {
-        int32_t ret = HAL_OK;
-        if (!param || !hwParam)
-                return HAL_INVALID;
-        uint32_t rate = param->sampleRate;
-       // I2S_SampleRate SR = param->sampleRate;
-        uint32_t Period = hwParam->lrckPeriod;
-        uint16_t bclkDiv = 0;
-        uint32_t audioPll = AUDIO_CLK_24M;
+	uint32_t dma_buf_size;
+	uint8_t sample_resolution, dma_data_width;
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
 
-		switch (rate) {
-			case 48000:
-			case 44100:
-			case 8000:
-			case 12000:
-			case 16000:
-			case 24000:
-			case 32000:
-			case 11025:
-			case 22050:
-				break;
-			default:
-				I2S_ERROR("Invalid sample rate(%x) failed...\n",rate);
-                return HAL_INVALID;
+	/* I2S common init */
+	xradio_i2s_hw_common_init(dir);
+
+	sample_resolution = pcm_format_to_sampleresolution(pcm_cfg->format);
+	dma_data_width = sample_resolution<=8 ? DMA_DATA_WIDTH_8BIT : (sample_resolution<=16 ? DMA_DATA_WIDTH_16BIT : DMA_DATA_WIDTH_32BIT);
+	dma_buf_size = pcm_frames_to_bytes(pcm_cfg, pcm_config_to_frames(pcm_cfg));
+
+	/* I2S set channels */
+	if(pcm_cfg->channels<1 || pcm_cfg->channels>8){
+		XRADIO_I2S_ERR("Invalid channel numbers: %d!",pcm_cfg->channels);
+		return HAL_INVALID;
+	}
+
+	if(dir == PCM_OUT){
+		//TX slot num between CPU/DMA and FIFO
+		xradio_i2s_reg_update_bits(DA_CHCFG, 0x7<<I2S_TX_SLOT_NUM, (pcm_cfg->channels-1)<<I2S_TX_SLOT_NUM);
+		//TX slot num for each output
+		xradio_i2s_reg_update_bits(DA_TX0CHSEL, 0x7<<I2S_TX0_CHSEL_BIT, (pcm_cfg->channels-1)<<I2S_TX0_CHSEL_BIT);
+		//TX channel enable
+		xradio_i2s_reg_update_bits(DA_TX0CHSEL, 0xff<<I2S_TX0_CHEN_BIT, ((1<<pcm_cfg->channels)-1)<<I2S_TX0_CHEN_BIT);
+		//TX FIFO mode config
+		xradio_i2s_reg_update_bits(DA_FCTL, 0x1<<I2S_TXIM_BIT, (dma_data_width == DMA_DATA_WIDTH_32BIT ? 0x0 : 0x1)<<I2S_TXIM_BIT);
+
+		//dma tx params config
+		xradio_i2s_priv->txBufSize = dma_buf_size;
+		xradio_i2s_priv->tx_data_width = dma_data_width;
+
+	} else {
+
+		//RX slot num between CPU/DMA and FIFO
+		xradio_i2s_reg_update_bits(DA_CHCFG, 0x7<<I2S_RX_SLOT_NUM, (pcm_cfg->channels-1)<<I2S_RX_SLOT_NUM);
+		//RX slot num for each input
+		xradio_i2s_reg_update_bits(DA_RXCHSEL, 0x7<<I2S_RX_CHSEL_BIT, (pcm_cfg->channels-1)<<I2S_RX_CHSEL_BIT);
+		//RX FIFO mode config
+		xradio_i2s_reg_update_bits(DA_FCTL, 0x3<<I2S_RXOM_BIT, (dma_data_width == DMA_DATA_WIDTH_32BIT ? 0x0 : 0x1)<<I2S_RXOM_BIT);
+
+		//dma rx params config
+		xradio_i2s_priv->rxBufSize = dma_buf_size;
+		xradio_i2s_priv->rx_data_width = dma_data_width;
+	}
+
+	/* I2S set sample resorution */
+	if(sample_resolution<8 || sample_resolution>32){
+		XRADIO_I2S_ERR("Invalid sample resolution: %d!",sample_resolution);
+		return HAL_INVALID;
+	}
+	xradio_i2s_reg_update_bits(DA_FMT0, 0x7<<I2S_SAMPLE_RES_BIT, (sample_resolution/4-1)<<I2S_SAMPLE_RES_BIT);
+
+	/* I2S Globle Enable */
+	xradio_i2s_reg_update_bits(DA_CTL, 0x1<<I2S_GEN_BIT, 0x1<<I2S_GEN_BIT);
+
+
+	XRADIO_I2S_DBG("Sample rate-[%d], channel numbers-[%d], sample resolution-[%d]\n",pcm_cfg->rate,pcm_cfg->channels,sample_resolution);
+
+	return HAL_OK;
+}
+
+static int xradio_i2s_dai_hw_free(Audio_Stream_Dir dir)
+{
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
+
+	xradio_i2s_hw_common_deinit(dir);
+
+	if(!xradio_i2s_priv->isTxInit && !xradio_i2s_priv->isRxInit){
+		xradio_i2s_reset();
+		HAL_PRCM_DisableAudioPLL();
+        HAL_PRCM_DisableAudioPLLPattern();
+	}
+
+	return HAL_OK;
+}
+
+
+static HAL_Status xradio_i2s_open(Audio_Stream_Dir dir)
+{
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
+
+	if (dir == PCM_OUT) {
+		if (xradio_i2s_priv->isTxInit == true) {
+			XRADIO_I2S_DBG("I2S TX block has opened already\n");
+			return HAL_OK;
+		}
+	} else {
+		if (xradio_i2s_priv->isRxInit == true) {
+			XRADIO_I2S_DBG("I2S RX block has opened already\n");
+			return HAL_OK;
+		}
+	}
+
+	if (dir == PCM_OUT) {
+		xradio_i2s_priv->txDMAChan = DMA_CHANNEL_INVALID;
+		xradio_i2s_priv->writePointer = NULL;
+		xradio_i2s_priv->txHalfCallCount = 0;
+		xradio_i2s_priv->txEndCallCount  = 0;
+
+		/* malloc tx buf for DMA */
+		xradio_i2s_priv->txBuf = XRADIO_I2S_MALLOC(xradio_i2s_priv->txBufSize);
+		if(xradio_i2s_priv->txBuf == NULL){
+			XRADIO_I2S_ERR("Malloc I2S tx buf for DMA failed!\n");
+			xradio_i2s_priv->txBufSize = 0;
+			return HAL_ERROR;
+		}
+		XRADIO_I2S_MEMSET(xradio_i2s_priv->txBuf, 0, xradio_i2s_priv->txBufSize);
+
+		/* request DMA channel */
+		xradio_i2s_priv->txDMAChan = HAL_DMA_Request();
+		if (xradio_i2s_priv->txDMAChan == DMA_CHANNEL_INVALID) {
+			XRADIO_I2S_ERR("Obtain I2S tx DMA channel failed!\n");
+			XRADIO_I2S_FREE(xradio_i2s_priv->txBuf);
+			xradio_i2s_priv->txBuf = NULL;
+			xradio_i2s_priv->txBufSize = 0;
+			return HAL_ERROR;
 		}
 
-        I2S_DEBUG("SAMPLE RATE:%d...\n",rate);
-        if ((rate % 1000) != 0)
-                audioPll = AUDIO_CLK_22M;
+		/* init DMA */
+		xradio_i2s_dma_init(PCM_OUT, xradio_i2s_priv->txDMAChan);
 
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
+		/* init semaphore */
+		HAL_SemaphoreInitBinary(&xradio_i2s_priv->txReady);
 
-        /*set sysclk*/
-        if (audioPll == AUDIO_CLK_24M) {	//48KHZ series
-                I2S_PLLAUDIO_Update(I2S_PLL_24M);
-                HAL_PRCM_SetAudioPLLParam(i2sPrivate->audioPllParam);
-                HAL_PRCM_SetAudioPLLPatternParam(i2sPrivate->audioPllPatParam);
-        } else { //44.1KHZ series
-                I2S_PLLAUDIO_Update(I2S_PLL_22M);
-                HAL_PRCM_SetAudioPLLParam(i2sPrivate->audioPllParam);
-                HAL_PRCM_SetAudioPLLPatternParam(i2sPrivate->audioPllPatParam);
-        }
+		xradio_i2s_priv->isTxInit = true;
 
-        /*config bclk pll div*/
-        if (!hwParam->i2sFormat)
-                bclkDiv = audioPll/(2*Period*rate);
-        else
-                bclkDiv = audioPll/(Period*rate);
+	} else {
 
-        const CLK_DIVRegval *divRegval = DivRegval;
-        do {
-                if (divRegval->clkDiv == bclkDiv) {
-                        HAL_MODIFY_REG(I2S->DA_CLKD, I2S_BCLKDIV_MASK, divRegval->bregVal);
-                        break;
-                }
-                divRegval++;
-        } while (divRegval->bregVal < I2S_BCLKDIV_192);
+		xradio_i2s_priv->rxDMAChan = DMA_CHANNEL_INVALID;
+		xradio_i2s_priv->readPointer = NULL;
+		xradio_i2s_priv->rxHalfCallCount = 0;
+		xradio_i2s_priv->rxEndCallCount = 0;
 
-        return ret;
-}
+		/* malloc rx buf for DMA */
+		xradio_i2s_priv->rxBuf = XRADIO_I2S_MALLOC(xradio_i2s_priv->rxBufSize);
+		if(xradio_i2s_priv->rxBuf == NULL){
+			XRADIO_I2S_ERR("Malloc I2S rx buf for DMA failed!\n");
+			xradio_i2s_priv->rxBufSize = 0;
+			return HAL_ERROR;
+		}
+		XRADIO_I2S_MEMSET(xradio_i2s_priv->rxBuf, 0, xradio_i2s_priv->rxBufSize);
 
-/**
-  * @internal
-  * @brief set the i2s transfer format
-  * @param param: pointer to a I2S_HWParam structure that contains
-  *        the configuration for clk/mode/format.
-  * @retval HAL status
-  */
-static HAL_Status I2S_SET_Format(I2S_HWParam *param)
-{
-        int32_t ret = HAL_OK;
-        if (!param)
-                return HAL_INVALID;
+		/* request DMA channel */
+		xradio_i2s_priv->rxDMAChan = HAL_DMA_Request();
+		if (xradio_i2s_priv->rxDMAChan == DMA_CHANNEL_INVALID) {
+			XRADIO_I2S_ERR("Obtain I2S rx DMA channel failed!\n");
+			XRADIO_I2S_FREE(xradio_i2s_priv->rxBuf);
+			xradio_i2s_priv->rxBuf = NULL;
+			xradio_i2s_priv->rxBufSize = 0;
+			return HAL_ERROR;
+		}
 
-        /* config clk mode*/
-        switch (param->clkMode) {
-                case DAIFMT_CBM_CFM:
-                        HAL_MODIFY_REG(I2S->DA_CTL, I2S_BCLK_OUT_MASK|I2S_LRCK_OUT_MASK|I2S_SDO0_EN_BIT,
-                                        I2S_BCLK_INPUT|I2S_LRCK_INPUT|I2S_SDO0_EN_BIT);
+		/* init DMA */
+		xradio_i2s_dma_init(PCM_IN, xradio_i2s_priv->rxDMAChan);
 
-                        break;
-                case DAIFMT_CBS_CFS:
-                        HAL_MODIFY_REG(I2S->DA_CTL, I2S_BCLK_OUT_MASK|I2S_LRCK_OUT_MASK|I2S_SDO0_EN_BIT,
-                                        I2S_BCLK_OUTPUT|I2S_LRCK_OUTPUT|I2S_SDO0_EN_BIT);
-                        break;
-                default:
-                        ret = HAL_INVALID;
-                        I2S_ERROR("Invalid DAI format,failed (%d)...\n",param->clkMode);
-                        break;
-        }
+		/* init semaphore */
+		HAL_SemaphoreInitBinary(&xradio_i2s_priv->rxReady);
 
-        /* config transfer format */
-        switch (param->transferFormat) {
-                case DAIFMT_I2S:
-                        HAL_MODIFY_REG(I2S->DA_CTL, I2S_MODE_SEL_MASK, I2S_LEFT_MODE);
-                        HAL_MODIFY_REG(I2S->DA_TX0CHSEL, I2S_TXN_OFFSET_MASK, I2S_TX_ONEBCLK_OFFSET);
-                        HAL_MODIFY_REG(I2S->DA_RXCHSEL, I2S_RXN_OFFSET_MASK, I2S_RX_ONEBCLK_OFFSET);
-                        break;
-                case DAIFMT_RIGHT_J:
-                        HAL_MODIFY_REG(I2S->DA_CTL, I2S_MODE_SEL_MASK, I2S_RIGHT_MODE);
-                        break;
-                case DAIFMT_LEFT_J:
-                        HAL_MODIFY_REG(I2S->DA_CTL, I2S_MODE_SEL_MASK, I2S_LEFT_MODE);
-                        HAL_MODIFY_REG(I2S->DA_TX0CHSEL, I2S_TXN_OFFSET_MASK, I2S_TX_NO_OFFSET);
-                        HAL_MODIFY_REG(I2S->DA_RXCHSEL, I2S_RXN_OFFSET_MASK, I2S_RX_NO_OFFSET);
-                        break;
-                case DAIFMT_DSP_A:
-                        HAL_MODIFY_REG(I2S->DA_CTL, I2S_MODE_SEL_MASK, I2S_PCM_MODE);
-                        HAL_MODIFY_REG(I2S->DA_TX0CHSEL, I2S_TXN_OFFSET_MASK, I2S_TX_ONEBCLK_OFFSET);
-                        HAL_MODIFY_REG(I2S->DA_RXCHSEL, I2S_RXN_OFFSET_MASK, I2S_RX_ONEBCLK_OFFSET);
-                        break;
-                case DAIFMT_DSP_B:
-                        HAL_MODIFY_REG(I2S->DA_CTL, I2S_MODE_SEL_MASK, I2S_PCM_MODE);
-                        HAL_MODIFY_REG(I2S->DA_TX0CHSEL, I2S_TXN_OFFSET_MASK, I2S_TX_NO_OFFSET);
-                        HAL_MODIFY_REG(I2S->DA_RXCHSEL, I2S_RXN_OFFSET_MASK, I2S_RX_NO_OFFSET);
-                        break;
-                default:
-                        ret = HAL_INVALID;
-                        I2S_ERROR("Invalid transfer format,failed (%d)...\n",param->transferFormat);
-                        break;
-        }
-
-        /* config signal interval */
-        switch (param->signalInterval) {
-                case DAIFMT_NB_NF:
-                        HAL_CLR_BIT(I2S->DA_FMT0, I2S_LRCK_POLARITY_MASK);
-                        HAL_CLR_BIT(I2S->DA_FMT0, I2S_BCLK_POLARITY_MASK);
-                        break;
-                case DAIFMT_NB_IF:
-                        HAL_SET_BIT(I2S->DA_FMT0, I2S_LRCK_POLARITY_MASK);
-                        HAL_CLR_BIT(I2S->DA_FMT0, I2S_BCLK_POLARITY_MASK);
-                        break;
-                case DAIFMT_IB_NF:
-                        HAL_CLR_BIT(I2S->DA_FMT0, I2S_LRCK_POLARITY_MASK);
-                        HAL_SET_BIT(I2S->DA_FMT0, I2S_BCLK_POLARITY_MASK);
-                        break;
-                case DAIFMT_IB_IF:
-                        HAL_SET_BIT(I2S->DA_FMT0, I2S_LRCK_POLARITY_MASK);
-                        HAL_SET_BIT(I2S->DA_FMT0, I2S_BCLK_POLARITY_MASK);
-                        break;
-                default:
-                        ret = HAL_INVALID;
-                        I2S_ERROR("Invalid signal Interval,failed (%d)...\n",param->signalInterval);
-                        break;
-        }
-        return ret;
-}
-
-/**
-  * @internal
-  * @brief set the number channels of i2s transfer
-  * @param param: pointer to a I2S_DataParam structure that contains
-  *         data format information.
-  * @retval HAL status
-  */
-static HAL_Status I2S_SET_Channels(I2S_DataParam *param)
-{
-        uint8_t channel = 0;
-        if (!param)
-                return HAL_INVALID;
-
-        if (param->direction == PCM_OUT) {/*play*/
-                if (param->channels < I2S_TX_SLOT_NUM1 || param->channels > I2S_TX_SLOT_NUM8) {
-                        I2S_ERROR("Invalid usr tx channels num,failed (%d)...\n",param->channels);
-                        return HAL_INVALID;
-                }
-                HAL_MODIFY_REG(I2S->DA_CHCFG, I2S_TX_SLOT_NUM_MASK, ((param->channels - 1) << I2S_TX_SLOT_NUM_SHIFT));
-                HAL_MODIFY_REG(I2S->DA_TX0CHSEL, I2S_TXN_CHANNEL_SEL_MASK,
-                                                 ((param->channels -1) << I2S_TXN_CHANNEL_SEL_SHIFT));
-                HAL_MODIFY_REG(I2S->DA_TX0CHSEL, I2S_TXN_CHANNEL_SLOT_ENABLE_MASK,
-                                                 I2S_TXN_CHANNEL_SLOTS_ENABLE(param->channels));
-                for (channel = 0; channel < param->channels; channel++) {
-                        HAL_MODIFY_REG(I2S->DA_TX0CHMAP, I2S_TXN_CHX_MAP_MASK(channel),I2S_TXN_CHX_MAP(channel));
-                }
-
-        } else {/*record*/
-                if (param->channels < I2S_RX_SLOT_NUM1 || param->channels > I2S_RX_SLOT_NUM8){
-                        I2S_ERROR("Invalid usr rx channels num,failed (%d)...\n",param->channels);
-                        return HAL_INVALID;
-                }
-
-                HAL_MODIFY_REG(I2S->DA_CHCFG, I2S_RX_SLOT_NUM_MASK, ((param->channels - 1) << I2S_RX_SLOT_NUM_SHIFT));
-                HAL_MODIFY_REG(I2S->DA_RXCHSEL, I2S_RXN_CHANNEL_SEL_MASK,
-                                                ((param->channels - 1) << I2S_RXN_CHANNEL_SEL_SHIFT));
-                for (channel = 0; channel < param->channels; channel++) {
-                        HAL_MODIFY_REG(I2S->DA_RXCHMAP, I2S_RXN_CHX_MAP_MASK(channel), I2S_RXN_CHX_MAP(channel));
-                }
-        }
-        return HAL_OK;
-}
-
-__nonxip_text
-static int I2S_DMA_BUFFER_CHECK_Threshold(Audio_Stream_Dir dir)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        if (dir == PCM_OUT) {
-                if (i2sPrivate->txHalfCallCount >= UNDERRUN_THRESHOLD ||
-                        i2sPrivate->txEndCallCount >= UNDERRUN_THRESHOLD) {
-                        I2S_IT_ERROR("Tx : underrun and stop dma tx...\n");
-                        HAL_I2S_Trigger(false,PCM_OUT);/*stop*/
-                        i2sPrivate->txRunning = false;
-                        i2sPrivate->writePointer = NULL;
-                        i2sPrivate->txHalfCallCount = 0;
-                        i2sPrivate->txEndCallCount = 0;
-                        i2sPrivate->txDmaPointer = NULL;
-                        return -1;
-                }
-        } else {
-                if (i2sPrivate->rxHalfCallCount >= OVERRUN_THRESHOLD ||
-                        i2sPrivate->rxEndCallCount >= OVERRUN_THRESHOLD) {
-                        I2S_IT_ERROR("Rx : overrun and stop dma rx...\n");
-                        HAL_I2S_Trigger(false,PCM_IN);/*stop*/
-                        i2sPrivate->rxRunning = false;
-                        i2sPrivate->rxHalfCallCount = 0;
-                        i2sPrivate->rxEndCallCount = 0;
-                        i2sPrivate->readPointer = NULL;
-                        i2sPrivate->rxDmaPointer = NULL;
-                        return -1;
-                }
-        }
-        return 0;
-}
-
-/**
-  * @internal
-  * @brief DMA I2S transmit/receive process half complete callback
-  * @param arg: pointer to a HAL_Semaphore structure that contains
-  *             sem to synchronous data.
-  * @retval None
-  */
-__nonxip_text
-static void I2S_DMAHalfCallback(void *arg)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        if (arg == &(i2sPrivate->txReady)) {
-                i2sPrivate->txHalfCallCount ++;
-				if (i2sPrivate->isTxSemaphore) {
-                        i2sPrivate->isTxSemaphore = false;
-                        HAL_SemaphoreRelease((HAL_Semaphore *)arg);
-                }
-                if (I2S_DMA_BUFFER_CHECK_Threshold(0) != 0)
-                        return;
-                i2sPrivate->txDmaPointer = i2sPrivate->txBuf + i2sPrivate->txBufSize/2;
-        } else {
-                i2sPrivate->rxHalfCallCount ++;
-				if (i2sPrivate->isRxSemaphore) {
-				        i2sPrivate->isRxSemaphore = false;
-				        HAL_SemaphoreRelease((HAL_Semaphore *)arg);
-				}
-
-                if (I2S_DMA_BUFFER_CHECK_Threshold(1) != 0)
-                        return;
-				i2sPrivate->rxDmaPointer = i2sPrivate->rxBuf + i2sPrivate->rxBufSize/2;
-        }
-}
-
-/**
-  * @internal
-  * @brief DMA I2S transmit/receive process complete callback
-  * @param arg: pointer to a HAL_Semaphore structure that contains
-  *             sem to synchronous data.
-  * @retval None
-  */
-__nonxip_text
-static void I2S_DMAEndCallback(void *arg)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        if (arg == &(i2sPrivate->txReady)) {
-                i2sPrivate->txEndCallCount ++;
-				if (i2sPrivate->isTxSemaphore) {
-                        i2sPrivate->isTxSemaphore = false;
-                        HAL_SemaphoreRelease((HAL_Semaphore *)arg);
-                }
-                if (I2S_DMA_BUFFER_CHECK_Threshold(0) != 0)
-                        return;
-                i2sPrivate->txDmaPointer = i2sPrivate->txBuf;
-        } else {
-                i2sPrivate->rxEndCallCount ++;
-				if (i2sPrivate->isRxSemaphore) {
-					i2sPrivate->isRxSemaphore = false;
-					HAL_SemaphoreRelease((HAL_Semaphore *)arg);
-				}
-                if (I2S_DMA_BUFFER_CHECK_Threshold(1) != 0)
-                        return;
-                i2sPrivate->rxDmaPointer = i2sPrivate->rxBuf;
-        }
-}
-
-/**
-  * @internal
-  * @brief Start the DMA Transfer.
-  * @param chan: the specified DMA Channel.
-  * @param srcAddr: The source memory Buffer address
-  * @param dstAddr: The destination memory Buffer address
-  * @param datalen: The length of data to be transferred from source to destination
-  * @retval none
-  */
-__nonxip_text
-static void I2S_DMAStart(DMA_Channel chan, uint32_t srcAddr, uint32_t dstAddr, uint32_t datalen)
-{
-        HAL_DMA_Start(chan, srcAddr, dstAddr, datalen);
-}
-
-/**
-  * @internal
-  * @brief stop the DMA Transfer.
-  * @param chan: the specified DMA Channel.
-  * @retval none
-  */
-__nonxip_text
-static void I2S_DMAStop(DMA_Channel chan)
-{
-        HAL_DMA_Stop(chan);
-}
-
-/**
-  * @internal
-  * @brief Sets the DMA Transfer parameter.
-  * @param channel: the specified DMA Channel.
-  * @param dir: Data transfer direction
-  * @retval none
-  */
-static void I2S_DMASet(DMA_Channel channel,Audio_Stream_Dir dir)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        DMA_ChannelInitParam dmaParam;
-        HAL_Memset(&dmaParam, 0, sizeof(dmaParam));
-        if (dir == PCM_OUT) {
-
-                dmaParam.cfg = HAL_DMA_MakeChannelInitCfg(DMA_WORK_MODE_CIRCULAR,
-                                DMA_WAIT_CYCLE_2,
-                                DMA_BYTE_CNT_MODE_REMAIN,
-                                LOOP_EN ? DMA_DATA_WIDTH_32BIT : DMA_DATA_WIDTH_16BIT,
-                                DMA_BURST_LEN_1,
-                                DMA_ADDR_MODE_FIXED,
-                                DMA_PERIPH_DAUDIO,
-                                LOOP_EN ? DMA_DATA_WIDTH_32BIT : DMA_DATA_WIDTH_16BIT,
-                                DMA_BURST_LEN_1,
-                                DMA_ADDR_MODE_INC,
-                                DMA_PERIPH_SRAM);
-
-                dmaParam.endArg = &(i2sPrivate->txReady);
-                dmaParam.halfArg = &(i2sPrivate->txReady);
-        } else {
-
-                dmaParam.cfg = HAL_DMA_MakeChannelInitCfg(DMA_WORK_MODE_CIRCULAR,
-                                DMA_WAIT_CYCLE_2,
-                                DMA_BYTE_CNT_MODE_REMAIN,
-                                LOOP_EN ? DMA_DATA_WIDTH_32BIT : DMA_DATA_WIDTH_16BIT,
-                                DMA_BURST_LEN_1,
-                                DMA_ADDR_MODE_INC,
-                                DMA_PERIPH_SRAM,
-                                LOOP_EN ? DMA_DATA_WIDTH_32BIT : DMA_DATA_WIDTH_16BIT,
-                                DMA_BURST_LEN_1,
-                                DMA_ADDR_MODE_FIXED,
-                                DMA_PERIPH_DAUDIO);
-
-                dmaParam.endArg = &(i2sPrivate->rxReady);
-                dmaParam.halfArg = &(i2sPrivate->rxReady);
-        }
-        dmaParam.irqType = DMA_IRQ_TYPE_BOTH;
-        dmaParam.endCallback = I2S_DMAEndCallback;
-        dmaParam.halfCallback = I2S_DMAHalfCallback;
-        HAL_DMA_Init(channel, &dmaParam);
-}
-
-/**
-  * @internal
-  * @brief Enable or disable the specified i2s tx module.
-  * @param enable: specifies enable or disable.
-  * @retval None
-  */
-__nonxip_text
-static void tx_enable(bool enable)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        /*clear tx tifo*/
-        HAL_SET_BIT(I2S->DA_FCTL, I2S_TXFIFO_RESET_BIT);
-
-        if (enable) {
-                if (i2sPrivate->txDMAChan != DMA_CHANNEL_INVALID)
-                        HAL_SET_BIT(I2S->DA_INT, I2S_TXFIFO_DMA_ITEN_BIT);
-        } else {
-                if (i2sPrivate->txDMAChan != DMA_CHANNEL_INVALID)
-                        HAL_CLR_BIT(I2S->DA_INT, I2S_TXFIFO_DMA_ITEN_BIT);
-        }
-}
-
-/**
-  * @internal
-  * @brief Enable or disable the specified i2s rx module.
-  * @param enable: specifies enable or disable.
-  * @retval None
-  */
-__nonxip_text
-static void rx_enable(bool enable)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        /*clear rx tifo*/
-		//if (!LOOP_EN)
-        	HAL_SET_BIT(I2S->DA_FCTL, I2S_RXFIFO_RESET_BIT);
-
-        if (enable) {
-                if (i2sPrivate->rxDMAChan != DMA_CHANNEL_INVALID)
-                        HAL_SET_BIT(I2S->DA_INT, I2S_RXFIFO_DMA_ITEN_BIT);
-        } else {
-
-                if (i2sPrivate->rxDMAChan != DMA_CHANNEL_INVALID)
-                        HAL_CLR_BIT(I2S->DA_INT, I2S_RXFIFO_DMA_ITEN_BIT);
-        }
-}
-
-/**
-  * @internal
-  * @brief Enable or disable the specified i2s module with DMA module.
-  * @param enable: specifies enable or disable.
-  * @param dir: the direction of stream.
-  * @retval None
-  */
-__nonxip_text
-void HAL_I2S_Trigger(bool enable,Audio_Stream_Dir dir)
-{
-        unsigned long flags;
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        int doProtection = !HAL_IsISRContext();
-
-        if (doProtection) {
-                flags = HAL_EnterCriticalSection();
-        }
-
-        if (enable) {
-                if (dir == PCM_OUT) {
-                        /*trigger tx*/
-                        tx_enable(enable);
-
-                        /* start dma*/
-                        if (i2sPrivate->txDMAChan != DMA_CHANNEL_INVALID) {
-                                I2S_DMAStart(i2sPrivate->txDMAChan, (uint32_t)i2sPrivate->txBuf,
-                                                (uint32_t)&(I2S->DA_TXFIFO), i2sPrivate->txBufSize);
-                        }
-                        i2sPrivate->txRunning = true;
-
-						//if (LOOP_EN) {
-						//	HAL_SET_BIT(I2S->DA_FCTL, I2S_RXFIFO_RESET_BIT);
-						//}
-                } else {
-                        rx_enable(enable);
-                        if (i2sPrivate->rxDMAChan != DMA_CHANNEL_INVALID)
-                                I2S_DMAStart(i2sPrivate->rxDMAChan, (uint32_t)&(I2S->DA_RXFIFO),
-                                                (uint32_t)i2sPrivate->rxBuf, i2sPrivate->rxBufSize);
-                        i2sPrivate->rxRunning = true;
-                }
-        } else {
-                if (dir == PCM_OUT) {
-                        tx_enable(enable);
-                        if (i2sPrivate->txDMAChan != DMA_CHANNEL_INVALID)
-                                I2S_DMAStop(i2sPrivate->txDMAChan);
-                        i2sPrivate->txRunning = false;
-                } else {
-                        rx_enable(enable);
-                        if (i2sPrivate->rxDMAChan != DMA_CHANNEL_INVALID)
-                                I2S_DMAStop(i2sPrivate->rxDMAChan);
-                        i2sPrivate->rxRunning = false;
-                }
-        }
-        #if 0
-        int i =0 ;
-        printf("\n");
-        for (i = 0; i < 0x68; i = i+4) {
-                printf("0x%x: 0x%08x",i,(*(uint32_t *)(0x40042c00+i)));
-                printf("\n");
-        }
-        #endif
-        if (doProtection) {
-                HAL_ExitCriticalSection(flags);
-        }
-}
-
-/**
-  * @brief Transmit an amount of data with DMA module
-  * @param buf: pointer to the Transmit data buffer.
-  * @param Size: number of data sample to be sent:
-  * @note if the data size less than half of dmabuf, return HAL_INVALID. when the size
-  *       several times greater than half of dmabuf, only transfer its(half length of
-  *       dmabuf)integer multiple
-  * @retval length of data transmited
-  */
-int32_t HAL_I2S_Write_DMA(uint8_t *buf, uint32_t size)
-{
-    if (!buf || size <= 0)
-            return HAL_INVALID;
-
-    struct I2S_Private *i2sPrivate = gI2sPrivate;
-
-    uint8_t *pdata = buf;
-    uint8_t *lastWritePointer = NULL;
-    uint32_t toWrite = 0, writeSize = i2sPrivate->txBufSize / 2;
-    uint8_t err_flag; /* temp solution to avoid outputing debug message when irq disabled */
-#ifdef CONFIG_PM
-	if (i2sPrivate->suspend) {
-		I2S_ERROR("I2S has suspend, should stop write I2S!\n");
-		return 0;
+		xradio_i2s_priv->isRxInit = true;
 	}
+
+#if XRADIO_I2S_DBG_EN
+	uint32_t i;
+	printf("\nXradio I2S Reg:");
+	for(i=0; i<92; i+=4){
+		if(!(i%16)) printf("\n");
+		printf("Reg[0x%02x] :0x%08x;  ",i,HAL_REG_32BIT(I2S_BASE+i));
+	}
+	printf("\n\n");
 #endif
-	if (writeSize == 0) {
-		I2S_ERROR("TxBuf not exist\n");
-		return -1;
+
+	return HAL_OK;
+}
+
+static HAL_Status xradio_i2s_close(Audio_Stream_Dir dir)
+{
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
+
+	if (dir == PCM_OUT) {
+		if (xradio_i2s_priv->isTxInit == false) {
+			XRADIO_I2S_DBG("I2S TX block has closed already\n");
+			return HAL_OK;
+		}
+	} else {
+		if (xradio_i2s_priv->isRxInit == false) {
+			XRADIO_I2S_DBG("I2S RX block has closed already\n");
+			return HAL_OK;
+		}
 	}
 
-	if (size < writeSize) {
-		//I2S_ERROR("Write size too small\n");
-		return -1;
+	if (dir == PCM_OUT) {
+		xradio_i2s_dma_trigger(PCM_OUT, false);
+		//xradio_i2s_priv->txRunning = false;
+		xradio_i2s_priv->writePointer = NULL;
+		xradio_i2s_priv->txHalfCallCount = 0;
+		xradio_i2s_priv->txEndCallCount  = 0;
+
+		/* deinit semaphore */
+		HAL_SemaphoreDeinit(&xradio_i2s_priv->txReady);
+
+		/* deinit DMA */
+		HAL_DMA_DeInit(xradio_i2s_priv->txDMAChan);
+
+		/* release DMA channel */
+		HAL_DMA_Release(xradio_i2s_priv->txDMAChan);
+		xradio_i2s_priv->txDMAChan = DMA_CHANNEL_INVALID;
+		xradio_i2s_priv->tx_data_width = 0;
+
+		/* free tx buf for DMA */
+		XRADIO_I2S_FREE(xradio_i2s_priv->txBuf);
+		xradio_i2s_priv->txBuf = NULL;
+		xradio_i2s_priv->txBufSize = 0;
+
+		xradio_i2s_priv->isTxInit = false;
+
+	} else {
+
+		xradio_i2s_dma_trigger(PCM_IN, false);
+		//xradio_i2s_priv->rxRunning = false;
+		xradio_i2s_priv->readPointer = NULL;
+		xradio_i2s_priv->rxHalfCallCount = 0;
+		xradio_i2s_priv->rxEndCallCount  = 0;
+
+		/* deinit semaphore */
+		HAL_SemaphoreDeinit(&xradio_i2s_priv->rxReady);
+
+		/* deinit DMA */
+		HAL_DMA_DeInit(xradio_i2s_priv->rxDMAChan);
+
+		/* release DMA channel */
+		HAL_DMA_Release(xradio_i2s_priv->rxDMAChan);
+		xradio_i2s_priv->rxDMAChan = DMA_CHANNEL_INVALID;
+		xradio_i2s_priv->rx_data_width = 0;
+
+		/* free tx buf for DMA */
+		XRADIO_I2S_FREE(xradio_i2s_priv->rxBuf);
+		xradio_i2s_priv->rxBuf = NULL;
+		xradio_i2s_priv->rxBufSize = 0;
+
+		xradio_i2s_priv->isRxInit = false;
 	}
 
-	for ( ; size >= writeSize; pdata += writeSize, toWrite += writeSize, size -= writeSize)
+	return HAL_OK;
+}
+
+static int xradio_i2s_pcm_read(uint8_t *buf, uint32_t size)
+{
+	uint8_t xrun_flag;
+	uint8_t *pdata = buf;
+	uint32_t read_total = 0;
+	uint8_t *read_poiter_cur = NULL;
+	uint32_t read_single = xradio_i2s_priv->rxBufSize/2;
+
+	if (!buf || size <= 0){
+		XRADIO_I2S_ERR("Rx record buf|size NULL, buf-[0x%08x], size-[%d]!\n",(uint32_t)buf, size);
+		return HAL_INVALID;
+	}
+
+	if (read_single == 0) {
+		XRADIO_I2S_ERR("RxBuf not exist\n");
+		return HAL_ERROR;
+	}
+
+	if (size < read_single) {
+		XRADIO_I2S_ERR("Read size too small\n");
+		return HAL_INVALID;
+	}
+
+	for(; size/read_single; pdata += read_single, read_total += read_single, size -= read_single)
 	{
-		if (i2sPrivate->txRunning == false) {
-			if (!i2sPrivate->writePointer){
-				i2sPrivate->writePointer = i2sPrivate->txBuf;
-				if(size >= writeSize*2){
-					lastWritePointer = i2sPrivate->txBuf;
-					I2S_MEMCPY(lastWritePointer, pdata, writeSize);
-					pdata += writeSize;
-					toWrite += writeSize;
-					size -= writeSize;
-					i2sPrivate->writePointer = i2sPrivate->txBuf + writeSize;
-				}
-			}
-			lastWritePointer = i2sPrivate->writePointer;
+		if (xradio_i2s_priv->rxRunning == false) {
+			/* trigger record, start DMA */
+			xradio_i2s_dma_trigger(PCM_IN, true);
+			XRADIO_I2S_DBG("Rx: record start...\n");
+		}
 
-			I2S_MEMCPY(lastWritePointer, pdata, writeSize);
-			I2S_DEBUG("Tx: play start...\n");
-			HAL_I2S_Trigger(true,PCM_OUT);/*play*/
-			i2sPrivate->txRunning =true;
-		} else {
-			err_flag = 0;
+		{
+			xrun_flag = 0;
 			HAL_DisableIRQ();
-			if (i2sPrivate->txHalfCallCount && i2sPrivate->txEndCallCount) {
-				err_flag = 1;
-				i2sPrivate->txHalfCallCount = 0;
-				i2sPrivate->txEndCallCount = 0;
-			} else if (i2sPrivate->txHalfCallCount) {
-				i2sPrivate->txHalfCallCount --;
-			} else if (i2sPrivate->txEndCallCount) {
-				i2sPrivate->txEndCallCount --;
-			} else {
-				i2sPrivate->isTxSemaphore = true;
+
+			//read_poiter_cur = xradio_i2s_priv->readPointer;
+
+			/* check DMA state */
+			if (xradio_i2s_priv->rxHalfCallCount && xradio_i2s_priv->rxEndCallCount) {
+				xrun_flag = 1;
+				xradio_i2s_priv->rxHalfCallCount = 0;		//overrun
+				xradio_i2s_priv->rxEndCallCount  = 0;
+			} else if (xradio_i2s_priv->rxHalfCallCount) {	//DMA half end
+				xradio_i2s_priv->rxHalfCallCount --;
+			} else if (xradio_i2s_priv->rxEndCallCount) {	//DMA end
+				xradio_i2s_priv->rxEndCallCount --;
+			} else {										//DMA transporting
+
+				/* wait DMA transport end */
+				xradio_i2s_priv->isRxSemaphore = true;
 				HAL_EnableIRQ();
-				HAL_SemaphoreWait(&(i2sPrivate->txReady), HAL_WAIT_FOREVER);
+				HAL_SemaphoreWait(&(xradio_i2s_priv->rxReady), HAL_WAIT_FOREVER);
 				HAL_DisableIRQ();
 
-				if (i2sPrivate->txHalfCallCount && i2sPrivate->txEndCallCount) {
-					err_flag = 1;
-					i2sPrivate->txHalfCallCount = 0;
-					i2sPrivate->txEndCallCount = 0;
-				} else {
-					if (i2sPrivate->txHalfCallCount)
-						i2sPrivate->txHalfCallCount --;
-					if (i2sPrivate->txEndCallCount)
-						i2sPrivate->txEndCallCount --;
+				/* check DMA state */
+				if (xradio_i2s_priv->rxHalfCallCount && xradio_i2s_priv->rxEndCallCount) {
+					xrun_flag = 1;
+					xradio_i2s_priv->rxHalfCallCount = 0;
+					xradio_i2s_priv->rxEndCallCount  = 0;
+				} else if (xradio_i2s_priv->rxHalfCallCount) {
+					xradio_i2s_priv->rxHalfCallCount --;
+				} else if (xradio_i2s_priv->rxEndCallCount) {
+					xradio_i2s_priv->rxEndCallCount --;
 				}
 			}
 
-			if (i2sPrivate->txDmaPointer == i2sPrivate->txBuf) {
-				lastWritePointer = i2sPrivate->txBuf + writeSize;
-				i2sPrivate->writePointer = i2sPrivate->txBuf;
+			if (xradio_i2s_priv->rxDmaPointer == xradio_i2s_priv->rxBuf) {
+				read_poiter_cur = xradio_i2s_priv->rxBuf + read_single;
 			} else {
-				lastWritePointer = i2sPrivate->txBuf;
-				i2sPrivate->writePointer =  i2sPrivate->txBuf + writeSize;
+				read_poiter_cur = xradio_i2s_priv->rxBuf;
 			}
-			I2S_MEMCPY(lastWritePointer, pdata, writeSize);
+			XRADIO_I2S_MEMCPY(pdata, read_poiter_cur, read_single);
 			HAL_EnableIRQ();
 
-			if (err_flag) {
-				I2S_ERROR("TxCount:(H:%u,F:%u)\n",i2sPrivate->txHalfCallCount,
-                                                  i2sPrivate->txEndCallCount);
-				I2S_ERROR("Tx : underrun....\n");
+			if (xrun_flag) {
+				XRADIO_I2S_ERR("Rx overrun...\n");
 			}
 		}
 	}
 
-    return toWrite;
+	return read_total;
 }
 
-/**
-  * @brief receive an amount of data with DMA module
-  * @param buf: pointer to the receive data buffer.
-  * @param Size: number of data sample to be receive:
-  * @note if the data size less than half of dmabuf, return HAL_INVALID. when the size
-  *       several times greater than half of dmabuf, only transfer its(half length of
-  *       dmabuf)integer multiple
-  * @retval length of data received
-  */
-int32_t HAL_I2S_Read_DMA(uint8_t *buf, uint32_t size)
+static int xradio_i2s_pcm_write(uint8_t *buf, uint32_t size)
 {
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-        if (!buf || size <= 0)
-                return HAL_INVALID;
-        uint8_t *pdata = buf;
-        uint8_t *lastReadPointer = NULL;
-        uint32_t readSize = i2sPrivate->rxBufSize / 2;
-        uint32_t toRead = 0;
-        uint8_t err_flag; /* temp solution to avoid outputing debug message when irq disabled */
+	uint8_t xrun_flag;
+	uint8_t *pdata = buf;
+	uint32_t write_total = 0;
+	uint8_t *write_poiter_cur = NULL;
+	uint32_t write_single = xradio_i2s_priv->txBufSize/2;
 
-#ifdef CONFIG_PM
-	if (i2sPrivate->suspend) {
-		I2S_ERROR("I2S has suspend, should stop read I2S!\n");
-		return 0;
+	if (!buf || size <= 0) {
+		XRADIO_I2S_ERR("Tx play buf|size NULL, buf-[0x%08x], size-[%d]!\n",(uint32_t)buf, size);
+		return HAL_INVALID;
 	}
-#endif
-		if (readSize == 0) {
-			I2S_ERROR("RxBuf not exist\n");
-			return -1;
-		}
 
-		if (size < readSize) {
-			I2S_ERROR("Read size too small\n");
-			return -1;
-        }
+	if (write_single == 0) {
+		XRADIO_I2S_ERR("TxBuf not exist\n");
+		return HAL_ERROR;
+	}
 
-		while (size >= readSize) {
-			if (i2sPrivate->rxRunning == false) {
-			    I2S_DEBUG("Rx: record start...\n");
-			    HAL_I2S_Trigger(true,PCM_IN);
-			} else {
-				err_flag = 0;
-				/*disable irq*/
-				HAL_DisableIRQ();
-				lastReadPointer = i2sPrivate->readPointer;
-				if (i2sPrivate->rxHalfCallCount && i2sPrivate->rxEndCallCount) {
-					err_flag = 1;
-					i2sPrivate->rxHalfCallCount = 0;
-					i2sPrivate->rxEndCallCount = 0;
-				} else if (i2sPrivate->rxHalfCallCount) {
-					i2sPrivate->rxHalfCallCount --;
-				} else if (i2sPrivate->rxEndCallCount) {
-					i2sPrivate->rxEndCallCount --;
-				} else {
-					/**enable irq**/
-					i2sPrivate->isRxSemaphore = true;
-					HAL_EnableIRQ();
-					HAL_SemaphoreWait(&(i2sPrivate->rxReady), HAL_WAIT_FOREVER);
-					/**disable irq**/
-					HAL_DisableIRQ();
-					if (i2sPrivate->rxHalfCallCount && i2sPrivate->rxEndCallCount) {
-						err_flag = 1;
-						i2sPrivate->rxHalfCallCount = 0;
-						i2sPrivate->rxEndCallCount = 0;
-					} else {
-						if (i2sPrivate->rxHalfCallCount)
-								i2sPrivate->rxHalfCallCount --;
-						if (i2sPrivate->rxEndCallCount)
-								i2sPrivate->rxEndCallCount --;
-					}
+	if (size < write_single) {
+		XRADIO_I2S_ERR("Write size too small\n");
+		return HAL_INVALID;
+	}
+
+	for (; size/write_single; pdata += write_single, write_total += write_single, size -= write_single)
+	{
+		if (xradio_i2s_priv->txRunning == false) {
+			if (!xradio_i2s_priv->writePointer){
+				xradio_i2s_priv->writePointer = xradio_i2s_priv->txBuf;
+				if(size >= write_single*2){
+					write_poiter_cur = xradio_i2s_priv->txBuf;
+					XRADIO_I2S_MEMCPY(write_poiter_cur, pdata, write_single);
+					pdata += write_single;
+					write_total += write_single;
+					size -= write_single;
+					xradio_i2s_priv->writePointer = xradio_i2s_priv->txBuf + write_single;
 				}
+			}
+			write_poiter_cur = xradio_i2s_priv->writePointer;
+			XRADIO_I2S_MEMCPY(write_poiter_cur, pdata, write_single);
 
-				if (i2sPrivate->rxDmaPointer == i2sPrivate->rxBuf) {
-					lastReadPointer = i2sPrivate->rxBuf + readSize;
-				} else {
-					lastReadPointer = i2sPrivate->rxBuf;
-				}
-				I2S_MEMCPY(pdata, lastReadPointer, readSize);
-				pdata += readSize;
-				//i2sPrivate->readPointer = lastReadPointer;
-				/**enable irq**/
+			/* trigger play, start DMA */
+			xradio_i2s_dma_trigger(PCM_OUT, true);
+			XRADIO_I2S_DBG("Tx: play start...\n");
+
+		} else {
+
+			xrun_flag = 0;
+			HAL_DisableIRQ();
+
+			/* check DMA state */
+			if (xradio_i2s_priv->txHalfCallCount && xradio_i2s_priv->txEndCallCount) {
+				xrun_flag = 1;
+				xradio_i2s_priv->txHalfCallCount = 0;		//underrun
+				xradio_i2s_priv->txEndCallCount  = 0;
+			} else if (xradio_i2s_priv->txHalfCallCount) {	//DMA half end
+				xradio_i2s_priv->txHalfCallCount --;
+			} else if (xradio_i2s_priv->txEndCallCount) {	//DMA end
+				xradio_i2s_priv->txEndCallCount --;
+			} else {										//DMA transporting
+
+				/* wait DMA transport end */
+				xradio_i2s_priv->isTxSemaphore = true;
 				HAL_EnableIRQ();
-				size -= readSize;
-				toRead += readSize;
+				HAL_SemaphoreWait(&(xradio_i2s_priv->txReady), HAL_WAIT_FOREVER);
+				HAL_DisableIRQ();
 
-				if (err_flag) {
-					I2S_ERROR("Rx overrun, (H:%u,F:%u)\n",
-					          i2sPrivate->rxHalfCallCount,
-					          i2sPrivate->rxEndCallCount);
+				/* check DMA state */
+				if (xradio_i2s_priv->txHalfCallCount && xradio_i2s_priv->txEndCallCount) {
+					xrun_flag = 1;
+					xradio_i2s_priv->txHalfCallCount = 0;
+					xradio_i2s_priv->txEndCallCount  = 0;
+				} else if (xradio_i2s_priv->txHalfCallCount){
+					xradio_i2s_priv->txHalfCallCount --;
+				} else if (xradio_i2s_priv->txEndCallCount){
+					xradio_i2s_priv->txEndCallCount --;
 				}
 			}
+
+			if (xradio_i2s_priv->txDmaPointer == xradio_i2s_priv->txBuf) {
+				write_poiter_cur = xradio_i2s_priv->txBuf + write_single;
+				xradio_i2s_priv->writePointer = xradio_i2s_priv->txBuf;
+			} else {
+				write_poiter_cur = xradio_i2s_priv->txBuf;
+				xradio_i2s_priv->writePointer =  xradio_i2s_priv->txBuf + write_single;
+			}
+			XRADIO_I2S_MEMCPY(write_poiter_cur, pdata, write_single);
+			HAL_EnableIRQ();
+
+			if (xrun_flag) {
+				XRADIO_I2S_ERR("Tx : underrun....\n");
+			}
 		}
-        return toRead;
-}
-
-/**
-  * @brief Open the I2S module according to the specified parameters
-  *         in the I2S_DataParam.
-  * @param param: pointer to a I2S_DataParam structure that contains
-  *         data format information
-  * @retval HAL status
-  */
-HAL_Status HAL_I2S_Open(void *param)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-
-        I2S_DataParam *dataParam = (I2S_DataParam *)param;
-
-        if (dataParam->direction == PCM_OUT) {
-                if (i2sPrivate->isTxInitiate == true) {
-                        I2S_ERROR("Tx device opened already.open faied...\n");
-                        return HAL_ERROR;
-                }
-                i2sPrivate->isTxInitiate = true;
-
-                I2S_MEMCPY(&(i2sPrivate->pdataParam), dataParam, sizeof(*dataParam));
-        } else {
-                if (i2sPrivate->isRxInitiate == true) {
-                        I2S_ERROR("Rx device opened already.open faied...\n");
-                        return HAL_ERROR;
-                }
-                i2sPrivate->isRxInitiate = true;
-
-                I2S_MEMCPY(&(i2sPrivate->cdataParam), dataParam, sizeof(*dataParam));
-        }
-
-        if (dataParam->direction == PCM_OUT) {
-                i2sPrivate->txDMAChan = DMA_CHANNEL_INVALID;
-                i2sPrivate->txBufSize = dataParam->bufSize;
-                i2sPrivate->txHalfCallCount = 0;
-                i2sPrivate->txEndCallCount = 0;
-#ifdef RESERVERD_MEMORY_FOR_I2S_TX
-                i2sPrivate->txBuf = I2STX_BUF;
-#else
-                i2sPrivate->txBuf = I2S_MALLOC(i2sPrivate->txBufSize);
-                if(i2sPrivate->txBuf)
-                        I2S_MEMSET(i2sPrivate->txBuf, 0, i2sPrivate->txBufSize);
-                else {
-                        I2S_ERROR("Malloc tx buf(for DMA),faild...\n");
-                        return HAL_ERROR;
-                }
-#endif
-                /*request DMA channel*/
-                i2sPrivate->txDMAChan = HAL_DMA_Request();
-                if (i2sPrivate->txDMAChan == DMA_CHANNEL_INVALID) {
-                        I2S_ERROR("Obtain I2S tx DMA channel,faild...\n");
-#ifndef RESERVERD_MEMORY_FOR_I2S_TX
-                        I2S_FREE(i2sPrivate->txBuf);
-#endif
-                        return HAL_ERROR;
-                } else
-                I2S_DMASet(i2sPrivate->txDMAChan, PCM_OUT);
-                HAL_SemaphoreInitBinary(&i2sPrivate->txReady);
-        } else {
-                i2sPrivate->rxDMAChan = DMA_CHANNEL_INVALID;
-                i2sPrivate->rxBufSize = dataParam->bufSize;
-                i2sPrivate->rxHalfCallCount = 0;
-                i2sPrivate->rxEndCallCount = 0;
-#ifdef RESERVERD_MEMORY_FOR_I2S_RX
-                i2sPrivate->rxBuf = I2SRX_BUF;
-#else
-                i2sPrivate->rxBuf = I2S_MALLOC(i2sPrivate->rxBufSize);
-                if(i2sPrivate->rxBuf)
-                        I2S_MEMSET(i2sPrivate->rxBuf, 0, i2sPrivate->rxBufSize);
-                else {
-                        I2S_ERROR("Malloc rx buf(for DMA),faild...\n");
-                        return HAL_ERROR;
-                }
-#endif
-                i2sPrivate->rxDMAChan = HAL_DMA_Request();
-                if (i2sPrivate->rxDMAChan == DMA_CHANNEL_INVALID) {
-                        I2S_ERROR("Obtain I2S rx DMA channel,faild...\n");
-#ifndef RESERVERD_MEMORY_FOR_I2S_TX
-                        I2S_FREE(i2sPrivate->rxBuf);
-#endif
-                        return HAL_ERROR;
-                } else
-                        I2S_DMASet(i2sPrivate->rxDMAChan, PCM_IN);
-                HAL_SemaphoreInitBinary(&i2sPrivate->rxReady);
-        }
-
-        HAL_MutexLock(&i2sPrivate->devSetLock, OS_WAIT_FOREVER);
-        /*set bclk*/
-        I2S_SET_ClkDiv(dataParam, i2sPrivate->hwParam);
-
-        /*set sample resolution*/
-        I2S_SET_SampleResolution(dataParam);
-
-        /*set channel*/
-        I2S_SET_Channels(dataParam);
-
-        if (dataParam->direction == PCM_OUT) {
-				I2S_EnableTx();
-        } else {
-				I2S_EnableRx();
-        }
-        HAL_MutexUnlock(&i2sPrivate->devSetLock);
-
-        return HAL_OK;
-}
-
-/**
-  * @brief Close the I2S module
-  * @note The module is closed at the end of transaction to avoid power consumption
-  * @retval none
-  */
-HAL_Status HAL_I2S_Close(Audio_Stream_Dir dir)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-
-        if (dir == PCM_OUT) {
-                HAL_I2S_Trigger(false,PCM_OUT);
-                I2S_DisableTx();
-                i2sPrivate->txRunning = false;
-                i2sPrivate->isTxInitiate = false;
-                if (i2sPrivate->txDMAChan != DMA_CHANNEL_INVALID) {
-                        HAL_DMA_DeInit(i2sPrivate->txDMAChan);
-                        HAL_DMA_Release(i2sPrivate->txDMAChan);
-                        i2sPrivate->txDMAChan = DMA_CHANNEL_INVALID;
-
-                }
-                I2S_MEMSET(&(i2sPrivate->pdataParam), 0, sizeof(I2S_DataParam));
-#ifndef RESERVERD_MEMORY_FOR_I2S_TX
-                I2S_FREE(i2sPrivate->txBuf);
-#endif
-                HAL_SemaphoreDeinit(&i2sPrivate->txReady);
-                i2sPrivate->txBuf = NULL;
-                i2sPrivate->txBufSize = 0;
-                i2sPrivate->writePointer = NULL;
-                i2sPrivate->txHalfCallCount = 0;
-                i2sPrivate->txEndCallCount = 0;
-        } else {
-                HAL_I2S_Trigger(false,PCM_IN);
-                I2S_DisableRx();
-                i2sPrivate->isRxInitiate = false;
-                i2sPrivate->rxRunning = false;
-                if (i2sPrivate->rxDMAChan != DMA_CHANNEL_INVALID) {
-                        HAL_DMA_DeInit(i2sPrivate->rxDMAChan);
-                        HAL_DMA_Release(i2sPrivate->rxDMAChan);
-                        i2sPrivate->rxDMAChan = DMA_CHANNEL_INVALID;
-
-                }
-                I2S_MEMSET(&(i2sPrivate->cdataParam), 0, sizeof(I2S_DataParam));
-#ifndef RESERVERD_MEMORY_FOR_I2S_TX
-                I2S_FREE(i2sPrivate->rxBuf);
-#endif
-                HAL_SemaphoreDeinit(&i2sPrivate->rxReady);
-                i2sPrivate->rxBuf = NULL;
-                i2sPrivate->rxBufSize = 0;
-                i2sPrivate->readPointer = NULL;
-
-                i2sPrivate->rxHalfCallCount = 0;
-                i2sPrivate->rxEndCallCount = 0;
-        }
-        return HAL_OK;
-}
-
-/**
-  * @internal
-  * @brief I2S PINS Init
-  * @retval HAL status
-  */
-static inline HAL_Status I2S_PINS_Init()
-{
-        return HAL_BoardIoctl(HAL_BIR_PINMUX_INIT, HAL_MKDEV(HAL_DEV_MAJOR_I2S, 0), 0);
-}
-
-/**
-  * @internal
-  * @brief I2S PINS DeInit
-  * @retval HAL status
-  */
-static inline HAL_Status I2S_PINS_Deinit()
-{
-        return HAL_BoardIoctl(HAL_BIR_PINMUX_DEINIT, HAL_MKDEV(HAL_DEV_MAJOR_I2S, 0), 0);
-}
-
-/**
-  * @internal
-  * @brief I2S hardware Init
-  * @param param: pointer to a I2S_HWParam structure that contains
-  *         the configuration for clk/mode/format.
-  * @retval HAL status
-  */
-static inline HAL_Status I2S_HwInit(I2S_HWParam *param)
-{
-        if (!param)
-                return HAL_INVALID;
-
-        /*config device clk source*/
-        if (param->codecClk.isDevclk != 0) {
-                I2S_SET_Mclk(true, param->codecClk.clkSource, AUDIO_DEVICE_PLL / param->codecClkDiv);
-        }
-
-        /* set lrck period /frame mode */
-        HAL_MODIFY_REG(I2S->DA_FMT0, I2S_LRCK_PERIOD_MASK|I2S_LRCK_WIDTH_MASK|
-                                     I2S_SW_SEC_MASK,
-                                      I2S_LRCK_PERIOD(param->lrckPeriod)|
-                                      param->frameMode|I2S_SLOT_WIDTH_BIT32);
-
-        /* set first transfer bit */
-        HAL_MODIFY_REG(I2S->DA_FMT1, I2S_TX_MLS_MASK|I2S_RX_MLS_MASK|
-                        I2S_PCM_TXMODE_MASK|I2S_PCM_RXMODE_MASK|I2S_SEXT_MASK,
-                        param->txMsbFirst|param->rxMsbFirst|
-                        I2S_TX_LINEAR_PCM|I2S_RX_LINEAR_PCM|I2S_ZERO_SLOT);
-        /* global enable */
-        HAL_SET_BIT(I2S->DA_CTL, I2S_GLOBE_EN_BIT);
-
-        HAL_MODIFY_REG(I2S->DA_FCTL, I2S_RXFIFO_LEVEL_MASK|I2S_TXFIFO_LEVEL_MASK|
-                                     I2S_RX_FIFO_MODE_SHIFT|I2S_TX_FIFO_MODE_MASK,
-                                     I2S_RXFIFO_TRIGGER_LEVEL(param->rxFifoLevel)|
-                                     I2S_TXFIFO_TRIGGER_LEVEL(param->txFifoLevel)|
-                                     (LOOP_EN ? I2S_RX_FIFO_MODE0|I2S_TX_FIFO_MODE0 : I2S_RX_FIFO_MODE3|I2S_TX_FIFO_MODE1));
-        return I2S_SET_Format(param);
-}
-
-/**
-  * @internal
-  * @brief I2S hardware DeInit
-  * @param param: pointer to a I2S_HWParam structure
-  * @retval HAL status
-  */
-static inline HAL_Status I2S_HwDeInit(I2S_HWParam *param)
-{
-        if (!param)
-                return HAL_INVALID;
-        /* global disable */
-        HAL_CLR_BIT(I2S->DA_CTL, I2S_GLOBE_EN_BIT);
-        I2S_SET_Mclk(false, 0, 0);
-        return HAL_OK;
-}
-
-#ifdef CONFIG_PM
-static int i2s_suspend(struct soc_device *dev, enum suspend_state_t state)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-
-        i2sPrivate->suspend = 1;
-        switch (state) {
-                case PM_MODE_SLEEP:
-                case PM_MODE_STANDBY:
-                case PM_MODE_HIBERNATION:
-                        HAL_MutexLock(&i2sPrivate->devSetLock, OS_WAIT_FOREVER);
-                        I2S_HwDeInit(i2sPrivate->hwParam);
-                        HAL_MutexUnlock(&i2sPrivate->devSetLock);
-
-                        I2S_PINS_Deinit();
-                        HAL_CCM_DAUDIO_DisableMClock();
-                        HAL_CCM_BusDisablePeriphClock(CCM_BUS_PERIPH_BIT_DAUDIO);
-                        HAL_PRCM_DisableAudioPLL();
-                        HAL_PRCM_DisableAudioPLLPattern();
-                        break;
-                default:
-                        break;
-        }
-        return 0;
-}
-
-static int i2s_resume(struct soc_device *dev, enum suspend_state_t state)
-{
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-
-        switch (state) {
-                case PM_MODE_SLEEP:
-                case PM_MODE_STANDBY:
-                case PM_MODE_HIBERNATION:
-                        I2S_PINS_Init();
-                        /*init and enable clk*/
-                        I2S_PLLAUDIO_Update(I2S_PLL_22M);
-                        HAL_PRCM_SetAudioPLLParam(i2sPrivate->audioPllParam);
-                        HAL_PRCM_SetAudioPLLPatternParam(i2sPrivate->audioPllPatParam);
-                        HAL_PRCM_EnableAudioPLL();
-                        HAL_PRCM_EnableAudioPLLPattern();
-
-                        HAL_CCM_BusEnablePeriphClock(CCM_BUS_PERIPH_BIT_DAUDIO);
-                        HAL_CCM_BusReleasePeriphReset(CCM_BUS_PERIPH_BIT_DAUDIO);
-                        HAL_CCM_DAUDIO_SetMClock(AUDIO_PLL_SRC);
-                        HAL_CCM_DAUDIO_EnableMClock();
-
-                        HAL_MutexLock(&i2sPrivate->devSetLock, OS_WAIT_FOREVER);
-                        I2S_HwInit(i2sPrivate->hwParam);
-                        HAL_MutexUnlock(&i2sPrivate->devSetLock);
-                        break;
-                default:
-                        break;
-        }
-        i2sPrivate->suspend = 0;
-        return 0;
-}
-
-static const struct soc_device_driver i2s_drv = {
-        .name = "I2S",
-        .suspend = i2s_suspend,
-        .resume = i2s_resume,
-};
-#endif
-
-/**
-  * @brief Initializes the I2S module according to the specified parameters
-  *         in the I2S_Param.
-  * @param param: pointer to a I2S_Param structure that contains
-  *         the configuration information for I2S
-  * @retval HAL status
-  */
-HAL_Status HAL_I2S_Init(void *param)
-{
-        int32_t ret = 0;
-		I2S_Param *i2s_param = (I2S_Param *)param;
-        if (!i2s_param)
-                return HAL_INVALID;
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
-
-        if (i2sPrivate->isHwInit == true)
-                return HAL_OK;
-        I2S_MEMSET(i2sPrivate, 0, sizeof(*i2sPrivate));
-        i2sPrivate->isHwInit = true;
-
-        if (i2s_param->hwParam == NULL) {
-                i2sPrivate->hwParam = &gHwParam;
-        } else {
-                i2sPrivate->hwParam = i2s_param->hwParam;
 	}
-	i2sPrivate->hwParam->codecClkDiv = i2s_param->mclkDiv;
 
-        HAL_MutexInit(&i2sPrivate->devSetLock);
-
-        I2S_PINS_Init();
-
-        /*init and enable clk*/
-        I2S_PLLAUDIO_Update(I2S_PLL_22M);
-        HAL_PRCM_SetAudioPLLParam(i2sPrivate->audioPllParam);
-        HAL_PRCM_EnableAudioPLL();
-        HAL_PRCM_SetAudioPLLPatternParam(i2sPrivate->audioPllPatParam);
-        HAL_PRCM_EnableAudioPLLPattern();
-        HAL_CCM_BusEnablePeriphClock(CCM_BUS_PERIPH_BIT_DAUDIO);
-        HAL_CCM_BusReleasePeriphReset(CCM_BUS_PERIPH_BIT_DAUDIO);
-        HAL_CCM_DAUDIO_SetMClock(AUDIO_PLL_SRC);
-        HAL_CCM_DAUDIO_EnableMClock();
-
-        HAL_MutexLock(&i2sPrivate->devSetLock, OS_WAIT_FOREVER);
-        ret = I2S_HwInit(i2sPrivate->hwParam);
-
-#ifdef CONFIG_PM
-	i2sPrivate->suspend = 0;
-	i2sPrivate->dev.name = "I2S";
-	i2sPrivate->dev.driver = &i2s_drv;
-	pm_register_ops(&i2sPrivate->dev);
-#endif
-        HAL_MutexUnlock(&i2sPrivate->devSetLock);
-        return ret;
+	return write_total;
 }
 
-#if 0
-void HAL_I2S_REG_DEBUG()
+static int xradio_i2s_ioctl(uint32_t cmd, uint32_t cmd_param[], uint32_t cmd_param_len)
 {
-        int i = 0;
-        for (i = 0; i < 0x58; i = i+4)
-                printf("REG:0X%x,VAL:0X%x\n",i,(*((__IO uint32_t *)(0x40042c00+i))));
-}
-#endif
+	int ret = HAL_ERROR;
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
 
-/**
-  * @brief DeInitializes the I2S module
-  *
-  * @retval none
-  */
-void HAL_I2S_DeInit()
+	switch(cmd){
+		case PLATFORM_IOCTL_HW_CONFIG:
+			if(cmd_param_len != 3)	return HAL_INVALID;
+			xradio_i2s_priv->mclk_div = cmd_param[0] & 0xff;
+			xradio_i2s_priv->slot_width = cmd_param[0]>>8  & 0xff;
+			xradio_i2s_priv->pcm_frame_mode = cmd_param[0]>>16  & 0xff;
+			xradio_i2s_priv->loop_back_en = cmd_param[0]>>24  & 0xff;
+			xradio_i2s_priv->lrck_period = cmd_param[1];
+			xradio_i2s_priv->daudio_clk_freq = cmd_param[2];
+			XRADIO_I2S_DBG("\n/*** Xradio I2S hardware params config ***/\n");
+			XRADIO_I2S_DBG("mclk_div: %d;\nslot_width: %d;\npcm_frame_mode: %d;\nloop_back_en: %d;\nlrck_period: %d;\ndaudio_clk_freq: %d;\n",\
+							xradio_i2s_priv->mclk_div, xradio_i2s_priv->slot_width, xradio_i2s_priv->pcm_frame_mode,\
+							xradio_i2s_priv->loop_back_en, xradio_i2s_priv->lrck_period, xradio_i2s_priv->daudio_clk_freq);
+			XRADIO_I2S_DBG("/********************************************/");
+			ret = HAL_OK;
+			break;
+
+		case PLATFORM_IOCTL_SW_CONFIG:
+			if(cmd_param_len != 1)	return HAL_INVALID;
+			xradio_i2s_priv->tx_underrun_threshold = cmd_param[0] & 0xffff;
+			xradio_i2s_priv->rx_overrun_threshold = cmd_param[0]>>16 & 0xffff;
+			XRADIO_I2S_DBG("tx_underrun_threshold: %d; rx_overrun_threshold: %d\n",\
+							xradio_i2s_priv->tx_underrun_threshold, xradio_i2s_priv->rx_overrun_threshold);
+			ret = HAL_OK;
+			break;
+
+		default:
+			XRADIO_I2S_ERR("Invalid ioctl command!\n");
+			return HAL_INVALID;
+	}
+
+	return ret;
+}
+
+
+static HAL_Status xradio_i2s_init(void)
 {
-        struct I2S_Private *i2sPrivate = gI2sPrivate;
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
 
-#ifdef CONFIG_PM
-	pm_unregister_ops(&i2sPrivate->dev);
-#endif
-        HAL_MutexLock(&i2sPrivate->devSetLock, OS_WAIT_FOREVER);
-        i2sPrivate->isHwInit = false;
-        I2S_HwDeInit(i2sPrivate->hwParam);
-        HAL_MutexUnlock(&i2sPrivate->devSetLock);
+	if(xradio_i2s_priv == NULL){
+		XRADIO_I2S_ERR("Xradio I2S hasn't been registered, please register first!");
+		return HAL_ERROR;
+	}
 
-        HAL_MutexDeinit(&i2sPrivate->devSetLock);
-        I2S_PINS_Deinit();
+	if (xradio_i2s_priv->isI2SInit == true){
+		XRADIO_I2S_DBG("I2S has init already\n");
+		return HAL_OK;
+	}
 
-        HAL_CCM_DAUDIO_DisableMClock();
-        HAL_CCM_BusDisablePeriphClock(CCM_BUS_PERIPH_BIT_DAUDIO);
-        HAL_PRCM_DisableAudioPLL();
-        HAL_PRCM_DisableAudioPLLPattern();
+	/* I2S pinmux init */
+	HAL_BoardIoctl(HAL_BIR_PINMUX_INIT, HAL_MKDEV(HAL_DEV_MAJOR_I2S, 0), 0);
 
-        I2S_MEMSET(i2sPrivate, 0, sizeof(struct I2S_Private));
+	/* I2S module BUS CLK&reset and module CLK init */
+	HAL_CCM_BusEnablePeriphClock(CCM_BUS_PERIPH_BIT_DAUDIO);
+	HAL_CCM_BusReleasePeriphReset(CCM_BUS_PERIPH_BIT_DAUDIO);
+	HAL_CCM_DAUDIO_SetMClock(XRADIO_I2S_MODULE_CLK_SRC);
+	HAL_CCM_DAUDIO_EnableMClock();
+
+	xradio_i2s_priv->isI2SInit = true;
+
+	return HAL_OK;
 }
 
-void I2S_Loop_En(uint8_t en)
+static void xradio_i2s_deinit(void)
 {
-#if LOOP_EN
-   	if (en)
-		HAL_SET_BIT(I2S->DA_CTL, I2S_LOOP_TSET_EN_EN_BIT);
-	else
-		HAL_CLR_BIT(I2S->DA_CTL, I2S_LOOP_TSET_EN_EN_BIT);
-#endif
-}
-void I2S_RXFIFO_Flush(void)
-{
-#if LOOP_EN
-	HAL_SET_BIT(I2S->DA_FCTL, I2S_RXFIFO_RESET_BIT);
-#endif
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
+
+	if (xradio_i2s_priv->isI2SInit == false){
+		XRADIO_I2S_DBG("I2S has deinit already\n");
+		return;
+	}
+
+	/* I2S pinmux deinit */
+	HAL_BoardIoctl(HAL_BIR_PINMUX_DEINIT, HAL_MKDEV(HAL_DEV_MAJOR_I2S, 0), 0);
+
+	/* I2S module BUS CLK&reset and module CLK deinit */
+	HAL_CCM_DAUDIO_DisableMClock();
+	HAL_CCM_BusDisablePeriphClock(CCM_BUS_PERIPH_BIT_DAUDIO);
+	HAL_CCM_BusForcePeriphReset(CCM_BUS_PERIPH_BIT_DAUDIO);
+
+	xradio_i2s_priv->isI2SInit = false;
 }
 
 
-/* platform ops */
-static const struct platform_ops xr872_i2s_ops = {
-	.open = HAL_I2S_Open,
-	.close = HAL_I2S_Close,
-	.pcm_read = HAL_I2S_Read_DMA,
-	.pcm_write = HAL_I2S_Write_DMA,
+/*** platform dai ops ***/
+static const struct platform_dai_ops xradio_i2s_dai_ops = {
+	.set_fmt = xradio_i2s_dai_set_fmt,
+	.set_clkdiv = xradio_i2s_set_clkdiv,
+	.hw_params = xradio_i2s_dai_hw_params,
+	.hw_free = xradio_i2s_dai_hw_free,
 };
 
-/* platform driver */
-static struct platform_driver xr872_i2s_drv = {
+/*** platform ops ***/
+static const struct platform_ops xradio_i2s_ops = {
+	.open = xradio_i2s_open,
+	.close = xradio_i2s_close,
+
+	.pcm_read = xradio_i2s_pcm_read,
+	.pcm_write = xradio_i2s_pcm_write,
+
+	.ioctl = xradio_i2s_ioctl,
+};
+
+/*** platform driver ***/
+static struct platform_driver xradio_i2s_drv = {
 	.name = XRADIO_PLATFORM_I2S_NAME,
 	.platform_attr = XRADIO_PLATFORM_I2S,
 
-	.init = HAL_I2S_Init,
-	.deinit = HAL_I2S_DeInit,
+	.init = xradio_i2s_init,
+	.deinit = xradio_i2s_deinit,
 
-	.platform_ops = &xr872_i2s_ops,
+	.dai_ops = &xradio_i2s_dai_ops,
+	.platform_ops = &xradio_i2s_ops,
 };
 
 
 HAL_Status xradio_i2s_register(void)
 {
-	I2S_DEBUG("--->%s\n",__FUNCTION__);
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
 
-	/* Malloc gI2sPrivate buffer */
-	gI2sPrivate = (struct I2S_Private *)I2S_MALLOC(sizeof(struct I2S_Private));
-	if(gI2sPrivate == NULL){
-		I2S_ERROR("Malloc struct I2S_Private buffer Fail!\n");
+	/* Malloc xradio_i2s_priv buffer */
+	xradio_i2s_priv = (struct Xradio_I2S_Priv *)XRADIO_I2S_MALLOC(sizeof(struct Xradio_I2S_Priv));
+	if(xradio_i2s_priv == NULL){
+		XRADIO_I2S_ERR("Malloc struct Xradio_I2S_Priv buffer Fail!\n");
 		return HAL_ERROR;
 	}
-	I2S_MEMSET(gI2sPrivate, 0, sizeof(struct I2S_Private));
+
+	XRADIO_I2S_MEMSET(xradio_i2s_priv, 0, sizeof(struct Xradio_I2S_Priv));
+	xradio_i2s_priv->mclk_div = 2;
+	xradio_i2s_priv->slot_width = 32;
+	xradio_i2s_priv->lrck_period = 32;
+	xradio_i2s_priv->loop_back_en = 0;
+	xradio_i2s_priv->pcm_frame_mode = PCM_SHORT_FRAME;
+	xradio_i2s_priv->daudio_clk_freq = AUDIO_CLK_24M;
+	xradio_i2s_priv->tx_underrun_threshold = XRADIO_I2S_DEF_UNDERRUN_THRES;
+	xradio_i2s_priv->rx_overrun_threshold = XRADIO_I2S_DEF_OVERRUN_THRES;
 
 	/* Platform list add */
-	list_add(&xr872_i2s_drv.node, &hal_snd_platform_list);
+	list_add(&xradio_i2s_drv.node, &hal_snd_platform_list);
 
 	return HAL_OK;
 }
@@ -1445,30 +1222,31 @@ HAL_Status xradio_i2s_register(void)
 HAL_Status xradio_i2s_unregister(void)
 {
 	struct platform_driver *i2s_drv_ptr;
-	I2S_DEBUG("--->%s\n",__FUNCTION__);
+	XRADIO_I2S_DBG("--->%s\n",__FUNCTION__);
 
 	/* Check snd platform list empty or not */
 	if(list_empty(&hal_snd_platform_list)){
-		I2S_DEBUG("Hal snd platform list is empty, don't need to unregister\n");
+		XRADIO_I2S_DBG("Hal snd platform list is empty, don't need to unregister\n");
 		return HAL_OK;
 	}
 
 	/* Get platform to unregister */
 	list_for_each_entry(i2s_drv_ptr, &hal_snd_platform_list, node){
-		if(i2s_drv_ptr == &xr872_i2s_drv){
-			list_del(&xr872_i2s_drv.node);
+		if(i2s_drv_ptr == &xradio_i2s_drv){
+			list_del(&xradio_i2s_drv.node);
 			break;
 		}
 	}
 
-	/* Free gI2sPrivate buffer */
-	if(gI2sPrivate){
-		I2S_FREE(gI2sPrivate);
-		gI2sPrivate = NULL;
+	/* Free xradio_i2s_priv buffer */
+	if(xradio_i2s_priv){
+		XRADIO_I2S_FREE(xradio_i2s_priv);
+		xradio_i2s_priv = NULL;
 	}
 
 	return HAL_OK;
 }
+
 
 #endif /* __CONFIG_BOOTLOADER */
 

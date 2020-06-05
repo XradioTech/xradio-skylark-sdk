@@ -1,3 +1,8 @@
+/**
+ * @file os_errno.h
+ * @author XRADIO IOT WLAN Team
+ */
+
 /*
  * Copyright (C) 2017 XRADIO TECHNOLOGY CO., LTD. All rights reserved.
  *
@@ -30,10 +35,31 @@
 #ifndef _KERNEL_OS_OS_ERRNO_H_
 #define _KERNEL_OS_OS_ERRNO_H_
 
-#ifdef __CONFIG_OS_FREERTOS
-#include "kernel/os/FreeRTOS/os_errno.h"
-#else
-#error "No OS defined!"
+#include "kernel/os/os_common.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * Thread safe errno handling functions
+ */
+
+/**
+ * @brief Get error number of the current thread
+ * @return Error number of the current thread
+ */
+int OS_GetErrno(void);
+
+/**
+ * @brief Set error number of the current thread
+ * @param[in] Error number to be set
+ * @return None
+ */
+void OS_SetErrno(int err);
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* _KERNEL_OS_OS_ERRNO_H_ */

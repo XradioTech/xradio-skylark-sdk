@@ -504,6 +504,14 @@ extern struct mmc_card* mmc_card_open(uint8_t card_id);
  */
 extern int32_t mmc_card_close(uint8_t card_id);
 
+/**
+ * @brief get card capacity.
+ * @param card:
+ *        @arg card->card handler.
+ * @retval	0 if failed, card capacity, KB as unit.
+ */
+extern uint32_t mmc_get_capacity(struct mmc_card *card);
+
 #ifdef __cplusplus
 }
 #endif

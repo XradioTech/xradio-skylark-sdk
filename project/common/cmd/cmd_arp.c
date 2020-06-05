@@ -34,12 +34,15 @@
 #include "lwip/netifapi.h"
 #include "netif/etharp.h"
 
-int arp_clean_table(struct netif *netif)
+enum cmd_status arp_clean_table(char *cmd)
 {
-	return netifapi_netif_common(netif, etharp_cleanup_netif, NULL);
+	if (g_wlan_netif == NULL) {
+		return CMD_STATUS_FAIL;
+	}
+	return netifapi_netif_common(g_wlan_netif, etharp_cleanup_netif, NULL);
 }
 
-int arp_state(struct netif *netif)
+enum cmd_status arp_state(char *cmd)
 {
 /*	void etharp_printtable_netif(struct netif *netif);
 	return netifapi_netif_common(netif, etharp_printtable_netif, NULL);
@@ -47,45 +50,37 @@ int arp_state(struct netif *netif)
 	return 0;
 }
 
-int arp_del(struct netif *netif)
+enum cmd_status arp_del(char *cmd)
 {
 	return 0;
 }
 
-int arp_set(struct netif *netif)
+enum cmd_status arp_set(char *cmd)
 {
+	return 0;
+}
+
+static enum cmd_status cmd_arp_help_exec(char *cmd);
+
+static const struct cmd_data g_arp_cmds[] = {
+	{ "clean",	    arp_clean_table, CMD_DESC("clean the arp table") },
+	{ "state",	    arp_state, CMD_DESC("not support") },
+	{ "del",	    arp_del, CMD_DESC("not support") },
+	{ "set",	    arp_set, CMD_DESC("not support") },
+	{ "help",	    cmd_arp_help_exec, CMD_DESC(CMD_HELP_DESC) },
+};
+
+static enum cmd_status cmd_arp_help_exec(char *cmd)
+{
+	cmd_help_exec(g_arp_cmds, cmd_nitems(g_arp_cmds), 8);
 	return 0;
 }
 
 enum cmd_status cmd_arp_exec(char *cmd)
 {
-	int ret = 0;
-	int argc;
-	char *argv[3];
+	int ret;
 
-	if (g_wlan_netif == NULL) {
-		return CMD_STATUS_FAIL;
-	}
-
-	argc = cmd_parse_argv(cmd, argv, cmd_nitems(argv));
-	if (argc < 1) {
-		CMD_ERR("invalid arp cmd, argc %d\n", argc);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
-	if (cmd_strcmp(argv[0], "clean") == 0) {
-		ret = arp_clean_table(g_wlan_netif);
-	} else if (cmd_strcmp(argv[0], "state") == 0) {
-		ret = arp_state(g_wlan_netif);
-	} else if (cmd_strcmp(argv[0], "del") == 0) {
-		ret = arp_del(g_wlan_netif);
-	} else if (cmd_strcmp(argv[0], "set") == 0) {
-		ret = arp_set(g_wlan_netif);
-	} else {
-		CMD_ERR("invalid arp cmd <%s>\n", cmd);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
+	ret = cmd_exec(cmd, g_arp_cmds, cmd_nitems(g_arp_cmds));
 	return (ret == 0 ? CMD_STATUS_OK : CMD_STATUS_FAIL);
 }
 

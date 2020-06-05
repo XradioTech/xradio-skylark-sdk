@@ -170,7 +170,7 @@ enum cmd_status cmd_rf_get_power_exec(char *cmd)
 		end_rate = 10;
 	} else {
 		CMD_LOG(1, "Invalid params input!Should be [11b | 11gn | 11n_mcs7 | all] !\n");
-		return -1;
+		return CMD_STATUS_INVALID_ARG;
 	}
 
 	CMD_LOG(1, "------------ power level tab current ------------\n");
@@ -414,18 +414,26 @@ static enum cmd_status cmd_rf_set_channel_fec(char *cmd)
 /*
  * rf commands
  */
+static enum cmd_status cmd_rf_help_exec(char *cmd);
+
 static const struct cmd_data g_rf_cmds[] = {
-	{ "set_freq_offset",		cmd_rf_set_freq_offset_exec },
-	{ "get_freq_offset",		cmd_rf_get_freq_offset_exec },
-	{ "set_sdd_freq_offset",	cmd_rf_set_sdd_freq_offset_exec },
-	{ "get_sdd_freq_offset",	cmd_rf_get_sdd_freq_offset_exec },
-	{ "set_sdd_power",			cmd_rf_set_sdd_power_exec },
-	{ "get_sdd_power",			cmd_rf_get_sdd_power_exec },
-	{ "set_power",				cmd_rf_set_power_exec },
-	{ "get_power",				cmd_rf_get_power_exec },
-	{ "get_sdd_file",			cmd_rf_get_sdd_file_exec },
-	{ "set_channel_fec",		cmd_rf_set_channel_fec },
+	{ "set_freq_offset",		cmd_rf_set_freq_offset_exec, CMD_DESC("set the frequency offset") },
+	{ "get_freq_offset",		cmd_rf_get_freq_offset_exec, CMD_DESC("get the frequency offset") },
+	{ "set_sdd_freq_offset",	cmd_rf_set_sdd_freq_offset_exec, CMD_DESC("set the frequency offset in sdd") },
+	{ "get_sdd_freq_offset",	cmd_rf_get_sdd_freq_offset_exec, CMD_DESC("get the frequency offset in sdd") },
+	{ "set_sdd_power",			cmd_rf_set_sdd_power_exec, CMD_DESC("set the transmit power in sdd") },
+	{ "get_sdd_power",			cmd_rf_get_sdd_power_exec, CMD_DESC("get the transmit power in sdd") },
+	{ "set_power",				cmd_rf_set_power_exec, CMD_DESC("set the transmit power") },
+	{ "get_power",				cmd_rf_get_power_exec, CMD_DESC("get the transmit power") },
+	{ "get_sdd_file",			cmd_rf_get_sdd_file_exec, CMD_DESC("get the sdd file") },
+	{ "set_channel_fec",		cmd_rf_set_channel_fec, CMD_DESC("set the channel fec") },
+	{ "help",					cmd_rf_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_rf_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_rf_cmds, cmd_nitems(g_rf_cmds), 24);
+}
 
 enum cmd_status cmd_rf_exec(char *cmd)
 {

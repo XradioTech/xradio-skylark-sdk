@@ -60,12 +60,20 @@ enum cmd_status cmd_heap_info_exec(char *cmd)
 }
 #endif
 
+static enum cmd_status cmd_heap_help_exec(char *cmd);
+
 static const struct cmd_data g_heap_cmds[] = {
-	{ "space",	cmd_heap_space_exec },
+	{ "space",	cmd_heap_space_exec, CMD_DESC("get the heap usage") },
 #ifdef __CONFIG_MALLOC_TRACE
-	{ "info",	cmd_heap_info_exec },
+	{ "info",	cmd_heap_info_exec, CMD_DESC("info <0|1>, get the heap usage details") },
 #endif
+	{ "help",	cmd_heap_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_heap_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_heap_cmds, cmd_nitems(g_heap_cmds), 8);
+}
 
 enum cmd_status cmd_heap_exec(char *cmd)
 {

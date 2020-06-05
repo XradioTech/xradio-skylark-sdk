@@ -27,3 +27,58 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef __CONFIG_CPU_SUPPORT_349MHZ
+
+#include "hal_base.h"
+
+#ifdef __CONFIG_ROM
+
+/**
+ * @brief Get AHB1 clock
+ * @return AHB1 clock in Hz
+ */
+uint32_t HAL_CCM_BusGetAHB1Clock(void)
+{
+	 return HAL_GetCPUClock();
+}
+
+/**
+ * @brief Get AHB2 clock
+ * @return AHB2 clock in Hz
+ */
+uint32_t HAL_CCM_BusGetAHB2Clock(void)
+{
+	 uint32_t div = HAL_GET_BIT_VAL(CCM->CPU_BUS_CLKCFG,
+									CCM_AHB2_CLK_DIV_SHIFT,
+									CCM_AHB2_CLK_DIV_VMASK) + 1;
+	 return HAL_GetCPUClock() / div;
+}
+
+/**
+ * @brief Get APB clock
+ * @return APB clock in Hz
+ */
+uint32_t HAL_CCM_BusGetAPBClock(void)
+{
+	 uint32_t reg = CCM->CPU_BUS_CLKCFG;
+	 uint32_t freq, div;
+
+	 switch (reg & CCM_APB_CLK_SRC_MASK) {
+	 case CCM_APB_CLK_SRC_HFCLK:
+		 freq = HAL_GetHFClock();
+		 break;
+	 case CCM_APB_CLK_SRC_LFCLK:
+		 freq = HAL_GetLFClock();
+		 break;
+	 case CCM_APB_CLK_SRC_AHB2CLK:
+	 default:
+		 freq = HAL_GetAHB2Clock();
+		 break;
+	 }
+
+	 div = HAL_GET_BIT_VAL(reg, CCM_APB_CLK_DIV_SHIFT, CCM_APB_CLK_DIV_VMASK);
+	 return (freq >> div);
+}
+
+#endif /* __CONFIG_ROM */
+#endif /* __CONFIG_CPU_SUPPORT_349MHZ */

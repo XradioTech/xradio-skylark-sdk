@@ -34,7 +34,7 @@
 #include "cmd_util.h"
 #include "common/framework/net_ctrl.h"
 
-enum cmd_status cmd_ifconfig_exec(char *cmd)
+static enum cmd_status cmd_ifconfig_status_exec(char *cmd)
 {
 	struct netif *nif = g_wlan_netif;
 
@@ -42,44 +42,76 @@ enum cmd_status cmd_ifconfig_exec(char *cmd)
 		return CMD_STATUS_FAIL;
 	}
 
-	if (cmd_strcmp(cmd, "status") == 0) {
-		if (NET_IS_IP4_VALID(nif) && netif_is_link_up(nif)) {
-			char address[16];
-			char gateway[16];
-			char netmask[16];
-			inet_ntoa_r(nif->ip_addr, address, sizeof(address));
-			inet_ntoa_r(nif->gw, gateway, sizeof(gateway));
-			inet_ntoa_r(nif->netmask, netmask, sizeof(netmask));
-			cmd_write_respond(CMD_STATUS_OK, "%c%c%d up, "
-				              "address:%s gateway:%s netmask:%s",
-			                  nif->name[0], nif->name[1], nif->num,
-			                  address, gateway, netmask);
-		} else {
-			cmd_write_respond(CMD_STATUS_OK, "%c%c%d down",
-			                  nif->name[0], nif->name[1], nif->num);
-		}
+	if (NET_IS_IP4_VALID(nif) && netif_is_link_up(nif)) {
+		char address[16];
+		char gateway[16];
+		char netmask[16];
+		inet_ntoa_r(nif->ip_addr, address, sizeof(address));
+		inet_ntoa_r(nif->gw, gateway, sizeof(gateway));
+		inet_ntoa_r(nif->netmask, netmask, sizeof(netmask));
+		cmd_write_respond(CMD_STATUS_OK, "%c%c%d up, "
+						  "address:%s gateway:%s netmask:%s",
+						  nif->name[0], nif->name[1], nif->num,
+						  address, gateway, netmask);
+	} else {
+		cmd_write_respond(CMD_STATUS_OK, "%c%c%d down",
+						  nif->name[0], nif->name[1], nif->num);
+	}
 #if (!defined(__CONFIG_LWIP_V1) && LWIP_IPV6)
-		if (netif_is_link_up(nif)) {
-			int i;
-			for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; ++i) {
-				if (ip6_addr_isvalid(netif_ip6_addr_state(nif, i))) {
-					CMD_LOG(1, "IPv6 addr [%d]: %s\n",
-					        i, inet6_ntoa(nif->ip6_addr[i]));
-				}
+	if (netif_is_link_up(nif)) {
+		int i;
+		for (i = 0; i < LWIP_IPV6_NUM_ADDRESSES; ++i) {
+			if (ip6_addr_isvalid(netif_ip6_addr_state(nif, i))) {
+				CMD_LOG(1, "IPv6 addr [%d]: %s\n",
+						i, inet6_ntoa(nif->ip6_addr[i]));
 			}
 		}
+	}
 #endif /* (!defined(__CONFIG_LWIP_V1) && LWIP_IPV6) */
-		return CMD_STATUS_ACKED;
-	} else if (cmd_strcmp(cmd, "up") == 0) {
-		net_config(nif, 1);
-	} else if (cmd_strcmp(cmd, "down") == 0) {
-		net_config(nif, 0);
-	} else {
-		CMD_ERR("invalid argument '%s'\n", cmd);
-		return CMD_STATUS_INVALID_ARG;
+	return CMD_STATUS_ACKED;
+}
+
+static enum cmd_status cmd_ifconfig_up_exec(char *cmd)
+{
+	struct netif *nif = g_wlan_netif;
+
+	if (nif == NULL) {
+		return CMD_STATUS_FAIL;
 	}
 
-	return CMD_STATUS_OK;
+	net_config(nif, 1);
+	return CMD_STATUS_ACKED;
+}
+
+static enum cmd_status cmd_ifconfig_down_exec(char *cmd)
+{
+	struct netif *nif = g_wlan_netif;
+
+	if (nif == NULL) {
+		return CMD_STATUS_FAIL;
+	}
+
+	net_config(nif, 0);
+	return CMD_STATUS_ACKED;
+}
+
+static enum cmd_status cmd_ifconfig_help_exec(char *cmd);
+
+static const struct cmd_data g_ifconfig_cmds[] = {
+	{ "status",	cmd_ifconfig_status_exec, CMD_DESC("get network interfaces configuring status") },
+	{ "up",		cmd_ifconfig_up_exec, CMD_DESC("set network up") },
+	{ "down",	cmd_ifconfig_down_exec, CMD_DESC("set network down") },
+	{ "help",	cmd_ifconfig_help_exec, CMD_DESC(CMD_HELP_DESC) },
+};
+
+static enum cmd_status cmd_ifconfig_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_ifconfig_cmds, cmd_nitems(g_ifconfig_cmds), 8);
+}
+
+enum cmd_status cmd_ifconfig_exec(char *cmd)
+{
+	return cmd_exec(cmd, g_ifconfig_cmds, cmd_nitems(g_ifconfig_cmds));
 }
 
 #endif /* PRJCONF_NET_EN */

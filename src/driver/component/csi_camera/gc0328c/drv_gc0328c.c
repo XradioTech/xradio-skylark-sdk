@@ -37,32 +37,61 @@
 #include <stdlib.h>
 
 #include "kernel/os/os.h"
+#include "pm/pm.h"
 #include "driver/chip/hal_i2c.h"
-#include "driver/chip/hal_csi.h"
+#include "driver/component/csi_camera/private/camera_debug.h"
 #include "driver/component/csi_camera/gc0328c/drv_gc0328c.h"
 #include "gc0328c_cfg.h"
 
-#define GC0328C_SCCB_ID 0x21  			//GC0328C ID
-#define GC0328C_CHIP_ID 0x9d
+#define GC0328C_INF_ON		1
+#define GC0328C_DBG_ON		1
+#define GC0328C_WARN_ON		1
+#define GC0328C_ERR_ON		1
+
+#if (GC0328C_ERR_ON == 1)
+#define GC0328C_LOGE(fmt, arg...)    CAMERA_LOG(GC0328C_ERR_ON, fmt, ##arg)
+#else
+#define GC0328C_LOGE(fmt, arg...)
+#endif
+
+#if (GC0328C_WARN_ON == 1)
+#define GC0328C_LOGW(fmt, arg...)    CAMERA_LOG(GC0328C_WARN_ON, fmt, ##arg)
+#else
+#define GC0328C_LOGW(fmt, arg...)
+#endif
+
+#if (GC0328C_DBG_ON == 1)
+#define GC0328C_LOGD(fmt, arg...)    CAMERA_LOG(GC0328C_DBG_ON, fmt, ##arg)
+#else
+#define GC0328C_LOGD(fmt, arg...)
+#endif
+
+#if (GC0328C_INF_ON == 1)
+#define GC0328C_LOGI(fmt, arg...)    CAMERA_LOG(GC0328C_INF_ON, fmt, ##arg)
+#else
+#define GC0328C_LOGI(fmt, arg...)
+#endif
+
+#define GC0328C_SCCB_ID			0x21 //GC0328C ID
+#define GC0328C_CHIP_ID			0x9d
 #define GC0328C_IIC_CLK_FREQ	100000
 
-#define SENSOR_DBG_LEVEL INFO
-enum LOG_LEVEL{
-	OFF = 0,
-	ERROR,
-	WARN,
-	DEBUG,
-	INFO,
-};
-#define SENSOR_DBG(level, fmt, args...) \
-	do {		\
-		if (level <= SENSOR_DBG_LEVEL)	\
-			printf(fmt,##args);	\
-	} while (0)
+typedef struct {
+	uint8_t i2c_id;
+#ifdef CONFIG_PM
+	uint8_t suspend;
+	struct soc_device dev;
+#endif
+} sensor_Private;
 
-static uint8_t i2c_id;
+static sensor_Private gsensor_Private;
 
-static void GC0328C_InitSccb(void)
+static sensor_Private* GC0328C_SensorGetPriv()
+{
+	return &gsensor_Private;
+}
+
+static void GC0328C_InitSccb(uint8_t i2c_id)
 {
     I2C_InitParam initParam;
 
@@ -71,19 +100,21 @@ static void GC0328C_InitSccb(void)
     HAL_I2C_Init(i2c_id, &initParam);
 }
 
-static void GC0328C_DeInitSccb(void)
+static void GC0328C_DeInitSccb(uint8_t i2c_id)
 {
     HAL_I2C_DeInit(i2c_id);
 }
 
 int GC0328C_WriteSccb(uint8_t sub_addr, uint8_t data)
 {
-    return HAL_I2C_SCCB_Master_Transmit_IT(i2c_id, GC0328C_SCCB_ID, sub_addr, &data);
+	sensor_Private* priv = GC0328C_SensorGetPriv();
+    return HAL_I2C_SCCB_Master_Transmit_IT(priv->i2c_id, GC0328C_SCCB_ID, sub_addr, &data);
 }
 
 int GC0328C_ReadSccb(uint8_t sub_addr, uint8_t *data)
 {
-    return HAL_I2C_SCCB_Master_Receive_IT(i2c_id, GC0328C_SCCB_ID, sub_addr, data);
+	sensor_Private* priv = GC0328C_SensorGetPriv();
+    return HAL_I2C_SCCB_Master_Receive_IT(priv->i2c_id, GC0328C_SCCB_ID, sub_addr, data);
 }
 
 /**
@@ -322,7 +353,7 @@ void GC0328C_SetPixelOutFmt(SENSOR_PixelOutFmt pixel_out_fmt)
         GC0328C_WriteSccb(0x44, 0xa6);
         break;
     default:
-        SENSOR_DBG(ERROR, "GC0328C:untest pixel out fmt %d\n", pixel_out_fmt);
+        GC0328C_LOGE("GC0328C:untest pixel out fmt %d\n", pixel_out_fmt);
         break;
 	}
 }
@@ -375,7 +406,7 @@ HAL_Status HAL_GC0328C_IoCtl(SENSOR_IoctrlCmd attr, uint32_t arg)
 			break;
 		}
         default:
-            SENSOR_DBG(ERROR, "un support camsensor cmd %d\n", attr);
+            GC0328C_LOGE("un support camsensor cmd %d\n", attr);
             return HAL_ERROR;
             break;
     }
@@ -389,28 +420,72 @@ static HAL_Status GC0328C_Init(void)
     uint16_t i = 0;
 
     if (GC0328C_ReadSccb(0xf0, &chip_id) != 1) {
-        SENSOR_DBG(ERROR, "GC0328C sccb read error\n");
+        GC0328C_LOGE("GC0328C sccb read error\n");
         return HAL_ERROR;
     } else {
 	    if(chip_id!= GC0328C_CHIP_ID) {
-		    SENSOR_DBG(ERROR, "GC0328C get chip id wrong 0x%02x\n", chip_id);
+		    GC0328C_LOGE("GC0328C get chip id wrong 0x%02x\n", chip_id);
 		    return HAL_ERROR;
 	    } else {
-		    SENSOR_DBG(INFO, "GC0328C chip id read success 0x%02x\n", chip_id);
+		    GC0328C_LOGI("GC0328C chip id read success 0x%02x\n", chip_id);
 	    }
     }
 
     for (i = 0; i < sizeof(gc0328c_init_reg_tbl) / sizeof(gc0328c_init_reg_tbl[0]); i++) {
         if (!GC0328C_WriteSccb(gc0328c_init_reg_tbl[i][0], gc0328c_init_reg_tbl[i][1])) {
-            SENSOR_DBG(ERROR, "GC0328C sccb read error\n");
+            GC0328C_LOGE("GC0328C sccb read error\n");
             return HAL_ERROR;
         }
     }
 
-    SENSOR_DBG(DEBUG, "GC0328C Init Done \r\n");
+    GC0328C_LOGI("GC0328C Init Done \r\n");
 
     return HAL_OK;
 }
+
+#ifdef CONFIG_PM
+static int sensor_suspend(struct soc_device *dev, enum suspend_state_t state)
+{
+	sensor_Private *priv = (sensor_Private*)dev->platform_data;
+	priv->suspend = 1;
+
+	switch (state) {
+	case PM_MODE_SLEEP:
+	case PM_MODE_STANDBY:
+	case PM_MODE_HIBERNATION:
+		HAL_GC0328C_Suspend();
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int sensor_resume(struct soc_device *dev, enum suspend_state_t state)
+{
+	sensor_Private *priv = (sensor_Private*)dev->platform_data;
+
+	switch (state) {
+	case PM_MODE_SLEEP:
+	case PM_MODE_STANDBY:
+	case PM_MODE_HIBERNATION:
+		HAL_GC0328C_Resume();
+		break;
+	default:
+		break;
+	}
+	priv->suspend = 0;
+
+	return 0;
+}
+
+static const struct soc_device_driver sensor_drv = {
+	.name = "sensor",
+	.suspend = sensor_suspend,
+	.resume = sensor_resume,
+};
+#endif
 
 /**
   * @brief Init the GC0328C.
@@ -418,31 +493,26 @@ static HAL_Status GC0328C_Init(void)
   */
 HAL_Status HAL_GC0328C_Init(SENSOR_ConfigParam *cfg)
 {
-    i2c_id = cfg->i2c_id;
+	sensor_Private* priv = GC0328C_SensorGetPriv();
 
-	GC0328C_InitSccb();
+	priv->i2c_id = cfg->i2c_id;
+	GC0328C_InitSccb(priv->i2c_id);
+
+#ifdef CONFIG_PM
+	if (!priv->suspend) {
+		priv->dev.name = "sensor";
+		priv->dev.driver = &sensor_drv;
+		priv->dev.platform_data = priv;
+		pm_register_ops(&priv->dev);
+	}
+#endif
 
     GC0328C_InitPower(&cfg->pwcfg);
 
     if (GC0328C_Init() != HAL_OK) {
-	    SENSOR_DBG(ERROR, "GC0328C Init error!!\n");
+	    GC0328C_LOGE("GC0328C Init error!!\n");
 	    return HAL_ERROR;
     }
-
-	/* sensor set, windows cfg_set, pixelformat cfg_set and so on */
-	GC0328C_SetPixelOutFmt(cfg->pixel_outfmt);
-
-	GC0328C_SetWindow(0, 0, 648, 488);
-
-	if ((cfg->pixel_size.height == 240) && (cfg->pixel_size.width == 320)) {  //subsample 1/2
-		GC0328C_SetCropWindow(160, 120, 320, 240);
-	} else if ((cfg->pixel_size.height == 480) && (cfg->pixel_size.width == 640)) {
-		GC0328C_SetCropWindow(0, 0, 640, 480);
-	} else {
-		SENSOR_DBG(WARN, "GC0328C unconventional image resolution\n");
-	}
-
-	GC0328C_SyncEnable();
 
     OS_MSleep(1000);
 
@@ -455,9 +525,15 @@ HAL_Status HAL_GC0328C_Init(SENSOR_ConfigParam *cfg)
   */
 void HAL_GC0328C_DeInit(SENSOR_ConfigParam *cfg)
 {
-    i2c_id = 0;
+	sensor_Private* priv = GC0328C_SensorGetPriv();
+
+#ifdef CONFIG_PM
+	if (!priv->suspend)
+		pm_unregister_ops(&priv->dev);
+#endif
+
     GC0328C_DeInitPower(&cfg->pwcfg);
-	GC0328C_DeInitSccb();
+	GC0328C_DeInitSccb(priv->i2c_id);
 }
 
 /**

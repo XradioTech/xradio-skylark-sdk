@@ -625,15 +625,48 @@ out:
 	return CMD_STATUS_OK;
 }
 
+#if CMD_DESCRIBE
+#define sd_init_help_info \
+"init sd card, sd init [<card_id> <debug_mask>]\n"\
+"\t\t\tsd init\n"\
+"\t\t\tsd init 0 0x7f"
+#define sd_deinit_help_info \
+"deinit sd card, sd deinit [<card_id> <host_id>]\n"\
+"\t\t\tsd deinit\n"\
+"\t\t\tsd deinit 0 0"
+#define sd_scan_help_info \
+"scan sd card, sd scan [<card_id> <host_id> <card_type> <debug_mask>]\n"\
+"\t\t\tsd scan\n"\
+"\t\t\tsd scan 0 0 2 0x7f"
+#define sd_read_help_info "read data, sd read s=<Start_Sector> n=<sector_num>"
+#define sd_test_help_info \
+"write data, sd test [<host_id> <cd_mode> <sdc_degmask> <card_dbgmask>]\n"\
+"\t\t\tsd test 0 3 0x3c 0x3c\n"\
+"\t\t\tsd test 0 2 0x3c 0x3c"
+#define sd_bench_help_info "bench sd card, sd bench s=<Start_Sector>"
+#define sd_press_help_info \
+"press sd card, sd press r=<threads_num> s=<Start_Sector> n=<sector_num> w=<threads_num> s=<Start_Sector> n=<sector_num> t=<secons>\n"\
+"\t\t\tsd test 0 3 0x3c 0x3c\n"\
+"\t\t\tsd test 0 2 0x3c 0x3c"
+#endif
+
+static enum cmd_status cmd_sd_help_exec(char *cmd);
+
 static const struct cmd_data g_sd_cmds[] = {
-	{ "init",     cmd_sd_init_exec },
-	{ "deinit",   cmd_sd_deinit_exec },
-	{ "scan",     cmd_sd_scan_exec },
-	{ "read",     cmd_sd_read_exec },
-	{ "test",     cmd_sd_test_exec },
-	{ "bench",    cmd_sd_bench_exec },
-	{ "press",    cmd_sd_press_exec },
+	{ "init",     cmd_sd_init_exec, CMD_DESC(sd_init_help_info) },
+	{ "deinit",   cmd_sd_deinit_exec, CMD_DESC(sd_deinit_help_info) },
+	{ "scan",     cmd_sd_scan_exec, CMD_DESC(sd_scan_help_info) },
+	{ "read",     cmd_sd_read_exec, CMD_DESC(sd_read_help_info) },
+	{ "test",     cmd_sd_test_exec, CMD_DESC(sd_test_help_info) },
+	{ "bench",    cmd_sd_bench_exec, CMD_DESC(sd_bench_help_info) },
+	{ "press",    cmd_sd_press_exec, CMD_DESC(sd_press_help_info) },
+	{ "help",     cmd_sd_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_sd_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_sd_cmds, cmd_nitems(g_sd_cmds), 8);
+}
 
 enum cmd_status cmd_sd_exec(char *cmd)
 {

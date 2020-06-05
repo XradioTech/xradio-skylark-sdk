@@ -462,26 +462,34 @@ static enum cmd_status cmd_cedarx_aacsbr_exec(char *cmd)
  *          cedarx rec file://record/wechat.amr
  *          cedarx end
  */
+static enum cmd_status cmd_cedarx_help_exec(char *cmd);
+
 static const struct cmd_data g_cedarx_cmds[] = {
-    { "create",     cmd_cedarx_create_exec      },
-    { "destroy",    cmd_cedarx_destroy_exec     },
-    { "play",       cmd_cedarx_play_exec        },
-    { "stop",       cmd_cedarx_stop_exec        },
-    { "pause",      cmd_cedarx_pause_exec       },
-    { "seturl",     cmd_cedarx_seturl_exec      },
-    { "getpos",     cmd_cedarx_getpos_exec      },
-    { "seek",       cmd_cedarx_seek_exec        },
-    { "setvol",     cmd_cedarx_setvol_exec      },
-    { "playdic",    cmd_cedarx_playdic_exec     },
-    { "log",        cmd_cedarx_log_exec         },
-    { "version",    cmd_cedarx_version_exec     },
-    { "showbuf",    cmd_cedarx_showbuf_exec     },
-    { "setbuf",     cmd_cedarx_setbuf_exec      },
-    { "bufinfo",    cmd_cedarx_bufinfo_exec     },
-    { "aacsbr",     cmd_cedarx_aacsbr_exec      },
-    { "rec",        cmd_cedarx_rec_exec         },
-    { "end",        cmd_cedarx_end_exec         },
+    { "create",     cmd_cedarx_create_exec, CMD_DESC("create cedarx object") },
+    { "destroy",    cmd_cedarx_destroy_exec, CMD_DESC("destroy cedarx object") },
+    { "play",       cmd_cedarx_play_exec, CMD_DESC("cedarx play") },
+    { "stop",       cmd_cedarx_stop_exec, CMD_DESC("cedarx stop") },
+    { "pause",      cmd_cedarx_pause_exec, CMD_DESC("cedarx pause") },
+    { "seturl",     cmd_cedarx_seturl_exec, CMD_DESC("set url, eg. cedarx seturl file://music/01.mp3") },
+    { "getpos",     cmd_cedarx_getpos_exec, CMD_DESC("get current position") },
+    { "seek",       cmd_cedarx_seek_exec, CMD_DESC("seek to position, eg. cedarx seek 6000") },
+    { "setvol",     cmd_cedarx_setvol_exec, CMD_DESC("set volume, 0~31, eg. cedarx setvol 8") },
+    { "playdic",    cmd_cedarx_playdic_exec, CMD_DESC("not support") },
+    { "log",        cmd_cedarx_log_exec, CMD_DESC("set log level") },
+    { "version",    cmd_cedarx_version_exec, CMD_DESC("show version") },
+    { "showbuf",    cmd_cedarx_showbuf_exec, CMD_DESC("show buffer") },
+    { "setbuf",     cmd_cedarx_setbuf_exec, CMD_DESC("set buffer size") },
+    { "bufinfo",    cmd_cedarx_bufinfo_exec, CMD_DESC("show buffer info") },
+    { "aacsbr",     cmd_cedarx_aacsbr_exec, CMD_DESC("set use aac sbr") },
+    { "rec",        cmd_cedarx_rec_exec, CMD_DESC("record start, eg. cedarx rec file://record/wechat.amr or wechat.pcm") },
+    { "end",        cmd_cedarx_end_exec, CMD_DESC("record destroy") },
+    { "help",       cmd_cedarx_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_cedarx_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_cedarx_cmds, cmd_nitems(g_cedarx_cmds), 8);
+}
 
 enum cmd_status cmd_cedarx_exec(char *cmd)
 {

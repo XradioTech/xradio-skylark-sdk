@@ -178,6 +178,7 @@ typedef enum {
 
 #define DMA_BYTE_CNT_MODE_SHIFT 15  /* R/W */
 #define DMA_BYTE_CNT_MODE_VMASK 0x1U
+#define DMA_BYTE_CNT_MODE_MASK  (DMA_BYTE_CNT_MODE_VMASK << DMA_BYTE_CNT_MODE_SHIFT)
 typedef enum {
     DMA_BYTE_CNT_MODE_NORMAL    = 0U,	/* DMA->CHANNEL[x].BYTE_CNT is the data length of the DAM transfer */
     DMA_BYTE_CNT_MODE_REMAIN    = 1U	/* DMA->CHANNEL[x].BYTE_CNT is the length of the remaining data not transferred */
@@ -273,7 +274,11 @@ __STATIC_INLINE uint32_t HAL_DMA_MakeChannelInitCfg(DMA_WorkMode workMode,
             (((uint32_t)srcAddrMode  & DMA_ADDR_MODE_VMASK)     << DMA_SRC_ADDR_MODE_SHIFT)  |
             (((uint32_t)srcPeriph    & DMA_PERIPH_VMASK)        << DMA_SRC_PERIPH_SHIFT));
 }
-
+#if (defined __CONFIG_PSRAM_ALL_CACHEABLE)
+void internal_dma_init(void);
+#endif
+void DMA_EnableIRQ(DMA_Channel chan, DMA_IRQType type);
+void DMA_DisableIRQ(DMA_Channel chan, DMA_IRQType type);
 DMA_Channel HAL_DMA_Request(void);
 DMA_Channel HAL_DMA_RequestSpecified(DMA_Channel chan);
 void HAL_DMA_Release(DMA_Channel chan);

@@ -92,7 +92,10 @@ typedef enum _SoundCtrlCmd
     Sound Stream Control area...
 */
     SOUND_CONTROL_SET_OUTPUT_CONFIG = 400,
+    SOUND_CONTROL_ADD_OUTPUT_CONFIG,
     SOUND_CONTROL_CLEAR_OUTPUT_CONFIG,
+    SOUND_CONTROL_SET_EQ_MODE,
+    SOUND_CONTROL_CLEAR_EQ_MODE,
 }SoundCtrlCmd;
 
 static inline void SoundDeviceDestroy(SoundCtrl* s)

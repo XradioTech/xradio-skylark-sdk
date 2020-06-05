@@ -369,17 +369,59 @@ enum cmd_status cmd_sysinfo_version_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
-static const struct cmd_data g_sysinfo_cmds[] = {
-    { "default", cmd_sysinfo_default_exec},
-#if PRJCONF_SYSINFO_SAVE_TO_FLASH
-    { "save",    cmd_sysinfo_save_exec},
-    { "load",    cmd_sysinfo_load_exec},
+#if CMD_DESCRIBE
+#define sysinfo_default_help_info "set default value to sysinfo"
+#define sysinfo_save_help_info "save sysinfo to flash"
+#define sysinfo_load_help_info "load sysinfo from flash"
+#define sysinfo_set_help_info "sysinfo set <field> <arg> <value>\n"\
+"\t\tsysinfo set mac <MAC>, eg. sysinfo set mac 00:80:E1:29:E8:D1\n"\
+"\t\tsysinfo set sta ssid <ssid>, eg. sysinfo set sta ssid ssid_example\n"\
+"\t\tsysinfo set sta psk <psk>, eg. sysinfo set sta psk psk_example\n"\
+"\t\tsysinfo set sta dhcp <dhcp>, eg. sysinfo set sta dhcp 1\n"\
+"\t\tsysinfo set sta ip <ip>, eg. sysinfo set sta ip 192.168.51.100\n"\
+"\t\tsysinfo set sta mask <mask>, eg. sysinfo set sta mask 255.255.255.0\n"\
+"\t\tsysinfo set sta gateway <gateway>, eg. sysinfo set sta gateway 192.168.51.1\n"\
+"\t\tsysinfo set ap ssid <ssid>, eg. sysinfo set ap ssid ssid_example\n"\
+"\t\tsysinfo set ap psk <psk>, eg. sysinfo set ap psk psk_example\n"\
+"\t\tsysinfo set ap ip <ip>, eg. sysinfo set ap ip 192.168.51.1\n"\
+"\t\tsysinfo set ap mask <mask>, eg. sysinfo set ap mask 255.255.255.0\n"\
+"\t\tsysinfo set ap gateway <gateway>, eg. sysinfo set ap gateway 192.168.51.1"
+#define sysinfo_get_help_info "sysinfo get <field> <arg>\n"\
+"\t\tsysinfo get mac\n"\
+"\t\tsysinfo get sta ssid\n"\
+"\t\tsysinfo get sta psk\n"\
+"\t\tsysinfo get sta dhcp\n"\
+"\t\tsysinfo get sta ip\n"\
+"\t\tsysinfo get sta mask\n"\
+"\t\tsysinfo get sta gateway\n"\
+"\t\tsysinfo get ap ssid\n"\
+"\t\tsysinfo get ap psk\n"\
+"\t\tsysinfo get ap ip\n"\
+"\t\tsysinfo get ap mask\n"\
+"\t\tsysinfo get ap gateway"
+#define sysinfo_chip_help_info "get chip arch version"
+#define sysinfo_version_help_info "get SDK version"
 #endif
-    { "set",     cmd_sysinfo_set_exec},
-    { "get",     cmd_sysinfo_get_exec},
-    { "chip",    cmd_sysinfo_chip_exec},
-    { "version", cmd_sysinfo_version_exec},
+
+static enum cmd_status cmd_sysinfo_help_exec(char *cmd);
+
+static const struct cmd_data g_sysinfo_cmds[] = {
+    { "default", cmd_sysinfo_default_exec, CMD_DESC(sysinfo_default_help_info) },
+#if PRJCONF_SYSINFO_SAVE_TO_FLASH
+    { "save",    cmd_sysinfo_save_exec, CMD_DESC(sysinfo_save_help_info) },
+    { "load",    cmd_sysinfo_load_exec, CMD_DESC(sysinfo_load_help_info) },
+#endif
+    { "set",     cmd_sysinfo_set_exec, CMD_DESC(sysinfo_set_help_info) },
+    { "get",     cmd_sysinfo_get_exec, CMD_DESC(sysinfo_get_help_info) },
+    { "chip",    cmd_sysinfo_chip_exec, CMD_DESC(sysinfo_chip_help_info) },
+    { "version", cmd_sysinfo_version_exec, CMD_DESC(sysinfo_version_help_info) },
+    { "help",    cmd_sysinfo_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_sysinfo_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_sysinfo_cmds, cmd_nitems(g_sysinfo_cmds), 8);
+}
 
 enum cmd_status cmd_sysinfo_exec(char *cmd)
 {

@@ -331,6 +331,8 @@ typedef enum {
 #define JPEG_CSI_FRAME_END			HAL_BIT(2)
 #define JPEG_CSI_SIZE_CHG			HAL_BIT(1)
 #define JPEG_VE_TIMEOUT				HAL_BIT(0)
+#define JPEG_INT_ERR				(JPEG_FIFO_OVERFLOW | JPEG_CSI_ERROR | JPEG_CSI_TIMEOUT | \
+										JPEG_VE_TIMEOUT_EN | JPEG_MB_OVERTIME | JPEG_CSI_SIZE_CHG)
 
 /*
  * Bits definition for JPEG CSI output Y address register (0x20)
@@ -484,29 +486,30 @@ typedef enum {
  * Bits definition for JPEG VE quantiser matrix input data register (0x8e4)
  */
 
+#define JPEG_BUFF_CNT_MAX 	(3)
+
 typedef struct {
+	uint8_t 		sensor_out_type;
 	uint8_t			jpeg_en;
 	uint8_t 		jpeg_mode;
-	uint8_t 		sensor_out_type;
-
+	uint8_t			jpeg_bitrate_en;
+	uint8_t			jpeg_scale;
 	uint32_t		csi_output_addr_y;
 	uint32_t		csi_output_addr_uv;
 
 	uint32_t		pic_size_width;
 	uint32_t		pic_size_height;
 
-	uint32_t		jpe_input_addr_y;
-	uint32_t		jpe_input_addr_uv;
+	uint32_t		jpeg_input_addr_y;
+	uint32_t		jpeg_input_addr_uv;
 
-	uint32_t		outstream_start_addr;
-	uint32_t		outstream_end_addr;
-	uint32_t		outstream_offset;
-	uint32_t		outstream_mem_size;
+	uint32_t		outstream_buff_addr[JPEG_BUFF_CNT_MAX];
+	uint32_t		outstream_buff_offset;
+	uint32_t		outstream_buff_size;
 	uint8_t			outstream_buff_num;
 
 	uint8_t 		mem_part_en;
 	JPEG_MemPartNum mem_part_num;
-	uint8_t			*mem_part_buf;
 
 	uint32_t		quality;
 } JPEG_ConfigParam;
@@ -524,6 +527,7 @@ typedef enum {
 typedef enum {
 	CSI_JPEG_EVENT_FRM_END,
 	CSI_JPEG_EVENT_VE_END,
+	CSI_JPEG_EVENT_MPART,
 	CSI_JPEG_EVENT_EXCP,
 } CSI_JPEG_IRQEvent;
 
@@ -537,6 +541,26 @@ typedef struct {
 	CSI_JPEG_IRQCallback	cb;
 } CSI_JPEG_InitParam;
 
+/*
+typedef struct {
+	uint8_t id;
+	uint8_t *index;
+	uint8_t tail;
+	uint32_t size;
+} CSI_JPEG_StreamInfo; */
+
+typedef struct {
+	uint8_t buff_index; 	/* Indicate which buffer the currently encoded part jpeg is stored in */
+	uint32_t buff_offset; 	/* Indicate the offset of the current part of jpeg in the buffer */
+	uint8_t tail; 			/* Indicates whether it is the last part of a jpeg image */
+	uint32_t size; 			/* Indicate the size of the current part of jpeg encoding */
+} JPEG_MpartBuffInfo;
+
+typedef struct {
+	uint8_t buff_index; 	/* Indicate which buffer the currently encoded jpeg is stored in */
+	uint32_t size; 			/* Indicate the currently encoded jpeg size */
+} JPEG_BuffInfo;
+
 HAL_Status HAL_CSI_JPEG_Init(CSI_JPEG_InitParam *param);
 HAL_Status HAL_CSI_JPEG_Deinit(void);
 HAL_Status HAL_CSI_Config(CSI_ConfigParam *cfg);
@@ -545,7 +569,6 @@ HAL_Status HAL_CSI_StartCapture(CSI_CapType mode);
 HAL_Status HAL_CSI_StopCapture(void);
 
 HAL_Status HAL_JPEG_Config(JPEG_ConfigParam *cfg);
-void HAL_JPEG_Scale(uint8_t height_scale, uint8_t width_scale);
 void HAL_JPEG_Reset(void);
 void HAL_JPEG_WriteHeader(uint8_t *baseAddr);
 

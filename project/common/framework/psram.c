@@ -44,6 +44,10 @@
 #include "psram.h"
 #include "common/board/board.h"
 
+#ifdef __CONFIG_BIN_COMPRESS_APP_PSRAM
+#include "xz/xz.h"
+#endif
+
 #ifdef __CONFIG_PSRAM
 
 #define PSRAM_DBG_CHECK   0
@@ -210,6 +214,104 @@ static int psram_dma_read_write(uint32_t write, uint32_t addr,
 }
 #endif
 
+#ifdef __CONFIG_BIN_COMPRESS_APP_PSRAM
+
+#define PSRAM_DEC_B_INBUF_SIZE	(4 * 1024)
+#define PSRMM_DEC_BIN_DICT_MAX	(32 * 1024)
+
+__sram_text
+static int psram_decompress_bin(const section_header_t *sh, uint32_t max_size)
+{
+	uint8_t *in_buf;
+	uint32_t read_size, len, id, offset, left;
+	uint16_t chksum;
+	struct xz_dec *s;
+	struct xz_buf b;
+	enum xz_ret xzret;
+	int ret = -1;
+	OS_Time_t tm;
+
+	PSRAM_DBG("%s() start\n", __func__);
+	tm = OS_GetTicks();
+
+	in_buf = malloc(PSRAM_DEC_B_INBUF_SIZE);
+	if (in_buf == NULL) {
+		PSRAM_ERR("no mem\n");
+		return ret;
+	}
+
+	s = xz_dec_init(XZ_DYNALLOC, PSRMM_DEC_BIN_DICT_MAX);
+	if (s == NULL) {
+		PSRAM_ERR("no mem\n");
+		goto out;
+	}
+
+	b.in = in_buf;
+	b.in_pos = 0;
+	b.in_size = 0;
+	b.out = (uint8_t *)PSRAM_START_ADDR;
+	b.out_pos = 0;
+	b.out_size = max_size;
+
+	id = sh->id;
+	offset = 0;
+	left = sh->body_len;
+	chksum = sh->data_chksum;
+
+	while (1) {
+		if (b.in_pos == b.in_size) {
+			if (left == 0) {
+				PSRAM_ERR("no more input data\n");
+				break;
+			}
+			read_size = left > PSRAM_DEC_B_INBUF_SIZE ?
+			            PSRAM_DEC_B_INBUF_SIZE : left;
+			len = image_read(id, IMAGE_SEG_BODY, offset, in_buf, read_size);
+			if (len != read_size) {
+				PSRAM_ERR("read img body fail, id %#x, off %u, len %u != %u\n",
+				         id, offset, len, read_size);
+				break;
+			}
+			chksum += image_get_checksum(in_buf, len);
+			offset += len;
+			left -= len;
+			b.in_size = len;
+			b.in_pos = 0;
+		}
+
+		xzret = xz_dec_run(s, &b);
+
+		if (b.out_pos == b.out_size) {
+			PSRAM_ERR("decompress size >= %u\n", b.out_size);
+			break;
+		}
+
+		if (xzret == XZ_OK) {
+			continue;
+		} else if (xzret == XZ_STREAM_END) {
+			tm = OS_GetTicks() - tm;
+			PSRAM_DBG("%s() end, size %u --> %u, cost %u ms\n", __func__,
+			         sh->body_len, b.out_pos, tm);
+			if (chksum != 0xFFFF) {
+				PSRAM_ERR("invalid checksum %#x\n", chksum);
+			} else {
+				ret = 0;
+			}
+			break;
+		} else {
+			PSRAM_ERR("xz_dec_run() fail %d\n", xzret);
+			break;
+		}
+	}
+
+out:
+	xz_dec_end(s);
+	free(in_buf);
+	return ret;
+}
+
+#endif
+
 __sram_text
 static int load_psram_bin_and_set_addr(struct psram_chip *chip)
 {
@@ -243,29 +345,39 @@ static int load_psram_bin_and_set_addr(struct psram_chip *chip)
 		goto clr_bss;
 	}
 
+#ifdef __CONFIG_BIN_COMPRESS_APP_PSRAM
+	if (sh.attribute & IMAGE_ATTR_FLAG_COMPRESS) {
+		if (psram_decompress_bin(&sh, PSRAM_LENGTH) != 0) {
+			PSRAM_ERR("psram decompress bin failed\n");
+			ret = -1;
+			goto out;
+		}
+	} else
+#endif
+	{
+		num_blocks = (sh.body_len + LOAD_SIZE - 1) / LOAD_SIZE;
+		PSRAM_INF("sh.body_le=%d load_times:%d\n", sh.body_len, num_blocks);
+		for (i = 0; i < num_blocks; i++) {
+			//PSRAM_DBG("psram loading idx:%d addr[0x%x] len:%d\n", i, PSRAM_START_ADDR + len, len);
+			size = ((sh.body_len - len) > LOAD_SIZE) ? LOAD_SIZE : (sh.body_len - len);
+			len += image_read(IMAGE_APP_PSRAM_ID, IMAGE_SEG_BODY, len, (void *)buf, size);
+			buf += size;
+			put += size;
+		}
 
-	num_blocks = (sh.body_len + LOAD_SIZE - 1) / LOAD_SIZE;
-	PSRAM_INF("sh.body_le=%d load_times:%d\n", sh.body_len, num_blocks);
-	for (i = 0; i < num_blocks; i++) {
-		//PSRAM_DBG("psram loading idx:%d addr[0x%x] len:%d\n", i, PSRAM_START_ADDR + len, len);
-		size = ((sh.body_len - len) > LOAD_SIZE) ? LOAD_SIZE : (sh.body_len - len);
-		len += image_read(IMAGE_APP_PSRAM_ID, IMAGE_SEG_BODY, len, (void *)buf, size);
-		buf += size;
-		put += size;
-	}
+		if (len != sh.body_len) {
+			PSRAM_ERR("psram body size %u, read %u\n", sh.body_len, len);
+			ret = -1;
+			goto out;
+		}
 
-	if (len != sh.body_len) {
-		PSRAM_ERR("psram body size %u, read %u\n", sh.body_len, len);
-		ret = -1;
-		goto out;
-	}
-
-	if (image_check_data(&sh, (void *)PSRAM_START_ADDR, sh.body_len,
-	                     NULL, 0) == IMAGE_INVALID) {
-		PSRAM_ERR("invalid psram bin body\n");
-		//PSRAM_DUMP((const void *)PSRAM_START_ADDR, sh.body_len);
-		ret = -1;
-		goto out;
+		if (image_check_data(&sh, (void *)PSRAM_START_ADDR, sh.body_len,
+		                     NULL, 0) == IMAGE_INVALID) {
+			PSRAM_ERR("invalid psram bin body\n");
+			//PSRAM_DUMP((const void *)PSRAM_START_ADDR, sh.body_len);
+			ret = -1;
+			goto out;
+		}
 	}
 
 clr_bss:
@@ -336,8 +448,6 @@ void platform_psram_init(void)
 		PSRAM_ERR("psram chip init faild!\n");
 		goto out1;
 	}
-	HAL_PsramCtrl_DQS_Delay_Cal_Policy(ctrl);
-	chip.freq = ctrl->freq;
 	PSRAM_DBG("psram chip %s init ok!, freq %d\n", chip.name, chip.freq);
 
 	if (load_psram_bin_and_set_addr(&chip)) {

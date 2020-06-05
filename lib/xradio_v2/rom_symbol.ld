@@ -84,7 +84,9 @@ __divdi3 = 0x2673d;
 DMA_ClearPendingIRQ = 0x9d0d;
 DMA_DisableIRQ = 0x9ce5;
 DMA_EnableIRQ = 0x9cd1;
+#ifndef __CONFIG_PSRAM_ALL_CACHEABLE
 DMA_IRQHandler = 0x9c8d;
+#endif
 DMA_IsPendingIRQ = 0x9cf9;
 dpm_resume = 0x7b0d;
 dpm_resume_noirq = 0x7a69;
@@ -165,9 +167,11 @@ HAL_CCM_BusDisablePeriphClock = 0x94c5;
 HAL_CCM_BusEnablePeriphClock = 0x94b5;
 HAL_CCM_BusForceAllPeriphReset = 0x9501;
 HAL_CCM_BusForcePeriphReset = 0x94e1;
+#ifndef __CONFIG_CPU_SUPPORT_349MHZ
 HAL_CCM_BusGetAHB1Clock = 0x9461;
 HAL_CCM_BusGetAHB2Clock = 0x9465;
 HAL_CCM_BusGetAPBClock = 0x9481;
+#endif
 HAL_CCM_BusReleasePeriphReset = 0x94f1;
 HAL_CCM_BusSetAPBSClock = 0x98a9;
 HAL_CCM_BusSetClock = 0x9451;
@@ -230,7 +234,12 @@ HAL_DMA_IsBusy = 0x9f31;
 HAL_DMA_Release = 0x9dad;
 HAL_DMA_Request = 0x9d21;
 HAL_DMA_RequestSpecified = 0x9d69;
+//HAL_DMA_Start = 0x9ed5;
+#ifdef __CONFIG_PSRAM_ALL_CACHEABLE
+gDMAPrivate = 0x200308;
+#else
 HAL_DMA_Stop = 0x9f0d;
+#endif
 HAL_Flashc_ConfigCCMU = 0xb029;
 HAL_Flashc_Create = 0xb7dd;
 HAL_Flashc_DecRef = 0xb841;
@@ -256,7 +265,8 @@ HAL_GPIO_DeInit = 0xbc25;
 HAL_GPIO_DisableIRQ = 0xbedd;
 HAL_GPIO_EnableIRQ = 0xbdfd;
 HAL_GPIO_GetConfig = 0xbc89;
-HAL_GPIO_GlobalInit = 0xbb0d;
+__HAL_GPIO_GlobalInit = 0xbb0d;
+gGpioPortIrq = 0xc0d8;
 HAL_GPIO_Init = 0xbb91;
 HAL_GPIO_MaskIRQ = 0xbf79;
 HAL_GPIO_PinMuxConfig = 0xc035;
@@ -272,11 +282,19 @@ HAL_GPIO_UnMaskIRQ = 0xbfad;
 HAL_GPIO_WritePin = 0xbd99;
 HAL_GPIO_WritePort = 0xbddd;
 HAL_I2C_DeInit = 0xc691;
-HAL_I2C_Init = 0xc4b5;
+#ifdef __CONFIG_CPU_SUPPORT_349MHZ
+gI2CInstance = 0xca40;
+#endif
+gI2CPrivate = 0x2003c4;
+I2C_SCCBIRQHandler = 0xc2bc;
+//HAL_I2C_Init = 0xc4b5;
+__HAL_I2C_Init = 0xc4b5;
 HAL_I2C_Master_Receive_IT = 0xc7d9;
-HAL_I2C_Master_Receive_Mem_IT = 0xc8cd;
+//HAL_I2C_Master_Receive_Mem_IT = 0xc8cd;
+__HAL_I2C_Master_Receive_Mem_IT = 0xc8cd;
 HAL_I2C_Master_Transmit_IT = 0xc769;
-HAL_I2C_Master_Transmit_Mem_IT = 0xc851;
+//HAL_I2C_Master_Transmit_Mem_IT = 0xc851;
+__HAL_I2C_Master_Transmit_Mem_IT = 0xc851;
 HAL_I2C_SCCB_Master_Receive_IT = 0xc9c5;
 HAL_I2C_SCCB_Master_Transmit_IT = 0xc949;
 HAL_ICache_DeConfig = 0xcca5;
@@ -332,7 +350,9 @@ HAL_PRCM_GetBANDGAPSTABLE_TIME = 0xd4d9;
 HAL_PRCM_GetCPUABootAddr = 0xd539;
 HAL_PRCM_GetCPUABootArg = 0xd551;
 HAL_PRCM_GetCPUABootFlag = 0xd51d;
+#ifndef __CONFIG_CPU_SUPPORT_349MHZ
 HAL_PRCM_GetCPUAClk = 0xd199;
+#endif
 HAL_PRCM_GetCPUAPrivateData = 0xd56d;
 HAL_PRCM_GetDCDCSTABLE_TIME = 0xd4f9;
 //HAL_PRCM_GetDev2Clock = 0xd28d;
@@ -374,7 +394,7 @@ HAL_PRCM_SetCPUAPrivateData = 0xd55d;
 HAL_PRCM_SetDCDCSTABLE_TIME = 0xd4e9;
 HAL_PRCM_SetDev2Clock = 0xd255;
 HAL_PRCM_SetDevClock = 0xd215;
-HAL_PRCM_SetEXTLDOMdoe = 0xcffd;
+HAL_PRCM_SetEXTLDOMode = 0xcffd;
 HAL_PRCM_SetHOSCType = 0xd075;
 HAL_PRCM_SetLDO1RETVolt = 0xcfd1;
 HAL_PRCM_SetLFCLKSource = 0xd055;
@@ -461,18 +481,24 @@ HAL_UART_IsRxReady = 0xe585;
 HAL_UART_IsTxEmpty = 0xe57d;
 HAL_UART_IsTxReady = 0xe575;
 HAL_UART_PutTxData = 0xe593;
-__HAL_UART_Receive_DMA = 0xebed;
+#ifdef __CONFIG_PSRAM_ALL_CACHEABLE
+gUartPrivate = 0x2004e0;
+#else
+HAL_UART_Receive_DMA = 0xebed;
+#endif
 HAL_UART_Receive_IT = 0xe691;
 HAL_UART_Receive_Poll = 0xec69;
 HAL_UART_SetBreakCmd = 0xed05;
 HAL_UART_SetBypassPmMode = 0xed31;
 HAL_UART_SetConfig = 0xed4d;
 HAL_UART_SetTxDelay = 0xedf1;
-__HAL_UART_StartReceive_DMA = 0xea61;
-__HAL_UART_StartTransmit_DMA = 0xe9e9;
+#ifndef __CONFIG_PSRAM_ALL_CACHEABLE
+HAL_UART_StartReceive_DMA = 0xea61;
+HAL_UART_StartTransmit_DMA = 0xe9e9;
 HAL_UART_StopReceive_DMA = 0xeaad;
 HAL_UART_StopTransmit_DMA = 0xea25;
-__HAL_UART_Transmit_DMA = 0xeba9;
+HAL_UART_Transmit_DMA = 0xeba9;
+#endif
 HAL_UART_Transmit_IT = 0xe625;
 HAL_UART_Transmit_Poll = 0xec31;
 HAL_Wakeup_CheckIOMode = 0xf385;
@@ -493,7 +519,7 @@ HAL_Wakeup_SetTimer = 0xeffd;
 HAL_WDG_DeInit = 0xf665;
 HAL_WDG_Feed = 0xf5c5;
 HAL_WDG_Init = 0xf58d;
-HAL_WDG_Reboot = 0xf685;
+__HAL_WDG_Reboot = 0xf685;
 HAL_WDG_ResetCpu = 0xf6a5;
 HAL_WDG_Start = 0xf5d5;
 HAL_WDG_Stop = 0xf609;
@@ -776,9 +802,15 @@ Wakeup_DisTimer = 0xef6b;
 Wakeup_SetTimer = 0xefc9;
 Wakeup_Source_Handler = 0xef91;
 WDG_IRQHandler = 0xf521;
+#ifdef __CONFIG_PSRAM_ALL_CACHEABLE
+___wrap_memcpy = 0x1e115;
+___wrap_memmove = 0x1e249;
+___wrap_memset = 0x1e3a5;
+#else
 __wrap_memcpy = 0x1e115;
 __wrap_memmove = 0x1e249;
 __wrap_memset = 0x1e3a5;
+#endif
 XM25QHXXA_ReadStatus = 0x15ca5;
 xz_crc32 = 0x1c30d;
 xz_crc32_init = 0x1c309;

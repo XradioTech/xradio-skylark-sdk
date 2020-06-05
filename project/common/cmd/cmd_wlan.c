@@ -165,9 +165,47 @@ static const char *g_wlan_mode_str[WLAN_MODE_NUM] = {
 	[WLAN_MODE_MONITOR] = "monitor",
 };
 
+static enum cmd_status cmd_wlan_mode_sta_exec(char *cmd)
+{
+	net_switch_mode(WLAN_MODE_STA);
+	return CMD_STATUS_ACKED;
+}
+
+static enum cmd_status cmd_wlan_mode_ap_exec(char *cmd)
+{
+	net_switch_mode(WLAN_MODE_HOSTAP);
+	return CMD_STATUS_ACKED;
+}
+
+static enum cmd_status cmd_wlan_mode_mon_exec(char *cmd)
+{
+	net_switch_mode(WLAN_MODE_MONITOR);
+	return CMD_STATUS_ACKED;
+}
+
+static enum cmd_status cmd_wlan_mode_help_exec(char *cmd);
+
+static const struct cmd_data g_wlan_mode_cmds[] = {
+#ifdef __CONFIG_WLAN_STA
+	{ "sta",	cmd_wlan_mode_sta_exec, CMD_DESC("sta mode") },
+#endif
+#ifdef __CONFIG_WLAN_AP
+	{ "ap",		cmd_wlan_mode_ap_exec, CMD_DESC("ap mode") },
+#endif
+#ifdef __CONFIG_WLAN_MONITOR
+	{ "mon",	cmd_wlan_mode_mon_exec, CMD_DESC("monitor mode") },
+#endif
+	{ "help",	cmd_wlan_mode_help_exec, CMD_DESC(CMD_HELP_DESC) },
+};
+
+static enum cmd_status cmd_wlan_mode_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_wlan_mode_cmds, cmd_nitems(g_wlan_mode_cmds), 8);
+}
+
 enum cmd_status cmd_wlan_mode_exec(char *cmd)
 {
-	enum wlan_mode cur_mode, new_mode;
+	enum wlan_mode cur_mode/*, new_mode*/;
 	const char *mode_str;
 
 	if (cmd_strcmp(cmd, "") == 0) {
@@ -181,20 +219,8 @@ enum cmd_status cmd_wlan_mode_exec(char *cmd)
 		return CMD_STATUS_ACKED;
 	}
 
-	if (cmd_strcmp(cmd, "sta") == 0) {
-		new_mode = WLAN_MODE_STA;
-	} else if (cmd_strcmp(cmd, "ap") == 0) {
-		new_mode = WLAN_MODE_HOSTAP;
-	} else if (cmd_strcmp(cmd, "mon") == 0) {
-		new_mode = WLAN_MODE_MONITOR;
-	} else {
-		return CMD_STATUS_INVALID_ARG;
-	}
-
 	cmd_write_respond(CMD_STATUS_OK, "OK");
-	net_switch_mode(new_mode);
-
-	return CMD_STATUS_ACKED;
+	return cmd_exec(cmd, g_wlan_mode_cmds, cmd_nitems(g_wlan_mode_cmds));
 }
 
 /* wpas parse */
@@ -646,169 +672,337 @@ static int cmd_wlan_sta_get(char *cmd)
 	return 0;
 }
 
+static enum cmd_status cmd_wlan_sta_config_exec(char *cmd)
+{
+	int ret;
+	char *argv[2];
+
+	if (cmd_parse_argv(cmd, argv, cmd_nitems(argv)) == 0) {
+		ret = -2;
+		return ret;
+	}
+	ret = wlan_sta_set((uint8_t *)argv[0], cmd_strlen(argv[0]), (uint8_t *)argv[1]);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_set_exec(char *cmd)
+{
+	return cmd_wlan_sta_set(cmd);
+}
+
+static enum cmd_status cmd_wlan_sta_get_exec(char *cmd)
+{
+	return cmd_wlan_sta_get(cmd);
+}
+
+static enum cmd_status cmd_wlan_sta_enable_exec(char *cmd)
+{
+	return wlan_sta_enable();
+}
+
+static enum cmd_status cmd_wlan_sta_disable_exec(char *cmd)
+{
+	return wlan_sta_disable();
+}
+
+static enum cmd_status cmd_wlan_sta_ap_ssid_psk_exec(char *cmd)
+{
+	int ret;
+	wlan_ssid_psk_t ap_ssid_psk;
+	cmd_memset(&ap_ssid_psk, 0, sizeof(wlan_ssid_psk_t));
+	ret = wlan_sta_get_ap_ssid_psk(&ap_ssid_psk);
+	if (ret == 0) {
+		CMD_LOG(1, "connected ap ssid %.32s, pwd %s\n",
+				ap_ssid_psk.ssid, ap_ssid_psk.passphrase);
+		if (ap_ssid_psk.psk_valid) {
+			int i;
+			CMD_LOG(1, "psk: ");
+			for (i = 0; i < WLAN_PSK_HEX_LEN; i++)
+				CMD_LOG(1, "%02x", ap_ssid_psk.psk[i]);
+			CMD_LOG(1, "\n");
+		}
+	}
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_scan_once_exec(char *cmd)
+{
+	return wlan_sta_scan_once();
+}
+
+static enum cmd_status cmd_wlan_sta_scan_result_num_exec(char *cmd)
+{
+	int ret;
+	int num;
+	ret = wlan_sta_get_scan_result_num(&num);
+	if (ret == 0)
+		CMD_LOG(1, "scan result num: %d\n", num);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_scan_result_exec(char *cmd)
+{
+	int ret;
+	int size;
+	if (cmd_wpas_parse_int(cmd, 1, CMD_WLAN_MAX_BSS_CNT, &size) != 0) {
+		ret = -2;
+		return ret;
+	}
+	wlan_sta_scan_results_t results;
+	results.ap = cmd_malloc(size * sizeof(wlan_sta_ap_t));
+	if (results.ap == NULL) {
+		CMD_ERR("no mem\n");
+		ret = -1;
+		return ret;
+	}
+	results.size = size;
+	ret = wlan_sta_scan_result(&results);
+	if (ret == 0)
+		cmd_wlan_print_scan_results(&results);
+	cmd_free(results.ap);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_scan_interval_exec(char *cmd)
+{
+	int ret;
+	int sec;
+	if (cmd_wpas_parse_int(cmd, 0, INT32_MAX, &sec) != 0) {
+		ret = -2;
+		return ret;
+	}
+	ret = wlan_sta_scan_interval(sec);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_bss_max_count_exec(char *cmd)
+{
+	int ret;
+	int count;
+	if (cmd_wpas_parse_int(cmd, 1, CMD_WLAN_MAX_BSS_CNT, &count) != 0) {
+		ret = -2;
+		return ret;
+	}
+	ret = wlan_sta_bss_max_count((uint8_t)count);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_bss_flush_exec(char *cmd)
+{
+	int ret;
+	int age;
+	if (cmd_wpas_parse_int(cmd, 0, INT32_MAX, &age) != 0) {
+		ret = -2;
+		return ret;
+	}
+	ret = wlan_sta_bss_flush(age);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_connect_exec(char *cmd)
+{
+	return wlan_sta_connect();
+}
+
+static enum cmd_status cmd_wlan_sta_disconnect_exec(char *cmd)
+{
+	return wlan_sta_disconnect();
+}
+
+static enum cmd_status cmd_wlan_sta_state_exec(char *cmd)
+{
+	int ret;
+	wlan_sta_states_t state;
+	ret = wlan_sta_state(&state);
+	if (ret == 0)
+		CMD_LOG(1, "sta state: %d\n", state);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_ap_exec(char *cmd)
+{
+	int ret;
+	wlan_sta_ap_t *ap = cmd_malloc(sizeof(wlan_sta_ap_t));
+	if (ap == NULL) {
+		CMD_ERR("no mem\n");
+		ret = -1;
+		return ret;
+	}
+	ret = wlan_sta_ap_info(ap);
+	if (ret == 0)
+		cmd_wlan_print_ap(ap);
+	cmd_free(ap);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_genpsk_exec(char *cmd)
+{
+	int ret;
+	uint8_t i;
+	char *argv[2];
+	wlan_gen_psk_param_t param;
+
+	if (cmd_parse_argv(cmd, argv, cmd_nitems(argv)) != 2) {
+		ret = -2;
+		return ret;
+	}
+	param.ssid_len = cmd_strlen(argv[0]);
+	cmd_memcpy(param.ssid, argv[0], param.ssid_len);
+	cmd_strlcpy(param.passphrase, argv[1], sizeof(param.passphrase));
+	ret = wlan_sta_gen_psk(&param);
+	if (ret == 0) {
+		CMD_LOG(1, "psk: ");
+		for (i = 0; i < sizeof(param.psk); ++i)
+			CMD_LOG(1, "%02x", param.psk[i]);
+		CMD_LOG(1, "\n");
+	}
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_wps_pbc_exec(char *cmd)
+{
+	return wlan_sta_wps_pbc();
+}
+
+static enum cmd_status cmd_wlan_sta_wps_pin_get_exec(char *cmd)
+{
+	int ret;
+	wlan_sta_wps_pin_t wps;
+	ret = wlan_sta_wps_pin_get(&wps);
+	if (ret == 0)
+		CMD_LOG(1, "WPS pin: %s\n", wps.pin);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_wps_pin_set_exec(char *cmd)
+{
+	int ret;
+	if (cmd_strlen(cmd) != 8) {
+		ret = -2;
+		return ret;
+	}
+	wlan_sta_wps_pin_t wps;
+	cmd_memcpy(wps.pin, cmd, 8);
+	wps.pin[8] = '\0';
+	ret = wlan_sta_wps_pin_set(&wps);
+
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_stop_exec(char *cmd)
+{
+	return net_sys_stop();
+}
+
+static enum cmd_status cmd_wlan_sta_start_exec(char *cmd)
+{
+	int ret;
+	struct sysinfo *sysinfo = sysinfo_get();
+	if (sysinfo == NULL) {
+		CMD_ERR("failed to get sysinfo %p\n", sysinfo);
+		return -1;
+	}
+
+	ret = net_sys_start(sysinfo->wlan_mode);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_sta_autoconn_enable_exec(char *cmd)
+{
+	return wlan_sta_set_autoconnect(1);
+}
+
+static enum cmd_status cmd_wlan_sta_autoconn_disable_exec(char *cmd)
+{
+	return wlan_sta_set_autoconnect(0);
+}
+
+#if CMD_DESCRIBE
+#define sta_config_help_info \
+"net sta config <ssid> [psk]\n"\
+"\t\t\tnet sta config ssid_example\n"\
+"\t\t\tnet sta config ssid_example psk_example"
+#define sta_set_help_info \
+"net sta set <field> <value>\n"\
+"\t\t\tnet sta set ssid ssid_example\n"\
+"\t\t\tnet sta set psk psk_example\n"\
+"\t\t\tnet sta set wep_key0 wep_key_example\n"\
+"\t\t\tnet sta set wep_key1 wep_key_example\n"\
+"\t\t\tnet sta set wep_key2 wep_key_example\n"\
+"\t\t\tnet sta set wep_key3 wep_key_example\n"\
+"\t\t\tnet sta set wep_key_index <0, 1, 2, 3>\n"\
+"\t\t\tnet sta set key_mgmt {WPA-PSK, NONE}\n"\
+"\t\t\tnet sta set pairwise {CCMP, TKIP, WEP40, WEP104, NONE}\n"\
+"\t\t\tnet sta set group {CCMP, TKIP, WEP40, WEP104, NONE}\n"\
+"\t\t\tnet sta set proto {WPA, RSN}\n"\
+"\t\t\tnet sta set auth_alg {OPEN, SHARED}\n"\
+"\t\t\tnet sta set ptk_rekey <seconds>\n"\
+"\t\t\tnet sta set scan_ssid (0, 1)"
+#define sta_get_help_info \
+"net sta get <field>\n"\
+"\t\t\tnet sta get ssid\n"\
+"\t\t\tnet sta get psk\n"\
+"\t\t\tnet sta get wep_key0\n"\
+"\t\t\tnet sta get wep_key1\n"\
+"\t\t\tnet sta get wep_key2\n"\
+"\t\t\tnet sta get wep_key3\n"\
+"\t\t\tnet sta get wep_key_index\n"\
+"\t\t\tnet sta get key_mgmt\n"\
+"\t\t\tnet sta get pairwise\n"\
+"\t\t\tnet sta get group\n"\
+"\t\t\tnet sta get proto\n"\
+"\t\t\tnet sta get auth_alg\n"\
+"\t\t\tnet sta get ptk_rekey\n"\
+"\t\t\tnet sta get scan_ssid"
+#endif
+
+static enum cmd_status cmd_wlan_sta_help_exec(char *cmd);
+
+static const struct cmd2_data g_wlan_sta_cmds[] = {
+	{ "config ", 7, cmd_wlan_sta_config_exec, CMD_DESC(sta_config_help_info) },
+	{ "set ",    4, cmd_wlan_sta_set_exec, CMD_DESC(sta_set_help_info) },
+	{ "get ",    4, cmd_wlan_sta_get_exec, CMD_DESC(sta_get_help_info) },
+	{ "enable",  6, cmd_wlan_sta_enable_exec, CMD_DESC("enable sta") },
+	{ "disable", 7, cmd_wlan_sta_disable_exec, CMD_DESC("disable sta") },
+	{ "ap_ssid_psk", 11, cmd_wlan_sta_ap_ssid_psk_exec, CMD_DESC("get the ap ssid and psk") },
+	{ "scan once", 9, cmd_wlan_sta_scan_once_exec, CMD_DESC("scan once") },
+	{ "scan result_num", 15, cmd_wlan_sta_scan_result_num_exec, CMD_DESC("get scan result number") },
+	{ "scan result ", 12, cmd_wlan_sta_scan_result_exec, CMD_DESC("scan result <num>, get scan result") },
+	{ "scan interval ", 14, cmd_wlan_sta_scan_interval_exec, CMD_DESC("scan interval <sec>, set scan interval") },
+	{ "bss max count ", 14, cmd_wlan_sta_bss_max_count_exec, CMD_DESC("bss max count <num>, set max scan count of bss") },
+	{ "bss flush ", 10, cmd_wlan_sta_bss_flush_exec, CMD_DESC("bss flush <age>, flush the scan result after <age> senconds") },
+	{ "connect", 7, cmd_wlan_sta_connect_exec, CMD_DESC("connect the ap") },
+	{ "disconnect", 10, cmd_wlan_sta_disconnect_exec, CMD_DESC("disconnect the ap") },
+	{ "state", 5, cmd_wlan_sta_state_exec, CMD_DESC("get station state") },
+	{ "ap", 2, cmd_wlan_sta_ap_exec, CMD_DESC("get the ap infomation connected") },
+	{ "genpsk ", 7, cmd_wlan_sta_genpsk_exec, CMD_DESC("genpsk <ssid> <passphrase>, generate a 64byte hex key") },
+	{ "wps pbc", 7, cmd_wlan_sta_wps_pbc_exec, CMD_DESC("get wps pbc") },
+	{ "wps pin", 7, cmd_wlan_sta_wps_pin_get_exec, CMD_DESC("get wps pin") },
+	{ "wps pin ", 8, cmd_wlan_sta_wps_pin_set_exec, CMD_DESC("wps pin set <pin>, set wps pin") },
+	{ "stop", 4, cmd_wlan_sta_stop_exec, CMD_DESC("stop station") },
+	{ "start", 5, cmd_wlan_sta_start_exec, CMD_DESC("start station") },
+	{ "autoconn enable", 15, cmd_wlan_sta_autoconn_enable_exec, CMD_DESC("enable auto connection") },
+	{ "autoconn disable", 15, cmd_wlan_sta_autoconn_disable_exec, CMD_DESC("disable auto connection") },
+	{ "help", 4, cmd_wlan_sta_help_exec, CMD_DESC(CMD_HELP_DESC) },
+};
+
+static enum cmd_status cmd_wlan_sta_help_exec(char *cmd)
+{
+	return cmd2_help_exec(g_wlan_sta_cmds, cmd_nitems(g_wlan_sta_cmds), 16);
+}
+
 enum cmd_status cmd_wlan_sta_exec(char *cmd)
 {
 	int ret;
 
 	cmd_write_respond(CMD_STATUS_OK, "OK");
 
-	if (cmd_strncmp(cmd, "config ", 7) == 0) {
-		char *argv[2];
-		if (cmd_parse_argv(cmd + 7, argv, cmd_nitems(argv)) == 0) {
-			ret = -2;
-			goto out;
-		}
-		ret = wlan_sta_set((uint8_t *)argv[0], cmd_strlen(argv[0]), (uint8_t *)argv[1]);
-	} else if (cmd_strncmp(cmd, "set ", 4) == 0) {
-		ret = cmd_wlan_sta_set(cmd + 4);
-	} else if (cmd_strncmp(cmd, "get ", 4) == 0) {
-		ret = cmd_wlan_sta_get(cmd + 4);
-	} else if (cmd_strcmp(cmd, "enable") == 0) {
-		ret = wlan_sta_enable();
-	} else if (cmd_strcmp(cmd, "disable") == 0) {
-		ret = wlan_sta_disable();
-	} else if (cmd_strcmp(cmd, "ap_ssid_psk") == 0) {
-		wlan_ssid_psk_t ap_ssid_psk;
-		cmd_memset(&ap_ssid_psk, 0, sizeof(wlan_ssid_psk_t));
-		ret = wlan_sta_get_ap_ssid_psk(&ap_ssid_psk);
-		if (ret == 0) {
-			CMD_LOG(1, "connected ap ssid %.32s, pwd %s\n",
-			        ap_ssid_psk.ssid, ap_ssid_psk.passphrase);
-			if (ap_ssid_psk.psk_valid) {
-				int i;
-				CMD_LOG(1, "psk: ");
-				for (i = 0; i < WLAN_PSK_HEX_LEN; i++)
-					CMD_LOG(1, "%02x", ap_ssid_psk.psk[i]);
-				CMD_LOG(1, "\n");
-			}
-		}
-	} else if (cmd_strcmp(cmd, "scan once") == 0) {
-		ret = wlan_sta_scan_once();
-	} else if (cmd_strcmp(cmd, "scan result_num") == 0) {
-		int num;
-		ret = wlan_sta_get_scan_result_num(&num);
-		if (ret == 0)
-			CMD_LOG(1, "scan result num: %d\n", num);
-	} else if (cmd_strncmp(cmd, "scan result ", 12) == 0) {
-		int size;
-		if (cmd_wpas_parse_int(cmd + 12, 1, CMD_WLAN_MAX_BSS_CNT, &size) != 0) {
-			ret = -2;
-			goto out;
-		}
-		wlan_sta_scan_results_t results;
-		results.ap = cmd_malloc(size * sizeof(wlan_sta_ap_t));
-		if (results.ap == NULL) {
-			CMD_ERR("no mem\n");
-			ret = -1;
-			goto out;
-		}
-		results.size = size;
-		ret = wlan_sta_scan_result(&results);
-		if (ret == 0)
-			cmd_wlan_print_scan_results(&results);
-		cmd_free(results.ap);
-	} else if (cmd_strncmp(cmd, "scan interval ", 14) == 0) {
-		int sec;
-		if (cmd_wpas_parse_int(cmd + 14, 0, INT32_MAX, &sec) != 0) {
-			ret = -2;
-			goto out;
-		}
-		ret = wlan_sta_scan_interval(sec);
-	} else if (cmd_strncmp(cmd, "bss max count ", 14) == 0) {
-		int count;
-		if (cmd_wpas_parse_int(cmd + 14, 1, CMD_WLAN_MAX_BSS_CNT, &count) != 0) {
-			ret = -2;
-			goto out;
-		}
-		ret = wlan_sta_bss_max_count((uint8_t)count);
-	} else if (cmd_strncmp(cmd, "bss flush ", 10) == 0) {
-		int age;
-		if (cmd_wpas_parse_int(cmd + 10, 0, INT32_MAX, &age) != 0) {
-			ret = -2;
-			goto out;
-		}
-		ret = wlan_sta_bss_flush(age);
-	} else if (cmd_strcmp(cmd, "connect") == 0) {
-		ret = wlan_sta_connect();
-	} else if (cmd_strcmp(cmd, "disconnect") == 0) {
-		ret = wlan_sta_disconnect();
-	} else if (cmd_strcmp(cmd, "state") == 0) {
-		wlan_sta_states_t state;
-		ret = wlan_sta_state(&state);
-		if (ret == 0)
-			CMD_LOG(1, "sta state: %d\n", state);
-	} else if (cmd_strcmp(cmd, "ap") == 0) {
-		wlan_sta_ap_t *ap = cmd_malloc(sizeof(wlan_sta_ap_t));
-		if (ap == NULL) {
-			CMD_ERR("no mem\n");
-			ret = -1;
-			goto out;
-		}
-		ret = wlan_sta_ap_info(ap);
-		if (ret == 0)
-			cmd_wlan_print_ap(ap);
-		cmd_free(ap);
-	} else if (cmd_strncmp(cmd, "genpsk ", 7) == 0) {
-		uint8_t i;
-		char *argv[2];
-		wlan_gen_psk_param_t param;
+	ret = cmd2_exec(cmd, g_wlan_sta_cmds, cmd_nitems(g_wlan_sta_cmds));
 
-		if (cmd_parse_argv(cmd + 7, argv, cmd_nitems(argv)) != 2) {
-			ret = -2;
-			goto out;
-		}
-		param.ssid_len = cmd_strlen(argv[0]);
-		cmd_memcpy(param.ssid, argv[0], param.ssid_len);
-		cmd_strlcpy(param.passphrase, argv[1], sizeof(param.passphrase));
-		ret = wlan_sta_gen_psk(&param);
-		if (ret == 0) {
-			CMD_LOG(1, "psk: ");
-			for (i = 0; i < sizeof(param.psk); ++i)
-				CMD_LOG(1, "%02x", param.psk[i]);
-			CMD_LOG(1, "\n");
-		}
-	} else if (cmd_strcmp(cmd, "wps pbc") == 0) {
-		ret = wlan_sta_wps_pbc();
-	} else if ((cmd_strlen(cmd) == 7) || (cmd_strcmp(cmd, "wps pin") == 0)) {
-		wlan_sta_wps_pin_t wps;
-		ret = wlan_sta_wps_pin_get(&wps);
-		if (ret == 0)
-			CMD_LOG(1, "WPS pin: %s\n", wps.pin);
-	} else if (cmd_strncmp(cmd, "wps pin ", 8) == 0) {
-		if (cmd_strlen(cmd + 8) != 8) {
-			ret = -2;
-			goto out;
-		}
-		wlan_sta_wps_pin_t wps;
-		cmd_memcpy(wps.pin, cmd + 8, 8);
-		wps.pin[8] = '\0';
-		ret = wlan_sta_wps_pin_set(&wps);
-	} else if (cmd_strcmp(cmd, "stop") == 0) {
-		ret = net_sys_stop();
-	} else if (cmd_strcmp(cmd, "start") == 0) {
-		struct sysinfo *sysinfo = sysinfo_get();
-		if (sysinfo == NULL) {
-			CMD_ERR("failed to get sysinfo %p\n", sysinfo);
-			return -1;
-		}
-
-		ret = net_sys_start(sysinfo->wlan_mode);
-	} else if (cmd_strncmp(cmd, "autoconn enable", 15) == 0) {
-		ret = wlan_sta_set_autoconnect(1);
-	} else if (cmd_strncmp(cmd, "autoconn disable", 16) == 0) {
-		ret = wlan_sta_set_autoconnect(0);
-	} else {
-		CMD_ERR("unknown cmd '%s'\n", cmd);
-		return CMD_STATUS_ACKED;
-	}
-
-out:
 	if (ret == -2) {
 		CMD_ERR("cmd '%s' invalid arg\n", cmd);
-		return CMD_STATUS_ACKED;
 	} else if (ret == -1) {
 		CMD_ERR("cmd '%s' exec failed\n", cmd);
-		return CMD_STATUS_ACKED;
 	}
 
 	return CMD_STATUS_ACKED;
@@ -864,13 +1058,13 @@ static int cmd_wlan_ap_set(char *cmd)
 	} else if (cmd_strcmp(cmd, "wpa") == 0) {
 		int wpa_cipher = cmd_wpas_parse_cipher(value);
 		if (wpa_cipher > 0) {
-			config.field = WLAN_AP_FIELD_WPA_CIPHER;
+			config.field = WLAN_AP_FIELD_WPA_PAIRWISE_CIPHER;
 			config.u.wpa_cipher = wpa_cipher;
 		}
 	} else if (cmd_strcmp(cmd, "rsn") == 0) {
 		int rsn_cipher = cmd_wpas_parse_cipher(value);
 		if (rsn_cipher > 0) {
-			config.field = WLAN_AP_FIELD_RSN_CIPHER;
+			config.field = WLAN_AP_FIELD_RSN_PAIRWISE_CIPHER;
 			config.u.rsn_cipher = rsn_cipher;
 		}
 	} else if (cmd_strcmp(cmd, "proto") == 0) {
@@ -973,9 +1167,9 @@ static int cmd_wlan_ap_get(char *cmd)
 	} else if (cmd_strcmp(cmd, "key_mgmt") == 0) {
 		config.field = WLAN_AP_FIELD_KEY_MGMT;
 	} else if (cmd_strcmp(cmd, "wpa") == 0) {
-		config.field = WLAN_AP_FIELD_WPA_CIPHER;
+		config.field = WLAN_AP_FIELD_WPA_PAIRWISE_CIPHER;
 	} else if (cmd_strcmp(cmd, "rsn") == 0) {
-		config.field = WLAN_AP_FIELD_RSN_CIPHER;
+		config.field = WLAN_AP_FIELD_RSN_PAIRWISE_CIPHER;
 	} else if (cmd_strcmp(cmd, "proto") == 0) {
 		config.field = WLAN_AP_FIELD_PROTO;
 	} else if (cmd_strcmp(cmd, "auth_alg") == 0) {
@@ -1016,9 +1210,9 @@ static int cmd_wlan_ap_get(char *cmd)
 		CMD_LOG(1, "psk: %s\n", config.u.psk);
 	} else if (config.field == WLAN_AP_FIELD_KEY_MGMT) {
 		CMD_LOG(1, "key_mgmt: %#06x\n", config.u.key_mgmt);
-	} else if (config.field == WLAN_AP_FIELD_WPA_CIPHER) {
+	} else if (config.field == WLAN_AP_FIELD_WPA_PAIRWISE_CIPHER) {
 		CMD_LOG(1, "wpa_cipher: %#06x\n", config.u.wpa_cipher);
-	} else if (config.field == WLAN_AP_FIELD_RSN_CIPHER) {
+	} else if (config.field == WLAN_AP_FIELD_RSN_PAIRWISE_CIPHER) {
 		CMD_LOG(1, "rsn_cipher: %#06x\n", config.u.rsn_cipher);
 	} else if (config.field == WLAN_AP_FIELD_PROTO) {
 		CMD_LOG(1, "proto: %#06x\n", config.u.proto);
@@ -1059,98 +1253,221 @@ static int cmd_wlan_ap_get(char *cmd)
 	return 0;
 }
 
+static enum cmd_status cmd_wlan_ap_config_exec(char *cmd)
+{
+	int ret;
+	char *argv[2];
+	if (cmd_parse_argv(cmd, argv, cmd_nitems(argv)) == 0) {
+		ret = -2;
+		return ret;
+	}
+	ret = wlan_ap_set((uint8_t *)argv[0], cmd_strlen(argv[0]), (uint8_t *)argv[1]);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_ap_set_exec(char *cmd)
+{
+	return cmd_wlan_ap_set(cmd);
+}
+
+static enum cmd_status cmd_wlan_ap_get_exec(char *cmd)
+{
+	return cmd_wlan_ap_get(cmd);
+}
+
+static enum cmd_status cmd_wlan_ap_enable_exec(char *cmd)
+{
+	return wlan_ap_enable();
+}
+
+static enum cmd_status cmd_wlan_ap_reload_exec(char *cmd)
+{
+	return wlan_ap_reload();
+}
+
+static enum cmd_status cmd_wlan_ap_disable_exec(char *cmd)
+{
+	return wlan_ap_disable();
+}
+
+static enum cmd_status cmd_wlan_ap_sta_num_exec(char *cmd)
+{
+	int ret;
+	int num;
+	ret = wlan_ap_sta_num(&num);
+	if (ret == 0)
+		CMD_LOG(1, "sta num: %d\n", num);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_ap_sta_info_exec(char *cmd)
+{
+	int ret;
+	int size;
+	if (cmd_wpas_parse_int(cmd, 1, 30, &size) != 0) {
+		ret = -2;
+		return ret;
+	}
+	wlan_ap_stas_t stas;
+	stas.sta = (wlan_ap_sta_t *)cmd_malloc(size * sizeof(wlan_ap_sta_t));
+	if (stas.sta == NULL) {
+		CMD_ERR("no mem\n");
+		ret = -1;
+		return ret;
+	}
+	stas.size = size;
+	ret = wlan_ap_sta_info(&stas);
+	if (ret == 0)
+		cmd_wlan_ap_print_sta_info(&stas);
+	cmd_free(stas.sta);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_ap_scan_once_exec(char *cmd)
+{
+	return wlan_ap_scan_once();
+}
+
+static enum cmd_status cmd_wlan_ap_scan_result_exec(char *cmd)
+{
+	int ret;
+	int size;
+	if (cmd_wpas_parse_int(cmd, 1, CMD_WLAN_MAX_BSS_CNT, &size) != 0) {
+		ret = -2;
+		return ret;
+	}
+	wlan_sta_scan_results_t results;
+	results.ap = cmd_malloc(size * sizeof(wlan_sta_ap_t));
+	if (results.ap == NULL) {
+		CMD_ERR("no mem\n");
+		ret = -1;
+		return ret;
+	}
+	results.size = size;
+	ret = wlan_ap_scan_result(&results);
+	if (ret == 0)
+		cmd_wlan_print_scan_results(&results);
+	cmd_free(results.ap);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_ap_scan_result_num_exec(char *cmd)
+{
+	int ret;
+	int num;
+	ret = wlan_ap_get_scan_result_num(&num);
+	if (ret == 0)
+		CMD_LOG(1, "scan result num: %d\n", num);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_ap_bss_max_count_exec(char *cmd)
+{
+	int ret;
+	int count;
+	if (cmd_wpas_parse_int(cmd, 1, CMD_WLAN_MAX_BSS_CNT, &count) != 0) {
+		ret = -2;
+		return ret;
+	}
+	ret = wlan_ap_scan_bss_max_count((uint8_t)count);
+	if (ret == 0)
+		CMD_LOG(1, "ap scan bss max count: %d\n", count);
+	return ret;
+}
+
+static enum cmd_status cmd_wlan_ap_bss_flush_exec(char *cmd)
+{
+	int ret;
+	int age;
+	if (cmd_wpas_parse_int(cmd, 0, INT32_MAX, &age) != 0) {
+		ret = -2;
+		return ret;
+	}
+	ret = wlan_ap_bss_flush(age);
+	return ret;
+}
+
+#if CMD_DESCRIBE
+#define ap_config_help_info \
+"net ap config <ssid> [psk]\n"\
+"\t\t\tnet ap config ssid_example\n"\
+"\t\t\tnet ap config ssid_example psk_example"
+#define ap_set_help_info \
+"net ap set <field> <value>]\n"\
+"\t\t\tnet ap set ssid ssid_example\n"\
+"\t\t\tnet ap set psk psk_example\n"\
+"\t\t\tnet ap set key_mgmt {WPA-PSK, NONE}\n"\
+"\t\t\tnet ap set wpa {CCMP, TKIP, NONE}\n"\
+"\t\t\tnet ap set rsn {CCMP, TKIP, NONE}\n"\
+"\t\t\tnet ap set proto <NONE, {WPA, RSN}>\n"\
+"\t\t\tnet ap set auth_alg {OPEN}\n"\
+"\t\t\tnet ap set group_rekey <seconds>\n"\
+"\t\t\tnet ap set strict_rekey <0, 1>\n"\
+"\t\t\tnet ap set gmk_rekey <seconds>\n"\
+"\t\t\tnet ap set ptk_rekey <seconds>\n"\
+"\t\t\tnet ap set hw_mode <b, g>\n"\
+"\t\t\tnet ap set 80211n <0, 1>\n"\
+"\t\t\tnet ap set channel <1 ~ 13>\n"\
+"\t\t\tnet ap set beacon_int <15 ~ 65535>\n"\
+"\t\t\tnet ap set dtim <1 ~ 255>\n"\
+"\t\t\tnet ap set max_num_sta <num>"
+#define ap_get_help_info \
+"net ap get <field>\n"\
+"\t\t\tnet ap get ssid\n"\
+"\t\t\tnet ap get psk\n"\
+"\t\t\tnet ap get key_mgmt\n"\
+"\t\t\tnet ap get wpa\n"\
+"\t\t\tnet ap get rsn\n"\
+"\t\t\tnet ap get proto\n"\
+"\t\t\tnet ap get auth_alg\n"\
+"\t\t\tnet ap get group_rekey\n"\
+"\t\t\tnet ap get strict_rekey\n"\
+"\t\t\tnet ap get gmk_rekey\n"\
+"\t\t\tnet ap get ptk_rekey\n"\
+"\t\t\tnet ap get hw_mode\n"\
+"\t\t\tnet ap get 80211n\n"\
+"\t\t\tnet ap get channel\n"\
+"\t\t\tnet ap get beacon_int\n"\
+"\t\t\tnet ap get dtim\n"\
+"\t\t\tnet ap get max_num_sta"
+#endif
+
+static enum cmd_status cmd_wlan_ap_help_exec(char *cmd);
+
+static const struct cmd2_data g_wlan_ap_cmds[] = {
+	{ "config ", 7, cmd_wlan_ap_config_exec, CMD_DESC(ap_config_help_info) },
+	{ "set ", 4, cmd_wlan_ap_set_exec, CMD_DESC(ap_set_help_info) },
+	{ "get ", 4, cmd_wlan_ap_get_exec, CMD_DESC(ap_get_help_info) },
+	{ "enable", 6, cmd_wlan_ap_enable_exec, CMD_DESC("enable the ap") },
+	{ "reload", 6, cmd_wlan_ap_reload_exec, CMD_DESC("reload ap") },
+	{ "disable", 7, cmd_wlan_ap_disable_exec, CMD_DESC("disable ap") },
+	{ "sta num", 7, cmd_wlan_ap_sta_num_exec, CMD_DESC("get the number and information of connected stations") },
+	{ "sta info ", 9, cmd_wlan_ap_sta_info_exec, CMD_DESC("sta info <num>, get the infomation of sta connected to ap") },
+	{ "scan once", 9, cmd_wlan_ap_scan_once_exec, CMD_DESC("scan once") },
+	{ "scan result ", 12, cmd_wlan_ap_scan_result_exec, CMD_DESC("scan result <num>, get scan result") },
+	{ "scan result_num", 15, cmd_wlan_ap_scan_result_num_exec, CMD_DESC("get scan result number") },
+	{ "bss max count ", 14, cmd_wlan_ap_bss_max_count_exec, CMD_DESC("bss max count <num>, set bss max count") },
+	{ "bss flush ", 10, cmd_wlan_ap_bss_flush_exec, CMD_DESC("bss flush <age>, flush the scan result after <age> senconds") },
+	{ "help", 4, cmd_wlan_ap_help_exec, CMD_DESC(CMD_HELP_DESC) },
+};
+
+static enum cmd_status cmd_wlan_ap_help_exec(char *cmd)
+{
+	return cmd2_help_exec(g_wlan_ap_cmds, cmd_nitems(g_wlan_ap_cmds), 16);
+}
+
 enum cmd_status cmd_wlan_ap_exec(char *cmd)
 {
 	int ret;
 
 	cmd_write_respond(CMD_STATUS_OK, "OK");
 
-	if (cmd_strncmp(cmd, "config ", 7) == 0) {
-		char *argv[2];
-		if (cmd_parse_argv(cmd + 7, argv, cmd_nitems(argv)) == 0) {
-			ret = -2;
-			goto out;
-		}
-		ret = wlan_ap_set((uint8_t *)argv[0], cmd_strlen(argv[0]), (uint8_t *)argv[1]);
-	} else if (cmd_strncmp(cmd, "set ", 4) == 0) {
-		ret = cmd_wlan_ap_set(cmd + 4);
-	} else if (cmd_strncmp(cmd, "get ", 4) == 0) {
-		ret = cmd_wlan_ap_get(cmd + 4);
-	} else if (cmd_strcmp(cmd, "enable") == 0) {
-		ret = wlan_ap_enable();
-	} else if (cmd_strcmp(cmd, "reload") == 0) {
-		ret = wlan_ap_reload();
-	} else if (cmd_strcmp(cmd, "disable") == 0) {
-		ret = wlan_ap_disable();
-	} else if (cmd_strcmp(cmd, "sta num") == 0) {
-		int num;
-		ret = wlan_ap_sta_num(&num);
-		if (ret == 0)
-			CMD_LOG(1, "sta num: %d\n", num);
-	} else if (cmd_strncmp(cmd, "sta info ", 9) == 0) {
-		int size;
-		if (cmd_wpas_parse_int(cmd + 9, 1, 30, &size) != 0) {
-			ret = -2;
-			goto out;
-		}
-		wlan_ap_stas_t stas;
-		stas.sta = (wlan_ap_sta_t *)cmd_malloc(size * sizeof(wlan_ap_sta_t));
-		if (stas.sta == NULL) {
-			CMD_ERR("no mem\n");
-			ret = -1;
-			goto out;
-		}
-		stas.size = size;
-		ret = wlan_ap_sta_info(&stas);
-		if (ret == 0)
-			cmd_wlan_ap_print_sta_info(&stas);
-		cmd_free(stas.sta);
-	} else if (cmd_strcmp(cmd, "scan once") == 0) {
-		ret = wlan_ap_scan_once();
-	} else if (cmd_strncmp(cmd, "scan result ", 12) == 0) {
-		int size;
-		if (cmd_wpas_parse_int(cmd + 12, 1, CMD_WLAN_MAX_BSS_CNT, &size) != 0) {
-			ret = -2;
-			goto out;
-		}
-		wlan_sta_scan_results_t results;
-		results.ap = cmd_malloc(size * sizeof(wlan_sta_ap_t));
-		if (results.ap == NULL) {
-			CMD_ERR("no mem\n");
-			ret = -1;
-			goto out;
-		}
-		results.size = size;
-		ret = wlan_ap_scan_result(&results);
-		if (ret == 0)
-			cmd_wlan_print_scan_results(&results);
-		cmd_free(results.ap);
-	} else if (cmd_strcmp(cmd, "scan result_num") == 0) {
-		int num;
-		ret = wlan_ap_get_scan_result_num(&num);
-		if (ret == 0)
-			CMD_LOG(1, "scan result num: %d\n", num);
-	} else if (cmd_strncmp(cmd, "bss max count ", 14) == 0) {
-		int count;
-		if (cmd_wpas_parse_int(cmd + 14, 1, CMD_WLAN_MAX_BSS_CNT, &count) != 0) {
-			ret = -2;
-			goto out;
-		}
-		ret = wlan_ap_scan_bss_max_count((uint8_t)count);
-		if (ret == 0)
-			CMD_LOG(1, "ap scan bss max count: %d\n", count);
-	} else {
-		CMD_ERR("unknown cmd '%s'\n", cmd);
-		return CMD_STATUS_ACKED;
-	}
+	ret = cmd2_exec(cmd, g_wlan_ap_cmds, cmd_nitems(g_wlan_ap_cmds));
 
-out:
 	if (ret == -2) {
 		CMD_ERR("cmd '%s' invalid arg\n", cmd);
-		return CMD_STATUS_ACKED;
 	} else if (ret == -1) {
 		CMD_ERR("cmd '%s' exec failed\n", cmd);
-		return CMD_STATUS_ACKED;
 	}
 
 	return CMD_STATUS_ACKED;

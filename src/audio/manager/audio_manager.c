@@ -150,7 +150,7 @@ int audio_manager_reg_write(Snd_Card_Num card_num, uint32_t reg, uint32_t val)
 	return HAL_SndCard_CodecRegWrite(card_num, reg, val);
 }
 
-int audio_maneger_ioctl(Snd_Card_Num card_num, Codec_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len)
+int audio_maneger_ioctl(Snd_Card_Num card_num, Snd_Card_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len)
 {
 	struct audio_manager_priv *audio_mgr_priv;
 	AUDIO_MANAGER_DEBUG("--->%s\n",__FUNCTION__);
@@ -264,7 +264,7 @@ int audio_manager_deinit(void)
 
 	/* Check audio manager list empty or not */
 	if(list_empty(&audio_manager_list)){
-		AUDIO_MANAGER_DEBUG(("Audio manager list is empty, don't need to deinit\n"));
+		AUDIO_MANAGER_DEBUG("Audio manager list is empty, don't need to deinit\n");
 		return 0;
 	}
 

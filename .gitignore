@@ -22,3 +22,23 @@
 
 !/bin/xradio_*/**/*
 !/lib/xradio_*/**/*
+!/lib/libaac.a
+!/lib/libadt.a
+!/lib/libairkiss_aes.a
+!/lib/libamr.a
+!/lib/libamren.a
+!/lib/libcedarx.a
+!/lib/libeq.a
+!/lib/libhostapd.a
+!/lib/libmp3.a
+!/lib/libopus.a
+!/lib/libspeex.a
+!/lib/libnet80211.a
+!/lib/libreverb.a
+!/lib/libsc_assistant.a
+!/lib/libsecureboot.a
+!/lib/libwav.a
+!/lib/libwpa.a
+!/lib/libwpas.a
+!/lib/libwpas_wps.a
+!/lib/libzbar.a

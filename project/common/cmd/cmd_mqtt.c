@@ -515,18 +515,40 @@ static enum cmd_status cmd_mqtt_deinit_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+#if CMD_DESCRIBE
+#define mqtt_init_help_info "init alive=<alive_time> clean=<clean> clientid=<client_id>"
+#define mqtt_will_help_info "will qos=<qos> retain=<retain> topic=<topic> message=<message>"
+#define mqtt_user_help_info "username <user_name>"
+#define mqtt_password_help_info "password <pswd>"
+#define mqtt_connect_help_info "connect server=<server_ip> port=<port> ssl=<ssl>"
+#define mqtt_subscribe_help_info "subscribe qos=<qos> topic=<topic>"
+#define mqtt_unsubscribe_help_info "unsubscribe topic=<topic>"
+#define mqtt_publish_help_info "publish qos=<qos> retain=<retain> topic=<topic> message=<message>"
+#define mqtt_disconnect_help_info "disconnect from server"
+#define mqtt_deinit_help_info "deinit the client"
+#endif
+
+enum cmd_status cmd_mqtt_help_exec(char *cmd);
+
 static const struct cmd_data g_mqtt_cmds[] = {
-	{ "init",        cmd_mqtt_init_exec },
-	{ "will",        cmd_mqtt_will_exec },
-	{ "username",    cmd_mqtt_user_exec },
-	{ "password",    cmd_mqtt_password_exec },
-	{ "connect",     cmd_mqtt_connect_exec },
-	{ "subscribe",   cmd_mqtt_subscribe_exec },
-	{ "unsubscribe", cmd_mqtt_unsubscribe_exec },
-	{ "publish",     cmd_mqtt_publish_exec },
-	{ "disconnect",  cmd_mqtt_disconnect_exec },
-	{ "deinit",      cmd_mqtt_deinit_exec },
+	{ "init",        cmd_mqtt_init_exec, CMD_DESC(mqtt_init_help_info) },
+	{ "will",        cmd_mqtt_will_exec, CMD_DESC(mqtt_will_help_info) },
+	{ "username",    cmd_mqtt_user_exec, CMD_DESC(mqtt_user_help_info) },
+	{ "password",    cmd_mqtt_password_exec, CMD_DESC(mqtt_password_help_info) },
+	{ "connect",     cmd_mqtt_connect_exec, CMD_DESC(mqtt_connect_help_info) },
+	{ "subscribe",   cmd_mqtt_subscribe_exec, CMD_DESC(mqtt_subscribe_help_info) },
+	{ "unsubscribe", cmd_mqtt_unsubscribe_exec, CMD_DESC(mqtt_unsubscribe_help_info) },
+	{ "publish",     cmd_mqtt_publish_exec, CMD_DESC(mqtt_publish_help_info) },
+	{ "disconnect",  cmd_mqtt_disconnect_exec, CMD_DESC(mqtt_disconnect_help_info) },
+	{ "deinit",      cmd_mqtt_deinit_exec, CMD_DESC(mqtt_deinit_help_info) },
+	{ "help",        cmd_mqtt_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+enum cmd_status cmd_mqtt_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_mqtt_cmds, cmd_nitems(g_mqtt_cmds), 16);
+}
+
 
 enum cmd_status cmd_mqtt_exec(char *cmd)
 {

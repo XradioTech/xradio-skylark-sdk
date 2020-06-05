@@ -30,10 +30,18 @@
 #ifndef _KERNEL_OS_OS_CPUUSAGE_H_
 #define _KERNEL_OS_OS_CPUUSAGE_H_
 
-#ifdef __CONFIG_OS_FREERTOS
-#include "kernel/FreeRTOS/cpuusage.h"
-#else
-#error "No OS defined!"
+#include "kernel/os/os_common.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void OS_CpuUsageInit(uint32_t print_s);
+
+uint32_t OS_CpuUsageGet(void);
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* _KERNEL_OS_OS_CPUUSAGE_H_ */

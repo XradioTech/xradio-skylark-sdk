@@ -344,7 +344,7 @@ static __always_inline int is_rangeof_sramheap(void *ptr)
 
 static __always_inline int is_rangeof_psramheap(void *ptr)
 {
-    return RANGEOF((uint32_t)ptr, (uint32_t)__psram_end__, PSRAM_END_ADDR);
+    return RANGEOF((uint32_t)ptr, (uint32_t)__psram_end__, PSRAM_END_ADDR - DMAHEAP_PSRAM_LENGTH);
 }
 
 void *__wrap__malloc_r(struct _reent *reent, size_t size)

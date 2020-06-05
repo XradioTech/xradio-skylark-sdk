@@ -57,7 +57,6 @@
 
 #include "kernel/os/os_time.h"
 #include "kernel/os/os_thread.h"
-#include "kernel/os/FreeRTOS/os_common.h"
 
 #ifndef DEBUG_LEVEL
 #define DEBUG_LEVEL                      0

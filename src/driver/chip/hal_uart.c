@@ -26,17 +26,177 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include "driver/chip/private/hal_debug.h"
-#include "driver/chip/hal_uart.h"
-#include "driver/chip/hal_dma.h"
-#include "driver/chip/hal_dcache.h"
-#include "driver/chip/psram/psram.h"
 
-#ifdef __CONFIG_ROM
-extern int32_t __HAL_UART_Transmit_DMA(UART_ID uartID, const uint8_t *buf, int32_t size);
-extern int32_t __HAL_UART_Receive_DMA(UART_ID uartID, uint8_t *buf, int32_t size, uint32_t msec);
-extern HAL_Status __HAL_UART_StartTransmit_DMA(UART_ID uartID, const uint8_t *buf, int32_t size);
-extern HAL_Status __HAL_UART_StartReceive_DMA(UART_ID uartID, uint8_t *buf, int32_t size);
+#include "driver/chip/hal_dma.h"
+#include "driver/chip/hal_uart.h"
+#include "pm/pm.h"
+#include "hal_base.h"
+
+#if (defined(__CONFIG_ROM) && defined(__CONFIG_PSRAM_ALL_CACHEABLE))
+
+#if 1 //HAL_UART_OPT_DMA
+typedef struct {
+	DMA_ChannelInitParam	param;
+	DMA_Channel             chan;
+	HAL_Semaphore           sem;
+} UART_DMAPrivate;
+#endif
+
+#if 1 //HAL_UART_OPT_IT
+typedef struct {
+	uint8_t                *buf;
+	int32_t                 bufSize;
+	HAL_Semaphore           sem;
+} UART_ITPrivate;
+#endif
+
+typedef struct {
+	UART_T                 *uart;
+#if 1 //HAL_UART_OPT_DMA
+	UART_DMAPrivate        *txDMA;
+	UART_DMAPrivate        *rxDMA;
+#endif
+#if 1 //HAL_UART_OPT_IT
+	UART_ITPrivate         *txIT;
+	UART_ITPrivate         *rxIT;
+
+	UART_RxReadyCallback    rxReadyCallback;
+	void                   *arg;
+#endif
+	/* UARTx->IIR_FCR.FIFO_CTRL is write only, shadow its value */
+	uint8_t                IIR_FCR_FIFO_CTRL;
+#if 1 //def CONFIG_PM
+	uint8_t                 bypassPmMode;
+	uint8_t                 txDelay;
+	UART_InitParam          param;
+	struct soc_device       dev;
+#endif
+} UART_Private;
+
+extern UART_Private *gUartPrivate[UART_NUM];
+
+__STATIC_INLINE UART_Private *UART_GetUartPriv(UART_ID uartID)
+{
+	if (uartID < UART_NUM) {
+		return gUartPrivate[uartID];
+	} else {
+		return NULL;
+	}
+}
+
+__STATIC_INLINE UART_T *UART_GetInstance(UART_Private *priv)
+{
+	return priv->uart;
+}
+
+#if 1 //HAL_UART_OPT_DMA
+
+HAL_Status HAL_UART_StartTransmit_DMA(UART_ID uartID, const uint8_t *buf, int32_t size)
+{
+	UART_T *uart;
+	UART_Private *priv;
+
+	if (buf == NULL || size <= 0) {
+		return HAL_ERROR;
+	}
+
+	priv = UART_GetUartPriv(uartID);
+	if (priv == NULL) {
+		HAL_DBG("uart %d not inited\n", uartID);
+		return HAL_ERROR;
+	}
+
+	if (priv->txDMA == NULL) {
+		HAL_WRN("tx dma not enable\n");
+		return HAL_ERROR;
+	}
+
+	uart = UART_GetInstance(priv);
+	HAL_DMA_Start(priv->txDMA->chan,
+	              (uint32_t)buf,
+		          (uint32_t)&uart->RBR_THR_DLL.TX_HOLD,
+		          size);
+	return HAL_OK;
+}
+
+int32_t HAL_UART_StopTransmit_DMA(UART_ID uartID)
+{
+	UART_Private *priv;
+	DMA_Channel chan;
+
+	priv = UART_GetUartPriv(uartID);
+	if (priv == NULL) {
+		HAL_DBG("uart %d not inited\n", uartID);
+		return -1;
+	}
+
+	if (priv->txDMA == NULL) {
+		HAL_WRN("tx dma not enable\n");
+		return -1;
+	}
+
+	chan = priv->txDMA->chan;
+	HAL_DMA_Stop(chan);
+
+	return HAL_DMA_GetByteCount(chan);
+}
+
+HAL_Status HAL_UART_StartReceive_DMA(UART_ID uartID, uint8_t *buf, int32_t size)
+{
+	UART_T *uart;
+	UART_Private *priv;
+
+	if (buf == NULL || size <= 0) {
+		return HAL_ERROR;
+	}
+
+	priv = UART_GetUartPriv(uartID);
+	if (priv == NULL) {
+		HAL_DBG("uart %d not inited\n", uartID);
+		return HAL_ERROR;
+	}
+
+#if HAL_UART_OPT_IT
+	if (priv->rxReadyCallback != NULL) {
+		HAL_WRN("rx cb is enabled\n");
+		return HAL_ERROR;
+	}
+#endif
+
+	if (priv->rxDMA == NULL) {
+		HAL_WRN("rx dma not enable\n");
+		return HAL_ERROR;
+	}
+
+	uart = UART_GetInstance(priv);
+	HAL_DMA_Start(priv->rxDMA->chan,
+	              (uint32_t)&uart->RBR_THR_DLL.RX_BUF,
+	              (uint32_t)buf,
+	              size);
+	return HAL_OK;
+}
+
+int32_t HAL_UART_StopReceive_DMA(UART_ID uartID)
+{
+	UART_Private *priv;
+	DMA_Channel chan;
+
+	priv = UART_GetUartPriv(uartID);
+	if (priv == NULL) {
+		HAL_DBG("uart %d not inited\n", uartID);
+		return -1;
+	}
+
+	if (priv->rxDMA == NULL) {
+		HAL_WRN("rx dma not enable\n");
+		return -1;
+	}
+
+	chan = priv->rxDMA->chan;
+	HAL_DMA_Stop(chan);
+
+	return HAL_DMA_GetByteCount(chan);
+}
 
 /**
  * @brief Transmit an amount of data in DMA mode
@@ -59,14 +219,22 @@ extern HAL_Status __HAL_UART_StartReceive_DMA(UART_ID uartID, uint8_t *buf, int3
  */
 int32_t HAL_UART_Transmit_DMA(UART_ID uartID, const uint8_t *buf, int32_t size)
 {
-#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-    if(HAL_Dcache_IsCacheable((uint32_t)buf, size)) {
-        HAL_ERR("UART: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
-        return -1;
-    }
-#endif
+	UART_Private *priv;
+	int32_t left;
 
-	return __HAL_UART_Transmit_DMA(uartID, buf, size);
+	if (HAL_UART_StartTransmit_DMA(uartID, buf, size) != HAL_OK) {
+		return -1;
+	}
+
+	priv = UART_GetUartPriv(uartID);
+	HAL_SemaphoreWait(&priv->txDMA->sem, HAL_WAIT_FOREVER);
+
+	left = HAL_UART_StopTransmit_DMA(uartID);
+	if (left < 0) {
+		return -1;
+	}
+
+	return (size - left);
 }
 
 /**
@@ -93,39 +261,24 @@ int32_t HAL_UART_Transmit_DMA(UART_ID uartID, const uint8_t *buf, int32_t size)
  */
 int32_t HAL_UART_Receive_DMA(UART_ID uartID, uint8_t *buf, int32_t size, uint32_t msec)
 {
-#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-    if(HAL_Dcache_IsCacheable((uint32_t)buf, size)) {
-        HAL_ERR("UART: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
-        return -1;
-    }
-#endif
+	UART_Private *priv;
+	int32_t left;
 
-	return __HAL_UART_Receive_DMA(uartID, buf, size, msec);
+	if (HAL_UART_StartReceive_DMA(uartID, buf, size) != HAL_OK) {
+		return -1;
+	}
+
+	priv = UART_GetUartPriv(uartID);
+	HAL_SemaphoreWait(&priv->rxDMA->sem, msec);
+
+	left = HAL_UART_StopReceive_DMA(uartID);
+	if (left < 0) {
+		return -1;
+	}
+
+	return (size - left);
 }
 
-HAL_Status HAL_UART_StartTransmit_DMA(UART_ID uartID, const uint8_t *buf, int32_t size)
-{
-#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-    if(HAL_Dcache_IsCacheable((uint32_t)buf, size)) {
-        HAL_ERR("UART: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
-        return HAL_ERROR;
-    }
-#endif
+#endif /* HAL_UART_OPT_DMA */
 
-    return __HAL_UART_StartTransmit_DMA(uartID, buf, size);
-
-}
-
-HAL_Status HAL_UART_StartReceive_DMA(UART_ID uartID, uint8_t *buf, int32_t size)
-{
-#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-    if(HAL_Dcache_IsCacheable((uint32_t)buf, size)) {
-        HAL_ERR("UART: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
-        return HAL_ERROR;
-    }
-#endif
-
-    return __HAL_UART_StartReceive_DMA(uartID, buf, size);
-}
-
-#endif /*__CONFIG_ROM*/
+#endif /* (defined(__CONFIG_ROM) && defined(__CONFIG_PSRAM_ALL_CACHEABLE)) */

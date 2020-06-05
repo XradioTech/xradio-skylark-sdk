@@ -32,13 +32,13 @@
 #include "kernel/os/os.h"
 #include "driver/chip/hal_uart.h"
 
-#define UART_DMA_MODE
+//#define UART_DMA_MODE
 //#define UART_IT_MODE
-//#define UART_POLL_MODE
+#define UART_POLL_MODE
 
 #define UARTID UART1_ID
 
-int uart_init(void)
+static int uart_init(void)
 {
 	HAL_Status status = HAL_ERROR;
 	UART_InitParam param;
@@ -55,9 +55,29 @@ int uart_init(void)
 	return status;
 }
 
+static int uart_deinit(void)
+{
+	HAL_Status status = HAL_ERROR;
+
 #if (defined(UART_DMA_MODE))
-/**@bref DMA Mode:use DMA receive & transmit data**/
-void uart_dma_mode(void)
+	status = HAL_UART_DisableTxDMA(UARTID);
+	if (status != HAL_OK)
+		printf("uart TX disenable DMA error %d\n", status);
+
+	status = HAL_UART_DisableRxDMA(UARTID);
+	if (status != HAL_OK)
+		printf("uart RX disenable DMA error %d\n", status);
+#endif
+
+	status = HAL_UART_DeInit(UARTID);
+	if (status != HAL_OK)
+		printf("uart deinit error %d\n", status);
+	return status;
+}
+
+#if (defined(UART_DMA_MODE))
+/* @bref DMA Mode:use DMA receive & transmit data */
+static void uart_dma_mode(void)
 {
 	int32_t len = 0;
 	uint8_t rx_data;
@@ -91,28 +111,11 @@ void uart_dma_mode(void)
 	}
 
 }
-
-void uart_dma_mode_deinit(void)
-{
-	HAL_Status status = HAL_ERROR;
-
-	status = HAL_UART_DisableTxDMA(UARTID);
-	if (status != HAL_OK)
-		printf("uart TX disenable DMA error %d\n", status);
-
-	status = HAL_UART_DisableRxDMA(UARTID);
-	if (status != HAL_OK)
-		printf("uart RX disenable DMA error %d\n", status);
-
-	status = HAL_UART_DeInit(UARTID);
-	if (status != HAL_OK)
-		printf("uart deinit error %d\n", status);
-}
 #endif
 
 #if (defined(UART_IT_MODE))
-/**@bref Interrupt Mode:use interrupt receive & transmit data**/
-void uart_it_mode(void)
+/* @bref Interrupt Mode:use interrupt receive & transmit data */
+static void uart_it_mode(void)
 {
 	int32_t len;
 	uint8_t rx_data;
@@ -128,7 +131,7 @@ void uart_it_mode(void)
 								&rx_data,	/*buf Pointer to the data buffer*/
 								1,			/*size The maximum number of bytes to be received*/
 								10000);		/*Timeout value in millisecond to receive data, HAL_WAIT_FOREVER for no timeout*/
-		if (len)
+		if (len > 0)
 			HAL_UART_Transmit_IT(UARTID,	/*uartID*/
 								&rx_data,	/*buf Pointer to the data buffer*/
 								len);		/*size Number of bytes to be transmitted*/
@@ -136,31 +139,18 @@ void uart_it_mode(void)
 	}
 
 }
-
-void uart_it_mode_deinit(void)
-{
-	HAL_Status status = HAL_ERROR;
-
-	status = HAL_UART_DisableRxCallback(UARTID);
-	if (status != HAL_OK)
-		printf("uart RX disenable callback error %d\n", status);
-
-	status = HAL_UART_DeInit(UARTID);
-	if (status != HAL_OK)
-		printf("uart deinit error %d\n", status);
-}
 #endif
 
 #if (defined(UART_POLL_MODE))
-/**@bref Poll Mode:poll for receive & transmit data**/
-void uart_poll_mode(void)
+/* @bref Poll Mode: cpu poll for receive & transmit data */
+static void uart_poll_mode(void)
 {
 	int32_t len = 0;
 	uint8_t rx_data;
 	char buffer[20];
 	uint8_t len_str;
 
-	printf("uart%d poll mode\n", UARTID);
+	printf("uart%d poll mode.\n", UARTID);
 	len_str = snprintf(buffer, 20, "uart%d poll mode.\n", UARTID);
 	HAL_UART_Transmit_Poll(UARTID, (uint8_t *)buffer, len_str);
 
@@ -169,30 +159,21 @@ void uart_poll_mode(void)
 								&rx_data,	/*buf Pointer to the data buffer*/
 								1,			/*size The maximum number of bytes to be received*/
 								10000);		/*Timeout value in millisecond to receive data, HAL_WAIT_FOREVER for no timeout*/
-		if (len)
+		if (len > 0)
 			HAL_UART_Transmit_Poll(UARTID,	/*uartID*/
 								&rx_data,	/*buf Pointer to the data buffer*/
 								len);		/*size Number of bytes to be transmitted*/
 	}
 }
-
-void uart_poll_mode_deinit(void)
-{
-	HAL_Status status = HAL_ERROR;
-
-	status = HAL_UART_DeInit(UARTID);
-	if (status != HAL_OK)
-		printf("uart deinit error %d\n", status);
-}
 #endif
 
-/*Run this example, please connect the uart0 and uart 1*/
+/* Run this example, please connect the uart0 and uart1 */
 int main(void)
 {
 	printf("uart example started.\n\n");
-	printf("uart%d will be used for echo.\n", UARTID);
-
 	uart_init();
+	printf("you can connect to uart1 serial com.\n");
+	printf("uart%d used for echo.\n", UARTID);
 
 #if (defined(UART_DMA_MODE))
 	uart_dma_mode();
@@ -202,18 +183,7 @@ int main(void)
 	uart_poll_mode();
 #endif
 
-	while (1) {
-		OS_MSleep(10000);
-	}
-
-#if (defined(UART_DMA_MODE))
-	uart_dma_mode_deinit();
-#elif (defined(UART_IT_MODE))
-	uart_it_mode_deinit();
-#elif (defined(UART_POLL_MODE))
-	uart_poll_mode_deinit();
-#endif
-
+	uart_deinit();
 	printf("uart example over.\n");
 
 	return 0;

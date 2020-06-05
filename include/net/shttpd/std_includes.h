@@ -11,7 +11,9 @@
 #ifndef STD_HEADERS_INCLUDED
 #define	STD_HEADERS_INCLUDED
 
-#if !defined _WIN32_WCE  && !defined FREE_RTOS/* Some ANSI #includes are not available on Windows CE */
+#define SHTTPD_XR_OS
+
+#if !defined _WIN32_WCE  && !defined SHTTPD_XR_OS /* Some ANSI #includes are not available on Windows CE */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -33,7 +35,7 @@
 #include "compat_win32.h"
 #elif defined(__rtems__)	/* RTEMS specific	*/
 #include "compat_rtems.h"
-#elif defined(FREE_RTOS)	/* FREE RTOS	*/
+#elif defined(SHTTPD_XR_OS)	/* XRadio specific	*/
 #include "compat_rtos.h"
 #elif defined(__UNIX__)				/* UNIX  specific	*/
 #include "compat_unix.h"

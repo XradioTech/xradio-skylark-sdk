@@ -27,3 +27,24 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "driver/chip/hal_wdg.h"
+#include "driver/chip/hal_prcm.h"
+#include "hal_base.h"
+
+#ifdef __CONFIG_ROM
+
+extern void __HAL_WDG_Reboot(void);
+
+/**
+ * @brief Reboot system using the watchdog
+ * @return None
+ */
+void HAL_WDG_Reboot(void)
+{
+	HAL_DisableIRQ();
+	HAL_PRCM_ForceSys3Reset();
+	HAL_PRCM_EnableCPUWClk(0);
+	__HAL_WDG_Reboot();
+}
+
+#endif /* __CONFIG_ROM */

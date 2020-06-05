@@ -244,10 +244,18 @@ enum cmd_status cmd_voice_print_stop_exec(char *cmd)
 	return (cmd_vp_stop() == 0 ? CMD_STATUS_OK : CMD_STATUS_FAIL);
 }
 
+static enum cmd_status cmd_voice_print_help_exec(char *cmd);
+
 static const struct cmd_data g_voice_print_cmds[] = {
-    { "start",		cmd_voice_print_start_exec},
-    { "stop",		cmd_voice_print_stop_exec},
+    { "start",		cmd_voice_print_start_exec, CMD_DESC("start voice print") },
+    { "stop",		cmd_voice_print_stop_exec, CMD_DESC("stop voice print") },
+    { "help",		cmd_voice_print_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_voice_print_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_voice_print_cmds, cmd_nitems(g_voice_print_cmds), 8);
+}
 
 enum cmd_status cmd_voice_print_exec(char *cmd)
 {

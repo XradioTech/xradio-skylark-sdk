@@ -55,7 +55,7 @@
 #define AUDIO_PCM_ERROR(fmt, arg...)	printf("[AUDIO_PCM]"fmt, ##arg)
 
 
-#define pcm_lock(m)         			OS_MutexLock(m, OS_WAIT_FOREVER)
+#define pcm_lock(m)         			OS_MutexLock(m, 0)
 #define pcm_unlock       				OS_MutexUnlock
 #define pcm_lock_init    				OS_MutexCreate
 #define pcm_lock_deinit					OS_MutexDelete
@@ -70,6 +70,8 @@ struct play_priv {
 };
 
 struct cap_priv {
+	uint8_t	 *cache;
+	uint32_t length;
 	uint32_t half_buf_size;
 };
 
@@ -138,8 +140,11 @@ static struct pcm_priv *card_num_to_pcm_priv(Snd_Card_Num card_num)
 
 int snd_pcm_read(Snd_Card_Num card_num, void *data, uint32_t count)
 {
+	int ret;
+	uint8_t *data_ptr;
+	struct cap_priv *cpriv;
 	struct pcm_priv *audio_pcm_priv;
-	uint32_t half_buf_size, read_size;
+	uint32_t half_buf_size, read_remain, hw_read;
 
 	/* Check parms to be valid */
 	if(!data || !count){
@@ -154,13 +159,62 @@ int snd_pcm_read(Snd_Card_Num card_num, void *data, uint32_t count)
 		return -1;
 	}
 
-	/* Calculate read_size */
-	half_buf_size = audio_pcm_priv->cap_priv.half_buf_size;
-	if(count < half_buf_size)	return -1;
-	read_size = (count / half_buf_size) * half_buf_size;
+	/* Check cap cache */
+	if(audio_pcm_priv->cap_priv.cache == NULL){
+		AUDIO_PCM_ERROR("Capture Cache is NULL!\n");
+		return -1;
+	}
 
-	/* Pcm read */
-	return HAL_SndCard_PcmRead(card_num, data, read_size);
+	/* Init misc */
+	data_ptr = data;
+	read_remain = count;
+	cpriv = &audio_pcm_priv->cap_priv;
+	half_buf_size = audio_pcm_priv->cap_priv.half_buf_size;
+
+	/* Cache has data to read */
+	if(cpriv->length){
+		if(cpriv->length > read_remain){
+			memcpy(data_ptr, cpriv->cache, read_remain);
+			cpriv->length -= read_remain;
+			memcpy(cpriv->cache, cpriv->cache + read_remain, cpriv->length);
+			return count;
+		} else {
+			memcpy(data_ptr, cpriv->cache, cpriv->length);
+			data_ptr += cpriv->length;
+			read_remain -= cpriv->length;
+			cpriv->length = 0;
+			if(!read_remain){
+				return count;
+			}
+		}
+	}
+
+	/* read integer half_buf_size */
+	if(read_remain >= half_buf_size){
+		hw_read = (read_remain / half_buf_size) * half_buf_size;
+		ret = HAL_SndCard_PcmRead(card_num, data_ptr, hw_read);
+		if(ret != hw_read){
+			AUDIO_PCM_ERROR("PCM read error!\n");
+			return ret ? count - read_remain + ret : count - read_remain;
+		}
+		data_ptr += hw_read;
+		read_remain -= hw_read;
+		if(!read_remain){
+			return count;
+		}
+	}
+
+	/* read remain */
+	ret = HAL_SndCard_PcmRead(card_num, cpriv->cache, half_buf_size);
+	if(ret != half_buf_size){
+		AUDIO_PCM_ERROR("PCM read half_buf_size error!\n");
+		return count-read_remain;
+	}
+	memcpy(data_ptr, cpriv->cache, read_remain);
+	cpriv->length = half_buf_size-read_remain;
+	memcpy(cpriv->cache, cpriv->cache + read_remain, cpriv->length);
+
+	return count;
 }
 
 int snd_pcm_write(Snd_Card_Num card_num, void *data, uint32_t count)
@@ -216,7 +270,10 @@ int snd_pcm_write(Snd_Card_Num card_num, void *data, uint32_t count)
 			ppriv->length = 0;
 			data_ptr += cache_remain;
 			write_size -= cache_remain;
-			//if(!write_size)	return count;
+			if(!write_size){
+				pcm_unlock(&audio_pcm_priv->write_lock);
+				return count;
+			}
 		}
 	}
 
@@ -300,12 +357,6 @@ int snd_pcm_open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, struct pcm_
 		return -1;
 	}
 
-	/* Open snd card */
-	if (HAL_SndCard_Open(card_num, stream_dir, pcm_cfg) != HAL_OK) {
-		AUDIO_PCM_ERROR("Sound card-[%d] open Fai!\n",card_num);
-		return -1;
-	}
-
 	/* Init audio_pcm_priv */
 	if (stream_dir == PCM_OUT) {
 		//play lock
@@ -330,7 +381,32 @@ int snd_pcm_open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, struct pcm_
 			AUDIO_PCM_ERROR("obtain cap lock err...\n");
 			return -1;
 		}
-		audio_pcm_priv->cap_priv.half_buf_size = pcm_frames_to_bytes(pcm_cfg, pcm_config_to_frames(pcm_cfg))/2;
+
+		// Malloc capture cache buffer
+		buf_size = pcm_frames_to_bytes(pcm_cfg, pcm_config_to_frames(pcm_cfg));
+		audio_pcm_priv->cap_priv.cache = pcm_zalloc(buf_size/2);
+		if (audio_pcm_priv->cap_priv.cache == NULL) {
+			pcm_unlock(&audio_pcm_priv->cap_lock);
+			AUDIO_PCM_ERROR("obtain cap cache failed...\n");
+			return -1;
+		}
+		audio_pcm_priv->cap_priv.length = 0;
+		audio_pcm_priv->cap_priv.half_buf_size = buf_size/2;
+	}
+
+	/* Open snd card */
+	if (HAL_SndCard_Open(card_num, stream_dir, pcm_cfg) != HAL_OK) {
+		AUDIO_PCM_ERROR("Sound card-[%d] open Fai!\n",card_num);
+		if (stream_dir == PCM_OUT) {
+			pcm_free(audio_pcm_priv->play_priv.cache);
+			memset(&(audio_pcm_priv->play_priv), 0, sizeof(struct play_priv));
+			pcm_unlock(&audio_pcm_priv->play_lock);
+		} else {
+			pcm_free(audio_pcm_priv->cap_priv.cache);
+			memset(&(audio_pcm_priv->cap_priv), 0, sizeof(struct cap_priv));
+			pcm_unlock(&audio_pcm_priv->cap_lock);
+		}
+		return -1;
 	}
 
 	return 0;
@@ -357,6 +433,7 @@ int snd_pcm_close(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir)
 		memset(&(audio_pcm_priv->play_priv), 0, sizeof(struct play_priv));
 		pcm_unlock(&audio_pcm_priv->play_lock);
 	} else {
+		pcm_free(audio_pcm_priv->cap_priv.cache);
 		memset(&(audio_pcm_priv->cap_priv), 0, sizeof(struct cap_priv));
 		pcm_unlock(&audio_pcm_priv->cap_lock);
 	}

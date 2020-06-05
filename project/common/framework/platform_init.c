@@ -43,7 +43,7 @@
 #include "sys_ctrl/sys_ctrl.h"
 #include "fwk_debug.h"
 
-#if PRJCONF_INTERNAL_SOUNDCARD_EN || PRJCONF_AC107_SOUNDCARD_EN
+#if PRJCONF_AUDIO_SNDCARD_EN
 #include "audio/manager/audio_manager.h"
 #include "audio/pcm/audio_pcm.h"
 #if PRJCONF_AUDIO_CTRL_EN
@@ -115,6 +115,10 @@ static void platform_show_info(void)
 
 	FWK_LOG(1, "\nplatform information ===============================================\n");
 	FWK_LOG(1, "XRADIO Skylark SDK "SDK_VERSION_STR SDK_STAGE_STR" "__DATE__" "__TIME__"\n\n");
+    uint8_t vsel = HAL_GlobalGetDigLdoVsel();
+    if(((vsel & 0xC) != 0) && ((vsel & 0x3) == 0)) {
+        FWK_LOG(1, "WRN: wrong efuse digldo vsel 0x%x\n", vsel);
+    }
 
 	FWK_LOG(dbg_en, "__text_start__ %p\n", __text_start__);
 	FWK_LOG(dbg_en, "__text_end__   %p\n", __text_end__);
@@ -461,6 +465,7 @@ __weak void platform_cedarx_init(void)
 	CedarxParserRegisterAMR();
 	CedarxParserRegisterMP3();
 	CedarxParserRegisterWAV();
+	CedarxParserRegisterTS();
 
 	CedarxDecoderListInit();
 	CedarxDecoderRegisterAAC();
@@ -543,7 +548,9 @@ __sram_text
 __weak void platform_init_level0(void)
 {
 	pm_start();
-
+#if (defined __CONFIG_PSRAM_ALL_CACHEABLE)
+    internal_dma_init();
+#endif
 	HAL_Flash_Init(PRJCONF_IMG_FLASH);
 #if (__CONFIG_OTA_POLICY == 0x00)
 	image_init(PRJCONF_IMG_FLASH, PRJCONF_IMG_ADDR, PRJCONF_IMG_MAX_SIZE);
@@ -561,10 +568,36 @@ __weak void platform_init_level0(void)
     platform_cache_init();
 #endif
 
-#if (defined(__CONFIG_PSRAM))
-	HAL_Dcache_Enable_WriteThrough(rounddown2((uint32_t)__psram_bss_end__, 16), rounddown2(PSRAM_END_ADDR, 16));
+#if (defined(__CONFIG_PSRAM) && (!defined(__CONFIG_PSRAM_ALL_CACHEABLE)))
+    HAL_Dcache_Enable_WriteThrough(rounddown2((uint32_t)__psram_bss_end__, 16), rounddown2(PSRAM_END_ADDR - DMAHEAP_PSRAM_LENGTH, 16));
 #endif
 }
+
+#if PRJCONF_NET_EN
+#ifdef __CONFIG_WLAN_AP
+__weak const wlan_ap_default_conf_t g_wlan_ap_default_conf = {
+	.ssid = "AP-XRADIO",
+	.ssid_len = 9,
+	.psk = "123456789",
+	.hw_mode = WLAN_AP_HW_MODE_IEEE80211G,
+	.ieee80211n = 0,
+	.key_mgmt = WPA_KEY_MGMT_PSK,
+	.wpa_pairwise_cipher = WPA_CIPHER_TKIP,
+	.rsn_pairwise_cipher = WPA_CIPHER_CCMP,
+	.proto = WPA_PROTO_WPA | WPA_PROTO_RSN,
+	.auth_alg = WPA_AUTH_ALG_OPEN,
+	.group_rekey = 3600,
+	.gmk_rekey = 86400,
+	.ptk_rekey = 0,
+	.strict_rekey = 1,
+	.channel = 1,
+	.beacon_int = 100,
+	.dtim = 1,
+	.max_num_sta = 4,
+	.country = {'C', 'N', ' '},
+};
+#endif
+#endif
 
 /* init standard platform hardware and services */
 __weak void platform_init_level1(void)
@@ -617,6 +650,9 @@ __weak void platform_init_level1(void)
 #if (__CONFIG_MBUF_HEAP_MODE == 1)
 	wlan_ext_request(NULL, WLAN_EXT_CMD_SET_RX_QUEUE_SIZE, 256);
 #endif
+#ifdef __CONFIG_WLAN_AP
+	wlan_ap_set_default_conf(&g_wlan_ap_default_conf);
+#endif
 
 #ifndef __CONFIG_ETF
 	net_sys_init();
@@ -647,7 +683,7 @@ __weak void platform_init_level2(void)
  	board_sdcard_init(sdcard_detect_callback);
 #endif
 
-#if PRJCONF_INTERNAL_SOUNDCARD_EN || PRJCONF_AC107_SOUNDCARD_EN
+#if PRJCONF_AUDIO_SNDCARD_EN
 	board_soundcard_init();
 
 	audio_manager_init();

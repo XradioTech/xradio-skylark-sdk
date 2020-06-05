@@ -226,10 +226,18 @@ static enum cmd_status cmd_mem_write_exec(char *cmd)
 	return CMD_STATUS_ACKED;
 }
 
+static enum cmd_status cmd_mem_help_exec(char *cmd);
+
 static const struct cmd2_data g_mem_cmds[] = {
-	{ "r",	1, cmd_mem_read_exec },
-	{ "w",	1, cmd_mem_write_exec },
+	{ "r",	1, cmd_mem_read_exec, CMD_DESC("r<bit_mode> <address> <length>, read data from memory, eg. mem r32 0x40040058 4") },
+	{ "w",	1, cmd_mem_write_exec, CMD_DESC("w<bit_mode> <address> <value>, write data to memory, eg. mem w32 0x40040058 0x90000b10") },
+	{ "help",	4, cmd_mem_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_mem_help_exec(char *cmd)
+{
+	return cmd2_help_exec(g_mem_cmds, cmd_nitems(g_mem_cmds), 8);
+}
 
 enum cmd_status cmd_mem_exec(char *cmd)
 {

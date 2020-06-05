@@ -128,7 +128,7 @@ typedef struct {
 	uint32_t mixed_mode;
 } DCache_Config;
 
-#define RANGEOF_CACHEBYPASS(addr, len, start, end) (((addr) >= (start)) && (((addr)+(len)) <= (end)))
+#define RANGEOF_CACHEBYPASS(addr, len, start, end) (((addr) >= (start)) && (((addr)+(len)-1) <= (end)))
 
 static __INLINE void HAL_Dcache_WaitIdle()
 {

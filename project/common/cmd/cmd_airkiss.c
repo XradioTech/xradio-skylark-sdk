@@ -169,17 +169,26 @@ enum cmd_status cmd_airkiss_set_key_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+static enum cmd_status cmd_airkiss_help_exec(char *cmd);
+
 static const struct cmd_data g_airkiss_cmds[] = {
-    { "start",		cmd_airkiss_start_exec},
-    { "stop",		cmd_airkiss_stop_exec},
-    { "set_key",	cmd_airkiss_set_key_exec},
+    { "start",		cmd_airkiss_start_exec, CMD_DESC("start airkiss") },
+    { "stop",		cmd_airkiss_stop_exec, CMD_DESC("stop airkiss") },
+    { "set_key",	cmd_airkiss_set_key_exec, CMD_DESC("set airkiss key") },
+    { "help",	    cmd_airkiss_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_airkiss_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_airkiss_cmds, cmd_nitems(g_airkiss_cmds), 8);
+}
 
 enum cmd_status cmd_airkiss_exec(char *cmd)
 {
 	if (g_wlan_netif == NULL) {
 		return CMD_STATUS_FAIL;
 	}
+
 	return cmd_exec(cmd, g_airkiss_cmds, cmd_nitems(g_airkiss_cmds));
 }
 

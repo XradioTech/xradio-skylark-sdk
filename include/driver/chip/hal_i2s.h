@@ -32,494 +32,222 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _DRIVER_CHIP_HAL_I2S_H_
-#define _DRIVER_CHIP_HAL_I2S_H_
+#ifndef _XRADIO_I2S_H_
+#define _XRADIO_I2S_H_
 
-#include <stdbool.h>
-#include "driver/chip/hal_def.h"
-#include "driver/chip/hal_gpio.h"
-#include "driver/chip/hal_snd_card.h"
 
 #ifdef __cplusplus
-extern "C" {
+ extern "C" {
 #endif
 
-/**
-  * Digital Audio Controller
-  */
-typedef struct
-{
-	__IO uint32_t DA_CTL;        /* I2S Control Register, Address offset: 0x00 */
-	__IO uint32_t DA_FMT0;       /* I2S Format Register0, Address offset: 0x04 */
-	__IO uint32_t DA_FMT1;       /* I2S Format Register1, Address offset: 0x08 */
-	__IO uint32_t DA_ISTA;       /* I2S Interrupt Status Register,	Address offset: 0x0C */
-	     uint32_t DA_RXFIFO;     /* I2S RX FIFO Register, Address offset: 0x10 */
-	__IO uint32_t DA_FCTL;       /* I2S FIFO Control Register, Address offset: 0x14 */
-	__I  uint32_t DA_FSTA;       /* I2S FIFO Stauts Register, Address offset: 0x18 */
-	__IO uint32_t DA_INT;        /* I2S DMA&Interrupt Control Register, Address offset: 0x1C */
-	__O  uint32_t DA_TXFIFO;     /* I2S TX FIFO Register, Address offset: 0x20 */
-	__IO uint32_t DA_CLKD;       /* I2S Clock Divide Register, ddress offset: 0x24 */
-	__IO uint32_t DA_TXCNT;      /* I2S TX Sample Counter Register,	Address offset: 0x28 */
-	__IO uint32_t DA_RXCNT;      /* I2S RX Sample Counter Register,	Address offset: 0x2C */
-	__IO uint32_t DA_CHCFG;      /* I2S Channel Configuration Register, Address offset: 0x30 */
-	__IO uint32_t DA_TX0CHSEL;   /* I2S TX0 Channel Select Register, Address offset: 0x34 */
-	__IO uint32_t DA_TX1CHSEL;   /* I2S TX1 Channel Select Register, Address offset: 0x38 */
-	__IO uint32_t DA_TX2CHSEL;   /* I2S TX2 Channel Select Register, Address offset: 0x3C */
-	__IO uint32_t DA_TX3CHSEL;   /* I2S TX3 Channel Select Register, Address offset: 0x40 */
-	__IO uint32_t DA_TX0CHMAP;   /* I2S TX0 Channel Mapping Register, Address offset: 0x44 */
-	__IO uint32_t DA_TX1CHMAP;   /* I2S TX1 Channel Mapping Register, Address offset: 0x48 */
-	__IO uint32_t DA_TX2CHMAP;   /* I2S TX2 Channel Mapping Register, Address offset: 0x4C */
-	__IO uint32_t DA_TX3CHMAP;   /* I2S TX3 Channel Mapping Register, Address offset: 0x50 */
-	__IO uint32_t DA_RXCHSEL;    /* I2S RX Channel Select Register,	Address offset: 0x54 */
-	__IO uint32_t DA_RXCHMAP;    /* I2S RX Channel Mapping Register, Address offset: 0x58 */
-} I2S_T;
 
-#define I2S                                            ((I2S_T *)I2S_BASE)
+/*** XRADIO I2S Register Define***/
 
-/*
- * Bits definition for I2S_CTL Control  Register (0X0000)
- */
-#define I2S_GLOBE_EN_BIT                               HAL_BIT(0)
-#define I2S_RX_EN_BIT                                  HAL_BIT(1)
-#define I2S_TX_EN_BIT                                  HAL_BIT(2)
-#define I2S_LOOP_TSET_EN_EN_BIT                        HAL_BIT(3)
-
-#define I2S_MODE_SEL_SHIFT                             (4)
-#define I2S_MODE_SEL_MASK                              (0x3 << I2S_MODE_SEL_SHIFT)
-typedef enum {
-	I2S_PCM_MODE   = (0x0U << I2S_MODE_SEL_SHIFT),
-	I2S_LEFT_MODE  = (0x1U << I2S_MODE_SEL_SHIFT),
-	I2S_RIGHT_MODE = (0x2U << I2S_MODE_SEL_SHIFT),
-	RESERVE_VAL    = (0x3U << I2S_MODE_SEL_SHIFT)
-} I2S_Mode;
-
-#define I2S_OUT_MUTE_SHIFT                             (6)
-#define I2S_OUT_MUTE_MASK                              (0x1U << I2S_OUT_MUTE_SHIFT)
-typedef enum {
-	I2S_NOR_TRANSFER  = (0x0U << I2S_OUT_MUTE_SHIFT),
-	I2S_OUT_MUTE      = (0x1U << I2S_OUT_MUTE_SHIFT),
-} I2S_DoutMute;
-
-#define I2S_SDO0_EN_BIT                                HAL_BIT(8)
-
-#define I2S_LRCK_OUT_SHIFT                             (17)
-#define I2S_LRCK_OUT_MASK                              (0x1U << I2S_LRCK_OUT_SHIFT)
-typedef enum {
-	I2S_LRCK_INPUT  = (0x0U << I2S_LRCK_OUT_SHIFT),
-	I2S_LRCK_OUTPUT = (0x1U << I2S_LRCK_OUT_SHIFT),
-} I2S_LrckMode;
-
-#define I2S_BCLK_OUT_SHIFT                              (18)
-#define I2S_BCLK_OUT_MASK                               (0x1U << I2S_BCLK_OUT_SHIFT)
-typedef enum {
-	I2S_BCLK_INPUT  = (0x0U << I2S_BCLK_OUT_SHIFT),
-	I2S_BCLK_OUTPUT = (0x1U << I2S_BCLK_OUT_SHIFT),
-} I2S_BclkMode;
-
-/*
- * Bits definition for I2S_FMT0 Format Register0(0x0004)
- */
-#define I2S_SW_SEC_SHIFT                                (0)
-#define I2S_SW_SEC_MASK                                 (0x1U << I2S_SW_SEC_SHIFT)
-typedef enum {
-	I2S_SLOT_WIDTH_BIT8  = (0x1U << I2S_SW_SEC_SHIFT),
-	I2S_SLOT_WIDTH_BIT12 = (0x2U << I2S_SW_SEC_SHIFT),
-	I2S_SLOT_WIDTH_BIT16 = (0x3U << I2S_SW_SEC_SHIFT),
-	I2S_SLOT_WIDTH_BIT20 = (0x4U << I2S_SW_SEC_SHIFT),
-	I2S_SLOT_WIDTH_BIT24 = (0x5U << I2S_SW_SEC_SHIFT),
-	I2S_SLOT_WIDTH_BIT28 = (0x6U << I2S_SW_SEC_SHIFT),
-	I2S_SLOT_WIDTH_BIT32 = (0x7U << I2S_SW_SEC_SHIFT),
-} I2S_SlotWidth;
-
-#define I2S_EDGE_TRANSFER_SHIFT                         (3)
-#define I2S_EDGE_TRANSFER_MASK                          (0x1U << I2S_EDGE_TRANSFER_SHIFT)
-typedef enum {
-	I2S_SEC_NEGATIVE_EDGE = (0x0U << I2S_EDGE_TRANSFER_SHIFT),
-	I2S_SEC_POSITIVE_EDGE = (0x1U << I2S_EDGE_TRANSFER_SHIFT),
-} I2S_EdgeTransfer;
-
-#define I2S_SR_SHIFT                                   (4)
-#define I2S_SR_MASK                                    (0x7U << I2S_SR_SHIFT)
-/**
-  * @brief sampling accuracy
-  */
-typedef enum {
-	I2S_SR8BIT  = (0x1U << I2S_SR_SHIFT),
-	I2S_SR12BIT = (0x2U << I2S_SR_SHIFT),
-	I2S_SR16BIT = (0x3U << I2S_SR_SHIFT),
-	I2S_SR20BIT = (0x4U << I2S_SR_SHIFT),
-	I2S_SR24BIT = (0x5U << I2S_SR_SHIFT),
-	I2S_SR28BIT = (0x6U << I2S_SR_SHIFT),
-	I2S_SR32BIT = (0x7U << I2S_SR_SHIFT),
-} I2S_SampleResolution;
-
-#define I2S_BCLK_POLARITY_SHIFT                         (7)
-#define I2S_BCLK_POLARITY_MASK                          (0x1U << I2S_BCLK_POLARITY_SHIFT)
-typedef enum {
-	I2S_SEC_NOR_MODE    = (0x0U << I2S_BCLK_POLARITY_SHIFT),
-	I2S_SEC_INVERT_MODE = (0x1U << I2S_BCLK_POLARITY_SHIFT),
-} I2S_BclkPolarity;
-
-#define I2S_LRCK_PERIOD_SHIFT                            (8)
-#define I2S_LRCK_PERIOD_MASK                             (0x3FFU << I2S_LRCK_PERIOD_SHIFT)
-#define I2S_LRCK_PERIOD(n)                               ((n-1) << I2S_LRCK_PERIOD_SHIFT)
-
-#define I2S_LRCK_POLARITY_SHIFT                          (19)
-#define I2S_LRCK_POLARITY_MASK                           (0x1U << I2S_LRCK_POLARITY_SHIFT)
-typedef enum {
-	I2S_LEFTCHANNEL_LRCKLOW  = (0x0U << I2S_LRCK_POLARITY_SHIFT),
-	I2S_LEFTCHANNEL_LRCKHIGH = (0x1U << I2S_BCLK_POLARITY_SHIFT),
-} I2S_LrckPolarity;
+#define DA_CTL			0x00
+#define DA_FMT0			0x04
+#define DA_FMT1			0x08
+#define DA_ISTA			0x0C
+#define DA_RXFIFO		0x10
+#define DA_FCTL			0x14
+#define DA_FSTA			0x18
+#define DA_INT			0x1C
+#define DA_TXFIFO		0x20
+#define DA_CLKD			0x24
+#define DA_TXCNT		0x28
+#define DA_RXCNT		0x2C
+#define DA_CHCFG		0x30
+#define DA_TX0CHSEL		0x34
+#define DA_TX1CHSEL		0x38
+#define DA_TX2CHSEL		0x3C
+#define DA_TX3CHSEL		0x40
+#define DA_TX0CHMAP		0x44
+#define DA_TX1CHMAP		0x48
+#define DA_TX2CHMAP		0x4C
+#define DA_TX3CHMAP		0x50
+#define DA_RXCHSEL		0x54
+#define DA_RXCHMAP		0x58
 
 
-#define I2S_LRCK_WIDTH_SHIFT                                 (30)
-#define I2S_LRCK_WIDTH_MASK                                  (0x1U << I2S_LRCK_WIDTH_SHIFT)
-/**
-  * @brief frame mode
-  */
-typedef enum {
-	I2S_SHORT_FRAME = (0x0U << I2S_LRCK_WIDTH_SHIFT),
-	I2S_LONG_FRAME  = (0x1U << I2S_LRCK_WIDTH_SHIFT),
-} I2S_FrameMode;
 
-/*
- * Bits definition for I2S_FMT1 Format Register1  (0X0008)
- */
-#define I2S_PCM_TXMODE_SHIFT                                 (0)
-#define I2S_PCM_TXMODE_MASK                                  (0x3U << I2S_PCM_TXMODE_SHIFT)
-typedef enum {
-	I2S_TX_LINEAR_PCM    = (0x0U << I2S_PCM_TXMODE_SHIFT),
-	I2S_TX_PCM_NOVAL     = (0x1U << I2S_PCM_TXMODE_SHIFT),
-	I2S_TX_PCM_ULAW_BIT8 = (0x2U << I2S_PCM_TXMODE_SHIFT),
-	I2S_TX_PCM_ALAW_BIT8 = (0x3U << I2S_PCM_TXMODE_SHIFT),
-} I2S_TXPDM;
+/*** XRADIO I2S Register Bit Define***/
 
-#define I2S_PCM_RXMODE_SHIFT                                 (2)
-#define I2S_PCM_RXMODE_MASK                                  (0x3U << I2S_PCM_RXMODE_SHIFT)
-typedef enum {
-	I2S_RX_LINEAR_PCM    = (0U << I2S_PCM_RXMODE_SHIFT),
-	I2S_RX_PCM_NOVAL     = (1U << I2S_PCM_RXMODE_SHIFT),
-	I2S_RX_PCM_ULAW_BIT8 = (2U << I2S_PCM_RXMODE_SHIFT),
-	I2S_RX_PCM_ALAW_BIT8 = (3U << I2S_PCM_RXMODE_SHIFT),
-} I2S_RXPDM;
+//DA_CTL
+#define I2S_BCLK_OUT_BIT		18
+#define I2S_LRCK_OUT_BIT		17
+#define I2S_SDO0_EN_BIT			8
+#define I2S_OUT_MUTE_BIT		6
+#define I2S_MODE_SEL_BIT		4
+#define I2S_LOOP_EN_BIT			3
+#define I2S_TX_EN_BIT			2
+#define I2S_RX_EN_BIT			1
+#define I2S_GEN_BIT				0
 
-#define I2S_SEXT_SHIFT                                      (4)
-#define I2S_SEXT_MASK                                        (0x3U << I2S_SEXT_SHIFT)
-typedef enum {
-	I2S_PADDING_LSB = (0x0U << I2S_SEXT_SHIFT),
-	I2S_SIGN_MSB    = (0x1U << I2S_SEXT_SHIFT),
-	I2S_NO_SEXT_VAL = (0x2U << I2S_SEXT_SHIFT),
-	I2S_ZERO_SLOT   = (0x3U << I2S_SEXT_SHIFT),
-} I2S_SEXT;
+//DA_FMT0
+#define I2S_LRCK_WIDTH_BIT		30
+#define I2S_LRCK_POLARITY_BIT	19
+#define I2S_LRCK_PERIOD_BIT		8
+#define I2S_BCLK_POLARITY_BIT	7
+#define I2S_SAMPLE_RES_BIT		4
+#define I2S_EDGE_TRANSFER_BIT	3
+#define I2S_SLOT_WIDTH_BIT		0
 
-#define I2S_TX_MLS_SHIFT                                    (6)
-#define I2S_TX_MLS_MASK                                     (0x1U << I2S_TX_MLS_SHIFT)
-typedef enum {
-	I2S_TX_MSB_FIRST = (0x0U << I2S_TX_MLS_SHIFT),
-	I2S_TX_LSB_FIRST = (0x1U << I2S_TX_MLS_SHIFT),
-} I2S_TxMLS;
+//DA_FMT1
+#define I2S_RX_MLS_BIT			7
+#define I2S_TX_MLS_BIT			6
+#define I2S_SEXT_BIT			4
+#define I2S_RX_PDM_BIT			2
+#define I2S_TX_PDM_BIT			0
 
-#define I2S_RX_MLS_SHIFT                                    (7)
-#define I2S_RX_MLS_MASK                                     (0x1U << I2S_RX_MLS_SHIFT)
-typedef enum {
-	I2S_RX_MSB_FIRST = (0x0U << I2S_RX_MLS_SHIFT),
-	I2S_RX_LSB_FIRST = (0x1U << I2S_RX_MLS_SHIFT),
-} I2S_RxMLS;
+//DA_ISTA
+#define I2S_TXU_INT_BIT			6
+#define I2S_TXO_INT_BIT			5
+#define I2S_TXE_INT_BIT			4
+#define I2S_RXU_INT_BIT			2
+#define I2S_RXO_INT_BIT			1
+#define I2S_RXA_INT_BIT			0
 
-/*
- * Bits definition for I2S_ISTA Interrupt Status Register
- */
-#define I2S_RX_FIFO_AVABLE_IT_BIT                           HAL_BIT(0)
-#define I2S_RX_FIFO_OVERRUN_IT_BIT                          HAL_BIT(1)
-#define I2S_RX_FIFO_UNDERRUN_IT_BIT                         HAL_BIT(2)
-#define I2S_TX_FIFO_EMPTY_IT_BIT                            HAL_BIT(4)
-#define I2S_TX_FIFO_OVERRUN_IT_BIT                          HAL_BIT(5)
-#define I2S_TX_FIFO_UNDERRUN_IT_BIT                         HAL_BIT(6)
+//DA_FCTL
+#define I2S_HUB_EN_BIT			31
+#define I2S_FTX_BIT				25
+#define I2S_FRX_BIT				24
+#define I2S_TXTL_BIT			12
+#define I2S_RXTL_BIT			4
+#define I2S_TXIM_BIT			2
+#define I2S_RXOM_BIT			0
 
-/*
- * Bits definition for I2S_FCTL FIFO Control Register (0x0014)
- */
-#define I2S_RX_FIFO_MODE_SHIFT                              (0)
-#define I2S_RX_FIFO_MODE_MASK                               (0x3U << I2S_RX_FIFO_MODE_SHIFT)
-typedef enum {
-	I2S_RX_FIFO_MODE0 = (0x0U << I2S_RX_FIFO_MODE_SHIFT),
-	I2S_RX_FIFO_MODE1 = (0x1U << I2S_RX_FIFO_MODE_SHIFT),
-	I2S_RX_FIFO_MODE2 = (0x2U << I2S_RX_FIFO_MODE_SHIFT),
-	I2S_RX_FIFO_MODE3 = (0x3U << I2S_RX_FIFO_MODE_SHIFT),
-} I2S_RXOM;
+// DA_FSTA
+#define I2S_TXE_BIT				28
+#define I2S_TXE_CNT_BIT			16
+#define I2S_RXA_BIT				8
+#define I2S_RXA_CNT_BIT			0
 
-#define I2S_TX_FIFO_MODE_SHIFT 	                             (2)
-#define I2S_TX_FIFO_MODE_MASK                                (0x1U << I2S_TX_FIFO_MODE_SHIFT)
-typedef enum {
-	I2S_TX_FIFO_MODE0 = (0x0U << I2S_TX_FIFO_MODE_SHIFT),
-	I2S_TX_FIFO_MODE1 = (0x1U << I2S_TX_FIFO_MODE_SHIFT),
-} I2S_TXIM;
+//DA_INT
+#define I2S_TXE_DRQ_EN_BIT		7
+#define I2S_TXUI_EN_BIT			6
+#define I2S_TXOI_EN_BIT			5
+#define I2S_TXEI_EN_BIT			4
+#define I2S_RXA_DRQ_EN_BIT		3
+#define I2S_RXUI_EN_BIT			2
+#define I2S_RXOI_EN_BIT			1
+#define I2S_RXAI_EN_BIT			0
 
-#define I2S_RXFIFO_LEVEL_SHIFT                               (4)
-#define I2S_RXFIFO_LEVEL_MASK                                (0x3FU << I2S_RXFIFO_LEVEL_SHIFT)
-#define I2S_RXFIFO_TRIGGER_LEVEL(n)                          ((n+1) << I2S_RXFIFO_LEVEL_SHIFT)
+//DA_CLKD
+#define I2S_MCLK_OUT_EN_BIT		8
+#define I2S_BCLK_DIV_BIT		4
+#define I2S_MCLK_DIV_BIT		0
 
-#define I2S_TXFIFO_LEVEL_SHIFT                               (12)
-#define I2S_TXFIFO_LEVEL_MASK                                (0x7FU << I2S_TXFIFO_LEVEL_SHIFT)
-#define I2S_TXFIFO_TRIGGER_LEVEL(n)                          ((n+1) << I2S_TXFIFO_LEVEL_SHIFT)
+//DA_CHCFG
+#define I2S_TX_SLOT_HIZ_BIT		9
+#define I2S_TX_STATE_BIT		8
+#define I2S_RX_SLOT_NUM			4
+#define I2S_TX_SLOT_NUM			0
 
-#define I2S_RXFIFO_RESET_BIT                                  HAL_BIT(24)
-#define I2S_TXFIFO_RESET_BIT                                  HAL_BIT(25)
-#define I2S_HUB_EN_BIT                                        HAL_BIT(31)
+//DA_TX0CHSEL
+#define I2S_TX0_OFFSET_BIT		12
+#define I2S_TX0_CHEN_BIT		4
+#define I2S_TX0_CHSEL_BIT		0
 
-/*
- * Bits definition for I2S_FSTA FIFO Status Register
- */
-#define I2S_RXFIFO_CNT_SHIFT                                  (0)
-#define I2S_RXFIFO_CNT_MASK                                   (0x7FU << I2S_RXFIFO_CNT_SHIFT)
+//DA_TX1CHSEL
+#define I2S_TX1_OFFSET_BIT		12
+#define I2S_TX1_CHEN_BIT		4
+#define I2S_TX1_CHSEL_BIT		0
 
-#define I2S_RXFIFO_AVAILABLE_BIT                              HAL_BIT(8)
+//DA_TX2CHSEL
+#define I2S_TX2_OFFSET_BIT		12
+#define I2S_TX2_CHEN_BIT		4
+#define I2S_TX2_CHSEL_BIT		0
 
-#define I2S_TXFIFO_EMPTY_SHIFT                                (16)
-#define I2S_TXFIFO_EMPTY_MASK                                 (0xFFU << I2S_TXFIFO_EMPTY_SHIFT)
+//DA_TX3CHSEL
+#define I2S_TX3_OFFSET_BIT		12
+#define I2S_TX3_CHEN_BIT		4
+#define I2S_TX3_CHSEL_BIT		0
 
-#define I2S_TXFIFO_EMPTY_BIT                                  HAL_BIT(28)
+//DA_TX0CHMAP
+#define I2S_TX0_CH7_MAP_BIT		28
+#define I2S_TX0_CH6_MAP_BIT		24
+#define I2S_TX0_CH5_MAP_BIT		20
+#define I2S_TX0_CH4_MAP_BIT		16
+#define I2S_TX0_CH3_MAP_BIT		12
+#define I2S_TX0_CH2_MAP_BIT		8
+#define I2S_TX0_CH1_MAP_BIT		4
+#define I2S_TX0_CH0_MAP_BIT		0
 
-/*
- * Bits definition for I2S_INT DMA&Interrupt Control Register (0x001c)
- */
-#define I2S_RXFIFO_AVABLE_ITEN_BIT                            HAL_BIT(0)
-#define I2S_RXFIFO_OVERRUN_ITEN_BIT                           HAL_BIT(1)
-#define I2S_RXFIFO_UNDERRUN_ITEN_BIT                          HAL_BIT(2)
-#define I2S_RXFIFO_DMA_ITEN_BIT                               HAL_BIT(3)
-#define I2S_TXFIFO_EMPTY_ITEN_BIT                             HAL_BIT(4)
-#define I2S_TXFIFO_OVERRUN_ITEN_BIT                           HAL_BIT(5)
-#define I2S_TXFIFO_UNDERRUN_ITEN_BIT                          HAL_BIT(6)
-#define I2S_TXFIFO_DMA_ITEN_BIT                               HAL_BIT(7)
+//DA_TX1CHMAP
+#define I2S_TX1_CH7_MAP_BIT		28
+#define I2S_TX1_CH6_MAP_BIT		24
+#define I2S_TX1_CH5_MAP_BIT		20
+#define I2S_TX1_CH4_MAP_BIT		16
+#define I2S_TX1_CH3_MAP_BIT		12
+#define I2S_TX1_CH2_MAP_BIT		8
+#define I2S_TX1_CH1_MAP_BIT		4
+#define I2S_TX1_CH0_MAP_BIT		0
 
-/*
- * Bits definition for I2S_CLKD Clock Divide Register  (0x24)
- */
-#define I2S_MCLKDIV_SHIFT                                     (0)
-#define I2S_MCLKDIV_MASK                                      (0xFU << I2S_MCLKDIV_SHIFT)    /* MCLK divide ratio [3:0] */
-typedef enum {
-	I2S_MCLKDIV_1   = (0x1U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 1   */
-	I2S_MCLKDIV_2   = (0x2U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 2   */
-	I2S_MCLKDIV_4   = (0x3U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 4   */
-	I2S_MCLKDIV_6   = (0x4U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 6   */
-	I2S_MCLKDIV_8   = (0x5U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 8   */
-	I2S_MCLKDIV_12  = (0x6U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 12  */
-	I2S_MCLKDIV_16  = (0x7U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 16  */
-	I2S_MCLKDIV_24  = (0x8U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 24  */
-	I2S_MCLKDIV_32  = (0x9U << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 32  */
-	I2S_MCLKDIV_48  = (0xAU << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 48  */
-	I2S_MCLKDIV_64  = (0xBU << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 64  */
-	I2S_MCLKDIV_96  = (0xCU << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 96  */
-	I2S_MCLKDIV_128 = (0xDU << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 128 */
-	I2S_MCLKDIV_176 = (0xEU << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 176 */
-	I2S_MCLKDIV_192 = (0xFU << I2S_MCLKDIV_SHIFT),    /* MCLK divide by 192 */
-} I2S_MCLKDIV;
+//DA_TX2CHMAP
+#define I2S_TX2_CH7_MAP_BIT		28
+#define I2S_TX2_CH6_MAP_BIT		24
+#define I2S_TX2_CH5_MAP_BIT		20
+#define I2S_TX2_CH4_MAP_BIT		16
+#define I2S_TX2_CH3_MAP_BIT		12
+#define I2S_TX2_CH2_MAP_BIT		8
+#define I2S_TX2_CH1_MAP_BIT		4
+#define I2S_TX2_CH0_MAP_BIT		0
 
-#define I2S_BCLKDIV_SHIFT                                     (4)
-#define I2S_BCLKDIV_MASK                                      (0xFU << I2S_BCLKDIV_SHIFT)    /* BCLK divide ratio [3:0] */
-typedef enum {
-	I2S_BCLKDIV_1   = (0x1U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 1   */
-	I2S_BCLKDIV_2   = (0x2U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 2   */
-	I2S_BCLKDIV_4   = (0x3U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 4   */
-	I2S_BCLKDIV_6   = (0x4U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 6   */
-	I2S_BCLKDIV_8   = (0x5U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 8   */
-	I2S_BCLKDIV_12  = (0x6U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 12  */
-	I2S_BCLKDIV_16  = (0x7U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 16  */
-	I2S_BCLKDIV_24  = (0x8U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 24  */
-	I2S_BCLKDIV_32  = (0x9U << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 32  */
-	I2S_BCLKDIV_48  = (0xAU << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 48  */
-	I2S_BCLKDIV_64  = (0xBU << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 64  */
-	I2S_BCLKDIV_96  = (0xCU << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 96  */
-	I2S_BCLKDIV_128 = (0xDU << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 128 */
-	I2S_BCLKDIV_176 = (0xEU << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 176 */
-	I2S_BCLKDIV_192 = (0xFU << I2S_BCLKDIV_SHIFT),    /* BCLK divide by 192 */
-} I2S_BCLKDIV;
+//DA_TX3CHMAP
+#define I2S_TX3_CH7_MAP_BIT		28
+#define I2S_TX3_CH6_MAP_BIT		24
+#define I2S_TX3_CH5_MAP_BIT		20
+#define I2S_TX3_CH4_MAP_BIT		16
+#define I2S_TX3_CH3_MAP_BIT		12
+#define I2S_TX3_CH2_MAP_BIT		8
+#define I2S_TX3_CH1_MAP_BIT		4
+#define I2S_TX3_CH0_MAP_BIT		0
 
-#define I2S_MCLK_OUT_EN_BIT                                   HAL_BIT(8)
+// DA_RXCHSEL
+#define I2S_RX_OFFSET_BIT		12
+#define I2S_RX_CHSEL_BIT		0
 
-/*
- * Bits definition for I2S_CHCFG Channel Configuration Register (0x30)
- */
-#define I2S_TX_SLOT_NUM_SHIFT                                 (0)
-#define I2S_TX_SLOT_NUM_MASK                                  (0x7U << I2S_TX_SLOT_NUM_SHIFT)
-typedef enum {
-	I2S_TX_SLOT_NUM1 = (0x0U << I2S_TX_SLOT_NUM_SHIFT),
-	I2S_TX_SLOT_NUM2 = (0x1U << I2S_TX_SLOT_NUM_SHIFT),
-	I2S_TX_SLOT_NUM3 = (0x2U << I2S_TX_SLOT_NUM_SHIFT),
-	I2S_TX_SLOT_NUM4 = (0x3U << I2S_TX_SLOT_NUM_SHIFT),
-	I2S_TX_SLOT_NUM5 = (0x4U << I2S_TX_SLOT_NUM_SHIFT),
-	I2S_TX_SLOT_NUM6 = (0x5U << I2S_TX_SLOT_NUM_SHIFT),
-	I2S_TX_SLOT_NUM7 = (0x6U << I2S_TX_SLOT_NUM_SHIFT),
-	I2S_TX_SLOT_NUM8 = (0x7U << I2S_TX_SLOT_NUM_SHIFT),
-} I2S_TxSlotNum;
+//DA_RXCHMAP
+#define I2S_RX_CH7_MAP_BIT		28
+#define I2S_RX_CH6_MAP_BIT		24
+#define I2S_RX_CH5_MAP_BIT		20
+#define I2S_RX_CH4_MAP_BIT		16
+#define I2S_RX_CH3_MAP_BIT		12
+#define I2S_RX_CH2_MAP_BIT		8
+#define I2S_RX_CH1_MAP_BIT		4
+#define I2S_RX_CH0_MAP_BIT		0
 
-#define I2S_RX_SLOT_NUM_SHIFT	                              (4)
-#define I2S_RX_SLOT_NUM_MASK                                  (0x7U << I2S_RX_SLOT_NUM_SHIFT)
-typedef enum {
-	I2S_RX_SLOT_NUM1 = (0x0U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_RX_SLOT_NUM2 = (0x1U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_RX_SLOT_NUM3 = (0x2U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_RX_SLOT_NUM4 = (0x3U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_RX_SLOT_NUM5 = (0x4U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_RX_SLOT_NUM6 = (0x5U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_RX_SLOT_NUM7 = (0x6U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_RX_SLOT_NUM8 = (0x7U << I2S_RX_SLOT_NUM_SHIFT),
-} I2S_RxSlotNum;
 
-#define I2S_TXN_STATE_SHIFT                                  (8)
-#define I2S_TXN_STATEMASK                                    (0x1U << I2S_TXN_STATE_SHIFT)
-typedef enum {
-	I2S_TRANSFER0 = (0x0U << I2S_TXN_STATE_SHIFT),
-	I2S_HIZ_STATE = (0x1U << I2S_TXN_STATE_SHIFT),
-} I2S_TxnState;
 
-#define I2S_TX_SLOT_HIZ_SHIFT                                (9)
-#define I2S_TX_SLOT_HIZ_MASK                                 (0x1U << I2S_TX_SLOT_HIZ_SHIFT)
-typedef enum {
-	I2S_NORMAL_MODE = (0x0U << I2S_RX_SLOT_NUM_SHIFT),
-	I2S_HI_Z_STATE  = (0x1U << I2S_RX_SLOT_NUM_SHIFT),
-} I2S_TxSlotHIZ;
+/*** Some Config Value ***/
 
-/*
- * Bits definition for I2S_TXnCHSEL Channel Select Register  (0X34)
- */
-#define I2S_TXN_CHANNEL_SEL_SHIFT                             (0)
-#define I2S_TXN_CHANNEL_SEL_MASK                              (0x7U << I2S_TXN_CHANNEL_SEL_SHIFT)
-typedef enum {
-	I2S_TXN_CHANNEL_NUM1 = (0x0U << I2S_TXN_CHANNEL_SEL_SHIFT),
-	I2S_TXN_CHANNEL_NUM2 = (0x1U << I2S_TXN_CHANNEL_SEL_SHIFT),
-	I2S_TXN_CHANNEL_NUM3 = (0x2U << I2S_TXN_CHANNEL_SEL_SHIFT),
-	I2S_TXN_CHANNEL_NUM4 = (0x3U << I2S_TXN_CHANNEL_SEL_SHIFT),
-	I2S_TXN_CHANNEL_NUM5 = (0x4U << I2S_TXN_CHANNEL_SEL_SHIFT),
-	I2S_TXN_CHANNEL_NUM6 = (0x5U << I2S_TXN_CHANNEL_SEL_SHIFT),
-	I2S_TXN_CHANNEL_NUM7 = (0x6U << I2S_TXN_CHANNEL_SEL_SHIFT),
-	I2S_TXN_CHANNEL_NUM8 = (0x7U << I2S_TXN_CHANNEL_SEL_SHIFT),
-} I2S_TxnChNum;
+//I2S BCLK POLARITY Control
+#define BCLK_NORMAL_DRIVE_N_SAMPLE_P	0
+#define BCLK_INVERT_DRIVE_P_SAMPLE_N	1
 
-#define I2S_TXN_CHANNEL_SLOT_ENABLE_SHIFT                         (4)
-#define I2S_TXN_CHANNEL_SLOT_ENABLE_MASK                          (0xFFU << I2S_TXN_CHANNEL_SLOT_ENABLE_SHIFT)
-#define I2S_TXN_CHANNEL_SLOTS_ENABLE(n)                           (((1 << n) -1) << I2S_TXN_CHANNEL_SLOT_ENABLE_SHIFT)
-#define I2S_TXN_OFFSET_SHIFT                                      (12)
-#define I2S_TXN_OFFSET_MASK                                       (0x1U << I2S_TXN_OFFSET_SHIFT)
-typedef enum {
-	I2S_TX_NO_OFFSET      = (0x0U << I2S_TXN_OFFSET_SHIFT),
-	I2S_TX_ONEBCLK_OFFSET = (0x1U << I2S_TXN_OFFSET_SHIFT),
-} I2S_TxnOffset;
+//I2S LRCK POLARITY Control
+#define	LRCK_LEFT_LOW_RIGHT_HIGH		0
+#define LRCK_LEFT_HIGH_RIGHT_LOW		1
 
-/*
- * Bits definition for I2S_TXnCHMAP Channel Mapping Register (0x44)
- */
-#define I2S_TXN_CHX_MAP_MASK(m)                                   (0x7U << (4*m))
-#define I2S_TXN_CHX_MAP(m)                                        (m << 4*m)
+//I2S Format Selection
+#define PCM_FORMAT						0
+#define LEFT_JUSTIFIED_FORMAT			1
+#define RIGHT_JUSTIFIED_FORMAT			2
 
-/*
- * Bits definition for I2S_RXCHSEL Channel Mapping Register (0x54)
- */
-#define I2S_RXN_CHANNEL_SEL_SHIFT                                  0
-#define I2S_RXN_CHANNEL_SEL_MASK                                   (0x7U << I2S_RXN_CHANNEL_SEL_SHIFT)
+//I2S Sign Extend in slot
+#define ZERO_OR_AUDIIO_GAIN_PADDING_LSB	0
+#define SIGN_EXTENSION_MSB				1
+#define TRANSFER_ZERO_AFTER				3
 
-typedef enum {
-	I2S_RXN_CHANNEL_NUM1 = (0X0U << I2S_RXN_CHANNEL_SEL_SHIFT),
-	I2S_RXN_CHANNEL_NUM2 = (0X1U << I2S_RXN_CHANNEL_SEL_SHIFT),
-	I2S_RXN_CHANNEL_NUM3 = (0X2U << I2S_RXN_CHANNEL_SEL_SHIFT),
-	I2S_RXN_CHANNEL_NUM4 = (0X3U << I2S_RXN_CHANNEL_SEL_SHIFT),
-	I2S_RXN_CHANNEL_NUM5 = (0X4U << I2S_RXN_CHANNEL_SEL_SHIFT),
-	I2S_RXN_CHANNEL_NUM6 = (0X5U << I2S_RXN_CHANNEL_SEL_SHIFT),
-	I2S_RXN_CHANNEL_NUM7 = (0X6U << I2S_RXN_CHANNEL_SEL_SHIFT),
-	I2S_RXN_CHANNEL_NUM8 = (0X7U << I2S_RXN_CHANNEL_SEL_SHIFT),
-} I2S_RxnChNum;
+//I2S PCM Frame mode
+#define PCM_SHORT_FRAME					0
+#define PCM_LONG_FRAME					1
 
-#define I2S_RXN_OFFSET_SHIFT                                      (12)
-#define I2S_RXN_OFFSET_MASK                                       (0x1U << I2S_RXN_OFFSET_SHIFT)
-typedef enum {
-	I2S_RX_NO_OFFSET      = (0x0U << I2S_RXN_OFFSET_SHIFT),
-	I2S_RX_ONEBCLK_OFFSET = (0x1U << I2S_RXN_OFFSET_SHIFT),
-} I2S_RxnOffset;
-
-/*
- * Bits definition for I2S_RXCHMAP Channel Mapping Register (0x58)
- */
-#define I2S_RXN_CHX_MAP_MASK(m)                                   (0x7U << (4*m))
-#define I2S_RXN_CHX_MAP(m)                                        (m << (4*m))
-
-/**
-  * @brief I2S sample rate definition
-  */
-typedef enum {
-	I2S_SR8K        = 0,  /* 8000Hz  */
-	I2S_SR12K       = 1,  /* 12000Hz */
-	I2S_SR16K       = 2,  /* 16000Hz */
-	I2S_SR24K       = 3,  /* 24000Hz */
-	I2S_SR32K       = 4,  /* 32000Hz */
-	I2S_SR48K       = 5,  /* 48000Hz */
-	I2S_SR11K       = 6,  /* 11025Hz */
-	I2S_SR22K       = 7,  /* 22050Hz */
-	I2S_SR44K       = 8,  /* 44100Hz */
-} I2S_SampleRate;
-
-/**
-  * @brief stream direction
-  */
-typedef enum {
-	PLAYBACK,
-	RECORD,
-} I2S_StreamDir;
-
-/**
-  * @brief i2s data init structure definition
-  */
-typedef struct {
-	uint32_t		 sampleRate;   /*!< Specifies the sampling rate of the transmitted data.    */
-	Audio_Stream_Dir direction;    /*!< Specifies the direction of the transmitted data.    */
-	enum pcm_format  resolution;   /*!< Specifies the sampling accuracy of the transmitted data.    */
-	uint32_t         channels;     /*!< Specifies the number of channels to transmit data.    */
-	uint32_t         bufSize;      /*!< Specifies the buffer size of the transmitted data.    */
-} I2S_DataParam;
-
-/**
-  * @brief external device clock structure definition
-  */
-typedef struct {
-	uint32_t   clkSource; /*!< S`	pecifies the clock frequency provided.    */
-	bool       isDevclk;  /*!< Specifies whether i2s provide an external device clock.    */
-} DEV_Param;
-
-/**
-  * @brief I2S low level hardware init structure definition
-  */
-typedef struct {
-	bool          i2sFormat;      /*!< Specifies the I2S operating format.    */
-	I2s_Role 	  clkMode;        /*!< Specifies the I2S clk mode.    */
-	I2s_Format    transferFormat; /*!< Specifies the I2S transfer format.    */
-	I2s_Polarity  signalInterval; /*!< Specifies the idle state of the I2S clock.    */
-	uint32_t      lrckPeriod;     /*!< Specifies The lrck division factor.    */
-	I2S_FrameMode frameMode;      /*!< Specifies the frame format.    */
-	I2S_TxMLS     txMsbFirst;     /*!< Specifies high first pass or low first pass when transmission data.    */
-	I2S_RxMLS     rxMsbFirst;     /*!< Specifies high first pass or low first pass when receive data.    */
-	uint32_t      txFifoLevel;    /*!< Specifies the depth of tx Fifo.     */
-	uint32_t      rxFifoLevel;    /*!< Specifies the depth of rx Fifo.    */
-	DEV_Param     codecClk;       /*!< I2S MCLK parameters for external device     */
-	uint8_t		  codecClkDiv;	  /*!< I2S MCLK division      */
-} I2S_HWParam;
-
-/**
-  * @brief I2S module init structure definition
-  */
-typedef struct {
-	uint8_t 	mclkDiv;		/* I2S mclk division */
-	I2S_HWParam *hwParam; 		/*!< I2S Hardware init structure.    */
-} I2S_Param;
-
-HAL_Status HAL_I2S_Init(void *param);
-void HAL_I2S_DeInit();
-HAL_Status HAL_I2S_Open(void *param);
-HAL_Status HAL_I2S_Close(Audio_Stream_Dir dir);
-int32_t HAL_I2S_Read_DMA(uint8_t *buf, uint32_t size);
-int32_t HAL_I2S_Write_DMA(uint8_t *buf, uint32_t size);
-void HAL_I2S_REG_DEBUG();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _DRIVER_CHIP_HAL_I2S_H_ */
+
+#endif	//_XRADIO_I2S_H_
+
+

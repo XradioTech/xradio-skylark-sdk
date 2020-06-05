@@ -565,8 +565,17 @@ static int player_control(player_base *base, player_cmd command, void *data)
     case PLAYER_CMD_SET_OUTPUT_CONFIG:
         SoundDeviceControl(impl->sound, SOUND_CONTROL_SET_OUTPUT_CONFIG, data);
         break;
+    case PLAYER_CMD_ADD_OUTPUT_CONFIG:
+        SoundDeviceControl(impl->sound, SOUND_CONTROL_ADD_OUTPUT_CONFIG, data);
+        break;
     case PLAYER_CMD_CLEAR_OUTPUT_CONFIG:
         SoundDeviceControl(impl->sound, SOUND_CONTROL_CLEAR_OUTPUT_CONFIG, data);
+        break;
+    case PLAYER_CMD_SET_EQ_MODE:
+        SoundDeviceControl(impl->sound, SOUND_CONTROL_SET_EQ_MODE, data);
+        break;
+    case PLAYER_CMD_CLEAR_EQ_MODE:
+        SoundDeviceControl(impl->sound, SOUND_CONTROL_CLEAR_EQ_MODE, data);
         break;
     default:
         break;

@@ -41,7 +41,7 @@ static OS_Thread_t g_sntp_thread;
 void sntp_run(void *arg)
 {
 	CMD_LOG(1, "<net> <sntp> <request>\n");
-        if (sntp_request(NULL) != 0) {
+    if (sntp_request(NULL) != 0) {
 		CMD_LOG(1, "<net> <sntp> <response : fail>\n");
 		goto exit;
 	}
@@ -49,7 +49,7 @@ void sntp_run(void *arg)
 	sntp_time *time = (sntp_time *)sntp_obtain_time();
 	CMD_LOG(1, "<net> <sntp> <response : success>\n");
 	CMD_LOG(1,"sntp(%u-%02u-%02u ", time->year + SNTP_YEAR_OFFSET, time->mon, time->day);
-        CMD_LOG(1,"%02u:%02u:%02u)\n", time->hour, time->min, time->sec);
+	CMD_LOG(1,"%02u:%02u:%02u)\n", time->hour, time->min, time->sec);
 exit:
         SNTP_THREAD_EXIT(&g_sntp_thread);
 
@@ -78,7 +78,7 @@ int sntp_start()
 enum cmd_status cmd_sntp_exec(char *cmd)
 {
 	sntp_start();
-        return CMD_STATUS_OK;
+	return CMD_STATUS_OK;
 }
 
 #endif /* PRJCONF_NET_EN */

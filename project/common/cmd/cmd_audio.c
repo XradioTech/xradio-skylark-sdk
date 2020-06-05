@@ -35,12 +35,12 @@
 #include "fs/fatfs/ff.h"
 #include "common/framework/fs_ctrl.h"
 
-#define AUDIO_THREAD_STACK_SIZE		(2 * 1024)
 
+#define CMD_AUDIO_SND_CARD			AUDIO_SND_CARD_DEFAULT
 #define AUDIO_RECORD_TIME			(20)//s
 
+#define AUDIO_THREAD_STACK_SIZE		(2 * 1024)
 #define AUDIO_DELETE_THREAD(THREAD)  OS_ThreadDelete(&THREAD)
-
 #define AUDIO_CREAT_THREAD(THREAD, TASK, ARG)         \
                         if (OS_ThreadIsValid(&THREAD)) { \
                                 CMD_ERR("audio task is running\n"); \
@@ -60,7 +60,8 @@ static OS_Thread_t g_audio_record_thread;
 static OS_Thread_t g_audio_play_thread;
 static OS_Thread_t g_audio_control_thread;
 static uint8_t g_audio_task_end;
-static uint32_t sampleRate[] = {8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000};
+static uint32_t sampleRate[] = {8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 96000, 192000};
+
 
 static int AudioConfigIsValid(int samplerate, int channels)
 {
@@ -145,7 +146,7 @@ static void cap_exec(void *cmd)
     }
     memset(pcm_data, 0, pcm_buf_size);
 
-    if (snd_pcm_open(AUDIO_SND_CARD_DEFAULT, PCM_IN, &config) != 0)
+    if (snd_pcm_open(CMD_AUDIO_SND_CARD, PCM_IN, &config) != 0)
     {
 		CMD_ERR("sound card open err\n");
 		goto exit_fs;
@@ -160,7 +161,7 @@ static void cap_exec(void *cmd)
 	g_audio_task_end = 0;
 	CMD_DBG("Capture run.\n");
     while (!g_audio_task_end) {// && OS_TicksToSecs(OS_GetTicks()) <= stopTime
-            ret = snd_pcm_read(AUDIO_SND_CARD_DEFAULT, pcm_data, pcm_buf_size);
+            ret = snd_pcm_read(CMD_AUDIO_SND_CARD, pcm_data, pcm_buf_size);
             if (ret != pcm_buf_size) {
 				CMD_ERR("read data failed(%d), line:%d\n", ret, __LINE__);
 				break;
@@ -177,7 +178,7 @@ static void cap_exec(void *cmd)
     }
 
 exit_snd:
-    snd_pcm_close(AUDIO_SND_CARD_DEFAULT, PCM_IN);
+    snd_pcm_close(CMD_AUDIO_SND_CARD, PCM_IN);
 
 exit_fs:
 	free(pcm_data);
@@ -234,7 +235,7 @@ static void play_exec(void *cmd)
 		f_close(&fp);
 		goto exit_thread;;
     }
-    if (snd_pcm_open(AUDIO_SND_CARD_DEFAULT, PCM_OUT, &config) != 0)
+    if (snd_pcm_open(CMD_AUDIO_SND_CARD, PCM_OUT, &config) != 0)
     {
 		CMD_ERR("sound card open err\n");
 		goto exit_fs;
@@ -246,7 +247,7 @@ static void play_exec(void *cmd)
 	        CMD_ERR("read failed.\n");
 			break;
 	    }
-		snd_pcm_write(AUDIO_SND_CARD_DEFAULT, pcm_data, readnum);
+		snd_pcm_write(CMD_AUDIO_SND_CARD, pcm_data, readnum);
 
         if (readnum != pcm_buf_size) {
 			CMD_DBG("file end: file size = %d\n", readnum);
@@ -254,8 +255,8 @@ static void play_exec(void *cmd)
         }
     }
 
-	snd_pcm_flush(AUDIO_SND_CARD_DEFAULT);
-    snd_pcm_close(AUDIO_SND_CARD_DEFAULT, PCM_OUT);
+	snd_pcm_flush(CMD_AUDIO_SND_CARD);
+    snd_pcm_close(CMD_AUDIO_SND_CARD, PCM_OUT);
 
 exit_fs:
 	f_close(&fp);
@@ -285,7 +286,7 @@ static void vol_exec(void *cmd)
 		goto exit;
 	}
 
-	audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_VOLUME_LEVEL, dev, vol);
+	audio_manager_handler(CMD_AUDIO_SND_CARD, AUDIO_MANAGER_SET_VOLUME_LEVEL, dev, vol);
 exit:
 	AUDIO_DELETE_THREAD(g_audio_control_thread);
 }
@@ -308,7 +309,7 @@ static void path_exec(void *cmd)
 		goto exit;
 	}
 
-	audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_ROUTE, path, cmd_atoi(argv[1]));
+	audio_manager_handler(CMD_AUDIO_SND_CARD, AUDIO_MANAGER_SET_ROUTE, path, cmd_atoi(argv[1]));
 exit:
 	AUDIO_DELETE_THREAD(g_audio_control_thread);
 }
@@ -377,13 +378,37 @@ static enum cmd_status audio_end_task(char *arg)
  *		audio end
  */
 
+#if CMD_DESCRIBE
+#define audio_cap_help_info \
+"audio cap [samplerate] [channels] [file-path]\n"\
+"\t\t\teg. audio cap 16000 1 record.pcm"
+#define audio_play_help_info \
+"audio play [samplerate] [channels] [file-path]\n"\
+"\t\t\teg. audio play 44100 2 music.pcm"
+#define audio_vol_help_info \
+"audio vol [dev] [vol]\n"\
+"\t\t\teg. audio vol 12"
+#define audio_path_help_info \
+"audio path [dev] [en]\n"\
+"\t\t\teg. audio path	1 1"
+#define audio_end_help_info "audio end"
+#endif
+
+static enum cmd_status cmd_audio_help_exec(char *cmd);
+
 static const struct cmd_data g_audio_cmds[] = {
-	{ "cap",     audio_cap_task },
-	{ "play",    audio_play_task },
-	{ "vol",     audio_vol_task },
-	{ "path",    audio_path_task },
-	{ "end",     audio_end_task },
+	{ "cap",     audio_cap_task, CMD_DESC(audio_cap_help_info) },
+	{ "play",    audio_play_task, CMD_DESC(audio_play_help_info) },
+	{ "vol",     audio_vol_task, CMD_DESC(audio_vol_help_info) },
+	{ "path",    audio_path_task, CMD_DESC(audio_path_help_info) },
+	{ "end",     audio_end_task, CMD_DESC(audio_end_help_info) },
+	{ "help",    cmd_audio_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_audio_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_audio_cmds, cmd_nitems(g_audio_cmds), 8);
+}
 
 enum cmd_status cmd_audio_exec(char *cmd)
 {

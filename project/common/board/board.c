@@ -69,7 +69,7 @@ __weak HAL_Status board_spi_deinit(SPI_Port spi)
 }
 #endif /* PRJCONF_SPI_EN */
 
-#if PRJCONF_INTERNAL_SOUNDCARD_EN || PRJCONF_AC107_SOUNDCARD_EN
+#if PRJCONF_AUDIO_SNDCARD_EN
 __weak HAL_Status board_soundcard_init(void)
 {
 	/* Codec register */
@@ -79,10 +79,13 @@ __weak HAL_Status board_soundcard_init(void)
 #if PRJCONF_AC107_SOUNDCARD_EN
 	HAL_SndCard_CodecRegisterAc107();
 #endif
+#if PRJCONF_AC101_SOUNDCARD_EN
+	HAL_SndCard_CodecRegisterAc101();
+#endif
 	//Add other codec register here
 
 	/* Platform register */
-#if PRJCONF_AC107_SOUNDCARD_EN	//or other codec that need to use I2S
+#if PRJCONF_PLATFORM_I2S_EN
 	HAL_SndCard_PlatformRegisterI2S();
 #endif
 	//Add other platform register here
@@ -99,7 +102,7 @@ __weak HAL_Status board_soundcard_deinit(void)
 	HAL_SndCard_Unregister();
 
 	/* Platform unregister */
-#if PRJCONF_AC107_SOUNDCARD_EN	//or other codec that need to use I2S
+#if PRJCONF_PLATFORM_I2S_EN
 	HAL_SndCard_PlatformUnregisterI2S();
 #endif
 	//Add other platform unregister here
@@ -110,6 +113,9 @@ __weak HAL_Status board_soundcard_deinit(void)
 #endif
 #if PRJCONF_AC107_SOUNDCARD_EN
 	HAL_SndCard_CodecUnregisterAc107();
+#endif
+#if PRJCONF_AC101_SOUNDCARD_EN
+	HAL_SndCard_CodecUnregisterAc101();
 #endif
 	//Add other codec unregister here
 

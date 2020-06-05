@@ -52,6 +52,23 @@ DRESULT SD_read (BYTE, BYTE*, DWORD, UINT);
 #define SDMMC_ENTRY()
 #endif
 
+uint32_t sdmmc_get_sector_count(void)
+{
+	uint32_t capacity = 0;
+	struct mmc_card *card;
+	card = mmc_card_open(0);
+	if (card == NULL) {
+		SDMMC_DEBUG("card open failed\n");
+		return 0;
+	}
+	capacity = mmc_get_capacity(card);
+	mmc_card_close(0);
+
+	if (capacity)
+		return capacity*(1024/BLOCK_SIZE);
+	else
+		return 0;
+}
 
 /**
   * @brief  Initializes a Drive
@@ -170,7 +187,12 @@ DRESULT SDMMC_ioctl(BYTE cmd, void *buff)
 #if ((_USE_MKFS == 0) || (_FS_READONLY == 1))
     res = RES_OK;
 #else
-    res = RES_PARERR; /* not support now */
+	uint32_t sector_count = sdmmc_get_sector_count();
+	if (sector_count) {
+		*(DWORD*)buff = sector_count;
+		res = RES_OK;
+	} else
+    	res = RES_PARERR; /* not support now */
 #endif
     break;
 
@@ -183,10 +205,12 @@ DRESULT SDMMC_ioctl(BYTE cmd, void *buff)
   /* Get erase block size in unit of sector (DWORD) */
   case GET_BLOCK_SIZE :
     *(DWORD*)buff = BLOCK_SIZE;
+	res = RES_OK;
     break;
 
   default:
     res = RES_PARERR;
+	break;
   }
 
   return res;

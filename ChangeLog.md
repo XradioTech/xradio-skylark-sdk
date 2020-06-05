@@ -1,5 +1,58 @@
 # ChangeLog for XRADIO Skylark SDK
 
+## xradio_skylark_sdk-1.1.0 (20200605)
+
+  * WLAN
+    - Optimize rate control algorithm
+    - Optimize TX power calibration algorithm
+    - Support changing the default configuration of AP mode
+    - Support flushing AP scan result
+    - Fix a bug about command timeout
+    - Fix some bugs about PHY reset
+    - Smart config: fix a bug about decoding lead code failed
+
+  * Cedarx
+    - Fix a bug about playing HTTPS stream failed
+    - Adjust the implementation of os glue layer
+    - Support TS stream
+
+  * Audio
+    - Fix bugs about setting volume and route
+    - Optimize the time of starting play
+    - Support multi output sample rate for audio player
+    - Support EQ
+    - Support opus
+    - Support speex
+
+  * Driver
+    - EFUSE: fix timing parameter's issue
+    - GPIO: fix a bug about cannot use GPIO interrupt after watchdog reboot
+    - I2C: fix a bug about accessing 16-bit memory address
+    - DMA: fix bugs of transfer using PSRAM
+    - PSRAM: improve performance
+    - WDG: reset wlan cpu in HAL_WDG_Reboot()
+    - Camera: refactor some functions and support suspend/resume
+    - I2S: refactor
+    - Audio codec: support AC101
+
+  * Network
+    - Ping: support more parameters setting
+
+  * OS
+    - support FreeRTOS 10.2.1
+
+  * System:
+    - Adjust LDO1 voltage according to eFUSE value
+    - Support setting CPU to 349MHz
+
+  * Misc
+    - Keep external LDO mode when enter hibernation
+    - Support compressed PSRAM bin
+    - Console: support echo function and help command
+    - OTA: support upgrade status feedback and push mode
+    - Tools: fix some bugs
+
+
 ## xradio_skylark_sdk-1.0.2 (20191223)
 
   * Driver
@@ -11,6 +64,7 @@
   * Misc
     - SDD Editor Ex: update to v2.5.1912a
     - Sound Config Apk: update to v1.1.2s
+
 
 ## xradio_skylark_sdk-1.0.1 (20191211)
 
@@ -25,6 +79,7 @@
 
 
 ## xradio_skylark_sdk-1.0.0 (20191129)
+
   * Driver
     - CACHE: fix several bugs of cache operations
     - SPI: support slave mode
@@ -41,6 +96,7 @@
 
 
 ## xradio_skylark_sdk-1.0.0-rc3 (20191115)
+
   * WLAN
     - Improve the RF performance
     - Fix a bug about dpd calculation exception
@@ -57,6 +113,7 @@
 
 
 ## xradio_skylark_sdk-1.0.0-rc2 (20191104)
+
   * Driver
     - PSRAM: Improve the performance and stability
     - IR: support 40M HOSC
@@ -87,4 +144,5 @@
 
 
 ## xradio_skylark_sdk-1.0.0-rc1 (20190925)
+
   * First release candidate for XRADIO Skylark SDK

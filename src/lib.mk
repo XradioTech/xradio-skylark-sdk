@@ -7,7 +7,7 @@
 # ----------------------------------------------------------------------------
 INSTALL_PATH ?= $(ROOT_PATH)/lib
 
-.PHONY: all install size clean install_clean
+.PHONY: all install size clean install_clean config config_clean
 
 all: $(LIBS)
 
@@ -28,6 +28,12 @@ clean:
 
 install_clean:
 	$(Q)-rm -f $(INSTALL_PATH)/$(LIBS)
+
+config:
+	@$(Q)cd $(ROOT_PATH) && ./configure.sh
+
+config_clean:
+	$(Q)-rm -f $(ROOT_PATH)/.config
 
 # ----------------------------------------------------------------------------
 # dependent rules

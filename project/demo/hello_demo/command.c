@@ -38,22 +38,30 @@
 /*
  * net commands
  */
+static enum cmd_status cmd_net_help_exec(char *cmd);
+
 static const struct cmd_data g_net_cmds[] = {
-	{ "mode",		cmd_wlan_mode_exec },
+	{ "mode",		cmd_wlan_mode_exec, CMD_DESC("mode command") },
 #ifdef __CONFIG_WLAN_AP
-	{ "ap", 		cmd_wlan_ap_exec },
+	{ "ap", 		cmd_wlan_ap_exec, CMD_DESC("ap command") },
 #endif
 #ifdef __CONFIG_WLAN_STA
-	{ "sta",		cmd_wlan_sta_exec },
+	{ "sta",		cmd_wlan_sta_exec, CMD_DESC("sta command") },
 #endif
-	{ "ifconfig",	cmd_ifconfig_exec },
+	{ "ifconfig",	cmd_ifconfig_exec, CMD_DESC("ifconfig command") },
 #if COMMAND_IPERF
-	{ "iperf",		cmd_iperf_exec },
+	{ "iperf",		cmd_iperf_exec, CMD_DESC("iperf command") },
 #endif
 #if COMMAND_PING
-	{ "ping",		cmd_ping_exec },
+	{ "ping",		cmd_ping_exec, CMD_DESC("ping command") },
 #endif
+	{ "help",       cmd_net_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_net_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_net_cmds, cmd_nitems(g_net_cmds), 16);
+}
 
 static enum cmd_status cmd_net_exec(char *cmd)
 {
@@ -65,42 +73,31 @@ static enum cmd_status cmd_net_exec(char *cmd)
 /*
  * main commands
  */
+static enum cmd_status cmd_main_help_exec(char *cmd);
+
 static const struct cmd_data g_main_cmds[] = {
 #if PRJCONF_NET_EN
-	{ "net",	cmd_net_exec },
+	{ "net",	cmd_net_exec, CMD_DESC("network command") },
 #endif
 #ifdef __CONFIG_OTA
-	{ "ota",	cmd_ota_exec },
+	{ "ota",    cmd_ota_exec, CMD_DESC("over the airtechnology upgrade commands") },
 #endif
-	{ "echo",	cmd_echo_exec },
-	{ "mem",	cmd_mem_exec },
-	{ "heap",	cmd_heap_exec },
-	{ "thread",	cmd_thread_exec },
-	{ "upgrade",cmd_upgrade_exec },
-	{ "reboot", cmd_reboot_exec },
-	{ "efpg",	cmd_efpg_exec },
+	{ "pm",		cmd_pm_exec, CMD_DESC("power management command") },
+	{ "mem",	cmd_mem_exec, CMD_DESC("memory command") },
+	{ "heap",	cmd_heap_exec, CMD_DESC("heap use information command") },
+	{ "thread",	cmd_thread_exec, CMD_DESC("thread information command") },
+	{ "upgrade",cmd_upgrade_exec, CMD_DESC("upgrade command") },
+	{ "reboot", cmd_reboot_exec, CMD_DESC("reboot command") },
+	{ "efpg",	cmd_efpg_exec, CMD_DESC("efpg command") },
+    { "help",   cmd_main_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_main_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_main_cmds, cmd_nitems(g_main_cmds), 8);
+}
 
 void main_cmd_exec(char *cmd)
 {
-	enum cmd_status status;
-
-	if (cmd[0] != '\0') {
-#if (!CONSOLE_ECHO_EN)
-		if (cmd_strcmp(cmd, "efpg"))
-			CMD_LOG(CMD_DBG_ON, "$ %s\n", cmd);
-#endif
-		status = cmd_exec(cmd, g_main_cmds, cmd_nitems(g_main_cmds));
-		if (status != CMD_STATUS_ACKED) {
-			cmd_write_respond(status, cmd_get_status_desc(status));
-		}
-	}
-#if (!CONSOLE_ECHO_EN)
-	else { /* empty command */
-		CMD_LOG(1, "$\n");
-	}
-#endif
-#if CONSOLE_ECHO_EN
-	console_write((uint8_t *)"$ ", 2);
-#endif
+	cmd_main_exec(cmd, g_main_cmds, cmd_nitems(g_main_cmds));
 }

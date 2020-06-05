@@ -150,6 +150,7 @@ typedef struct XPlayerBufferConfig
 	int maxPcmBufferSize;
 	int maxMovStszBufferSize;
 	int maxMovStcoBufferSize;
+	int probeDateLen;
 } XPlayerBufferConfig;
 
 typedef struct HttpStreamBufferConfig

@@ -416,8 +416,8 @@ typedef enum wlan_ap_field {
 	WLAN_AP_FIELD_SSID = 0,
 	WLAN_AP_FIELD_PSK,
 	WLAN_AP_FIELD_KEY_MGMT,
-	WLAN_AP_FIELD_WPA_CIPHER,
-	WLAN_AP_FIELD_RSN_CIPHER,
+	WLAN_AP_FIELD_WPA_PAIRWISE_CIPHER,
+	WLAN_AP_FIELD_RSN_PAIRWISE_CIPHER,
 	WLAN_AP_FIELD_PROTO,
 	WLAN_AP_FIELD_AUTH_ALG,
 	WLAN_AP_FIELD_GROUP_REKEY,
@@ -433,6 +433,10 @@ typedef enum wlan_ap_field {
 
 	WLAN_AP_FIELD_NUM,
 } wlan_ap_field_t;
+
+/* for compatibility only */
+#define WLAN_AP_FIELD_WPA_CIPHER	WLAN_AP_FIELD_WPA_PAIRWISE_CIPHER
+#define WLAN_AP_FIELD_RSN_CIPHER	WLAN_AP_FIELD_RSN_PAIRWISE_CIPHER
 
 /**
  * @brief Wlan AP hardware mode definition
@@ -556,6 +560,126 @@ typedef struct wlan_ap_config {
 		int max_num_sta;
 	} u;
 } wlan_ap_config_t;
+
+/**
+ * @brief Wlan AP default configuration definition
+ */
+typedef struct wlan_ap_default_conf {
+	/**
+	 * Network name
+	 */
+	char *ssid;
+
+	/**
+	 * Network name length
+	 */
+	uint8_t ssid_len;
+
+	/**
+	 * First two octets: country code as described in ISO/IEC 3166-1.
+	 * Third octet:
+	 *   ' ' (ascii 32): all environments
+	 *   'O': Outdoor environemnt only
+	 *   'I': Indoor environment only
+	 */
+	char country[3];
+
+	/**
+	 * WPA preshared key in one of the optional formats:
+	 *   - an ASCII string of passphrase, length is [8, 63]
+	 *   - a hex string of PSK (two characters per octet of PSK), length is 64
+	 */
+	char *psk;
+
+	/**
+	 * Bitfield of allowed key management protocols
+	 *
+	 * WPA_KEY_MGMT_*
+	 */
+	int key_mgmt;
+
+	/**
+	 * Bitfield of allowed WPA pairwise ciphers
+	 *
+	 * WPA_CIPHER_*
+	 */
+	int wpa_pairwise_cipher;
+
+	/**
+	 * Bitfield of allowed RSN pairwise ciphers
+	 *
+	 * WPA_CIPHER_*
+	 */
+	int rsn_pairwise_cipher;
+
+	/**
+	 * Bitfield of allowed protocols
+	 *
+	 * WPA_PROTO_*
+	 */
+	int proto;
+
+	/**
+	 * Bitfield of allowed authentication algorithms
+	 *
+	 * WPA_AUTH_ALG_*
+	 */
+	int auth_alg;
+
+	/**
+	 * Maximum lifetime for GTK in seconds
+	 */
+	int group_rekey;
+
+	/**
+	 * Maximum lifetime for GMK in seconds
+	 */
+	int gmk_rekey;
+
+	/**
+	 * Maximum lifetime for PTK in seconds
+	 */
+	int ptk_rekey;
+
+	/**
+	 * Rekey GTK when any STA that possesses the current GTK is
+	 * leaving the BSS
+	 */
+	uint8_t strict_rekey;
+
+	/**
+	 * Hardware mode
+	 */
+	wlan_ap_hw_mode_t hw_mode;
+
+	/**
+	 * IEEE802.11n mode
+	 */
+	uint8_t ieee80211n;
+	/**
+	 * RF channel
+	 */
+	uint8_t channel;
+
+	/**
+	 * MIB defines range as 1..65535, but very small values
+	 * cause problems with the current implementation.
+	 * Since it is unlikely that this small numbers are
+	 * useful in real life scenarios, do not allow beacon
+	 * period to be set below 15 TU.
+	 */
+	uint16_t beacon_int;
+
+	/**
+	 * Delivery traffic indication message
+	 */
+	uint8_t dtim;
+
+	/**
+	 * Maximum number of STAs in station table
+	 */
+	uint8_t max_num_sta;
+} wlan_ap_default_conf_t;
 
 /**
  * @brief Wlan station information definition

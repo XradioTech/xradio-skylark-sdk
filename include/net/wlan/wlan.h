@@ -75,8 +75,29 @@ static __inline enum wlan_mode wlan_if_get_mode(struct netif *nif)
 	return ethernetif_get_mode(nif);
 }
 
+#if (defined(__CONFIG_WLAN_STA) && defined(__CONFIG_WLAN_AP))
 int wlan_start(struct netif *nif);
 int wlan_stop(struct netif *nif); /* Note: make sure wlan is disconnect before calling wlan_stop() */
+#elif (defined(__CONFIG_WLAN_STA))
+int wlan_start_sta(struct netif *nif);
+int wlan_stop_sta(struct netif *nif);
+#define wlan_start(nif) wlan_start_sta(nif)
+#define wlan_stop(nif)  wlan_stop_sta(nif)
+#elif (defined(__CONFIG_WLAN_AP))
+int wlan_start_hostap(struct netif *nif);
+int wlan_stop_hostap(struct netif *nif);
+#define wlan_start(nif) wlan_start_hostap(nif)
+#define wlan_stop(nif)  wlan_stop_hostap(nif)
+#else
+static __inline int wlan_start(struct netif *nif)
+{
+	return -1;
+}
+static __inline int wlan_stop(struct netif *nif)
+{
+	return -1;
+}
+#endif
 
 int wlan_get_mac_addr(struct netif *nif, uint8_t *buf, int buf_len);
 int wlan_set_mac_addr(struct netif *nif, uint8_t *mac_addr, int mac_len);
@@ -119,6 +140,9 @@ int wlan_sta_wps_pin_get(wlan_sta_wps_pin_t *wps);
 int wlan_sta_wps_pin_set(wlan_sta_wps_pin_t *wps);
 
 /* softAP */
+void wlan_ap_set_default_conf(const wlan_ap_default_conf_t *conf);
+const wlan_ap_default_conf_t *wlan_ap_get_default_conf(void);
+
 int wlan_ap_set(uint8_t *ssid, uint8_t ssid_len, uint8_t *psk);
 int wlan_ap_set_config(wlan_ap_config_t *config);
 int wlan_ap_get_config(wlan_ap_config_t *config);
@@ -135,6 +159,7 @@ int wlan_ap_scan(wlan_sta_scan_param_t *param);
 int wlan_ap_get_scan_result_num(int *num);
 int wlan_ap_scan_result(wlan_sta_scan_results_t *results);
 int wlan_ap_scan_bss_max_count(uint8_t count);
+int wlan_ap_bss_flush(int age);
 
 /* monitor */
 typedef enum {

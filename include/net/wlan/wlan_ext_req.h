@@ -91,6 +91,7 @@ typedef enum wlan_ext_cmd {
     WLAN_EXT_CMD_SET_SCAN_FREQ,
     WLAN_EXT_CMD_SET_RX_STACK_SIZE, /* Should be called before wlan_attach() */
     WLAN_EXT_CMD_SET_RX_QUEUE_SIZE, /* Should be called before wlan_attach() */
+    WLAN_EXT_CMD_SET_AMRR_PARAM,
 } wlan_ext_cmd_t;
 
 /**
@@ -534,6 +535,14 @@ typedef struct wlan_ext_channel_fec_set
     int16_t   Reserved;
 } wlan_ext_channel_fec_set_t;
 
+/**
+ * @brief Parameter for WLAN_EXT_CMD_SET_AMRR_PARAM
+ */
+typedef struct wlan_ext_amrr_param {
+    uint8_t success_threshold; /* in percent */
+    uint8_t failure_threshold; /* in percent */
+    int16_t update_threshold;  /* in ms */
+} wlan_ext_amrr_param_t;
 
 int wlan_ext_request(struct netif *nif, wlan_ext_cmd_t cmd, uint32_t param);
 

@@ -470,7 +470,7 @@ extern "C" {
         PSRAMC_MIN_WR_CLC_4 = (0x3U << PSRAMC_MIN_WR_CLC_SHIFT)
     } PSRAMC_MinWrClc;
 
-//#define PSRAMC_CLK_STOP_CE_LOW          HAL_BIT(7)
+#define PSRAMC_CLK_STOP_CE_LOW          HAL_BIT(7)
 #define PSRAMC_CEDIS_CLK_VALID          HAL_BIT(6)
 #define PSRAMC_WR_AF_DM_DUMMY           HAL_BIT(5)
 #define PSRAMC_WR_AF_DQS_DUMMY          HAL_BIT(4)

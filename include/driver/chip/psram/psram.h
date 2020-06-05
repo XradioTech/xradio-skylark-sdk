@@ -35,7 +35,7 @@
 #ifndef _PSRAM_H
 #define _PSRAM_H
 #include "driver/chip/hal_def.h"
-#include "kernel/os/FreeRTOS/os_semaphore.h"
+#include "kernel/os/os_semaphore.h"
 #include "sys/sys_heap.h"
 
 //---------PSRAM SPI/QPI Command set-------
@@ -236,10 +236,17 @@ extern uint8_t __psram_data_start__[];
 extern uint8_t __psram_data_end__[];
 extern uint8_t __psram_bss_start__[];
 extern uint8_t __psram_bss_end__[];
+extern uint8_t __DMAHEAP_PSRAM_BASE[];
+extern uint8_t __DMAHEAP_PSRAM_END[];
+extern uint8_t __DMAHEAP_PSRAM_LENGTH[];
 
 #define PSRAM_START_ADDR        ((uint32_t)(__PSRAM_BASE))
 #define PSRAM_END_ADDR          ((uint32_t)(__PSRAM_END))
 #define PSRAM_LENGTH            ((uint32_t)(__PSRAM_LENGTH))
+
+#define DMAHEAP_PSRAM_BASE          ((uint32_t)(__DMAHEAP_PSRAM_BASE))
+#define DMAHEAP_PSRAM_END           ((uint32_t)(__DMAHEAP_PSRAM_END))
+#define DMAHEAP_PSRAM_LENGTH        ((uint32_t)(__DMAHEAP_PSRAM_LENGTH))
 
 
 int32_t psram_init(struct psram_chip *chip, struct psram_ctrl *ctrl, PSRAMChip_InitParam *param);

@@ -39,11 +39,24 @@ static OS_Thread_t g_httpd_thread;
 extern int webserver_start(int argc, char *argv[]);
 extern void webserver_stop();
 
+#if CMD_DESCRIBE
+#define httpd_help_info \
+"[*] net httpd 1 : start httpd test.\n"\
+"[*] net httpd 0 : stop httpd test."
+#endif /* CMD_DESCRIBE */
+
+static enum cmd_status cmd_httpd_help_exec(char *cmd)
+{
+#if CMD_DESCRIBE
+	CMD_LOG(1, "%s\n", httpd_help_info);
+#endif
+	return CMD_STATUS_ACKED;
+}
+
 void httpd_run(void *arg)
 {
 	webserver_start(0, NULL);
 	HTTPD_THREAD_EXIT(&g_httpd_thread);
-
 }
 
 int httpd_start()
@@ -69,6 +82,11 @@ enum cmd_status cmd_httpd_exec(char *cmd)
 {
 	int argc;
 	char *argv[3];
+
+	if (cmd_strcmp(cmd, "help") == 0) {
+		cmd_httpd_help_exec(cmd);
+		return CMD_STATUS_ACKED;
+	}
 
 	argc = cmd_parse_argv(cmd, argv, 3);
 	if (argc < 1) {

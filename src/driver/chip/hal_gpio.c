@@ -27,3 +27,23 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef __CONFIG_ROM
+#include "driver/chip/hal_ccm.h"
+#include "driver/chip/hal_gpio.h"
+
+extern GPIO_IRQ_T * const gGpioPortIrq[GPIO_PORT_NUM];
+void __HAL_GPIO_GlobalInit(const GPIO_GlobalInitParam *param);
+
+void HAL_GPIO_GlobalInit(const GPIO_GlobalInitParam *param)
+{
+    HAL_CCM_BusEnablePeriphClock(CCM_BUS_PERIPH_BIT_GPIO);
+    for(GPIO_Port i=GPIO_PORT_A; i<GPIO_PORT_NUM; i++) {
+        if(gGpioPortIrq[i]->IRQ_EN != 0) {
+            gGpioPortIrq[i]->IRQ_EN = 0;
+        }
+    }
+    HAL_CCM_BusDisablePeriphClock(CCM_BUS_PERIPH_BIT_GPIO);
+    __HAL_GPIO_GlobalInit(param);
+}
+
+#endif /*__CONFIG_ROM*/

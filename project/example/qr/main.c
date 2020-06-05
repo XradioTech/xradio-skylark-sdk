@@ -31,19 +31,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "sys/dma_heap.h"
 #include "common/framework/platform_init.h"
 #include "fs/fatfs/ff.h"
 #include "common/framework/fs_ctrl.h"
-
-#include "zbar/zbar_qr.h"
-
 #include "driver/component/csi_camera/camera.h"
 #include "driver/component/csi_camera/gc0308/drv_gc0308.h"
 #include "driver/component/csi_camera/gc0328c/drv_gc0328c.h"
-
 #include "driver/chip/hal_i2c.h"
-
-#include "driver/chip/psram/psram.h"
+#include "zbar/zbar_qr.h"
 
 #define IMAGE_SENSOR_I2CID 		I2C0_ID
 #define SENSOR_RESET_PIN        GPIO_PIN_15
@@ -51,14 +47,16 @@
 #define SENSOR_POWERDOWN_PIN    GPIO_PIN_14
 #define SENSOR_POWERDOWN_PORT   GPIO_PORT_A
 
-#define JPEG_SRAM_SIZE 			(100*1024)
+#define JPEG_SRAM_SIZE 			(200*1024)
 #define JPEG_ONLINE_EN			(0)
 
 #define JPEG_PSRAM_EN			(1)
-#define JPEG_PSRAM_SIZE			(100*1024)
+#define JPEG_PSRAM_SIZE			(200*1024)
 
-#define IMAGE_WIDTH				(160)
-#define IMAGE_HEIGHT			(120)
+#define JPEG_BUFF_SIZE  		(50*1024)
+
+#define IMAGE_WIDTH				(320)
+#define IMAGE_HEIGHT			(240)
 
 #if 0
 #define SENSOR_FUNC_INIT	HAL_GC0308_Init
@@ -71,15 +69,17 @@
 #endif
 
 static CAMERA_Cfg camera_cfg = {
-	.jpeg_cfg.jpeg_en = 0,
+	.jpeg_cfg.jpeg_en = 1,
 	.jpeg_cfg.quality = 64,
 	.jpeg_cfg.jpeg_clk  = 0, //no use
 	.jpeg_cfg.memPartEn = 0,
 	.jpeg_cfg.memPartNum = 0,
 	.jpeg_cfg.jpeg_mode = JPEG_ONLINE_EN ? JPEG_MOD_ONLINE : JPEG_MOD_OFFLINE,
+	.jpeg_cfg.width = IMAGE_WIDTH,
+	.jpeg_cfg.height = IMAGE_HEIGHT,
 	.csi_cfg.csi_clk = 24000000, // no use
-	.csi_cfg.hor_start = 240,
-	.csi_cfg.ver_start = 180,
+	.csi_cfg.hor_start = 0,
+	.csi_cfg.ver_start = 0,
 
 	/* sensor config */
 	.sensor_cfg.i2c_id = IMAGE_SENSOR_I2CID,
@@ -87,15 +87,13 @@ static CAMERA_Cfg camera_cfg = {
 	.sensor_cfg.pwcfg.Reset_Port = SENSOR_RESET_PORT,
 	.sensor_cfg.pwcfg.Pwdn_Pin = SENSOR_POWERDOWN_PIN,
 	.sensor_cfg.pwcfg.Reset_Pin = SENSOR_RESET_PIN,
-	.sensor_cfg.pixel_size.width = IMAGE_WIDTH,//640,
-	.sensor_cfg.pixel_size.height = IMAGE_HEIGHT,//480,
-	.sensor_cfg.pixel_outfmt = YUV422_YUYV,
 
 	.sensor_func.init = SENSOR_FUNC_INIT,
 	.sensor_func.deinit = SENSOR_FUNC_DEINIT,
 	.sensor_func.ioctl = SENSOR_FUNC_IOCTL,
 };
 
+static uint8_t* gmemaddr;
 static CAMERA_Mgmt mem_mgmt;
 
 static int camera_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt)
@@ -103,40 +101,43 @@ static int camera_mem_create(CAMERA_JpegCfg *jpeg_cfg, CAMERA_Mgmt *mgmt)
 	uint8_t* addr;
 
 	if (JPEG_PSRAM_EN) {
-		addr = (uint8_t*)psram_malloc(JPEG_PSRAM_SIZE + 2048);//imgbuf;
+		addr = (uint8_t*)dma_malloc(JPEG_PSRAM_SIZE, DMAHEAP_PSRAM);
 		if (addr == NULL) {
 			printf("malloc fail\n");
 			return -1;
 		}
-		memset(addr, 0 , JPEG_PSRAM_SIZE + 2048);
-		printf("malloc addr: %p -> %p\n", addr, addr + JPEG_PSRAM_SIZE + 2048);
+		memset(addr, 0 , JPEG_PSRAM_SIZE);
+		printf("malloc addr: %p -> %p\n", addr, addr + JPEG_PSRAM_SIZE);
 	} else {
-		addr = (uint8_t*)malloc(JPEG_SRAM_SIZE + 2048);//imgbuf;
+		addr = (uint8_t*)malloc(JPEG_SRAM_SIZE);
 		if (addr == NULL) {
 			printf("malloc fail\n");
 				return -1;
 		}
-		memset(addr, 0 , JPEG_SRAM_SIZE + 2048);
-		printf("malloc addr: %p -> %p\n", addr, addr + JPEG_SRAM_SIZE + 2048);
+		memset(addr, 0 , JPEG_SRAM_SIZE);
+		printf("malloc addr: %p -> %p\n", addr, addr + JPEG_SRAM_SIZE);
 	}
-	mgmt->yuv_buf = (uint8_t *)ALIGN_16B((uint32_t)addr);
-	mgmt->jpeg_buf = (uint8_t *)ALIGN_1K((uint32_t)mgmt->yuv_buf + CAMERA_JPEG_HEADER_LEN +
-		camera_cfg.sensor_cfg.pixel_size.width * camera_cfg.sensor_cfg.pixel_size.height * 3/2);
+	mgmt->yuv_buf.addr = (uint8_t *)ALIGN_16B((uint32_t)addr);
+	mgmt->yuv_buf.size = camera_cfg.jpeg_cfg.width*camera_cfg.jpeg_cfg.height*3/2;
+	mgmt->jpeg_buf[0].addr = (uint8_t *)ALIGN_1K((uint32_t)mgmt->yuv_buf.addr + CAMERA_JPEG_HEADER_LEN +
+							mgmt->yuv_buf.size);
+	mgmt->jpeg_buf[0].size = JPEG_BUFF_SIZE;
 
-	mgmt->org_addr = addr;
+	gmemaddr = addr;
 
 	return 0;
 }
 
 static void camera_mem_destroy()
 {
-	if (mem_mgmt.org_addr) {
+	if (gmemaddr) {
 		if (JPEG_PSRAM_EN)
-			psram_free(mem_mgmt.org_addr);
+			dma_free(gmemaddr, DMAHEAP_PSRAM);
 		else
-			free(mem_mgmt.org_addr);
-		mem_mgmt.org_addr = NULL;
+			free(gmemaddr);
+		gmemaddr = NULL;
 	}
+
 }
 
 static int camera_init()
@@ -165,15 +166,14 @@ static void camera_deinit()
 
 static int camera_get_image()
 {
-	/* to get 160*120 YUV420, offline*/
-	int size = HAL_CAMERA_CaptureImage(CAMERA_OUT_YUV420, 1);
+	CAMERA_JpegBuffInfo info;
+	int size = HAL_CAMERA_CaptureImage(CAMERA_OUT_YUV420, &info, 1);
 	if (size <= 0) {
 		printf("capture fail...\n");
 		return -1;
 	}
 
-	uint8_t *buf = mem_mgmt.yuv_buf;
-	//*length = size;
+	uint8_t *buf = mem_mgmt.yuv_buf.addr;
 	(void)buf;
 #if 0
 	int ret = 0;
@@ -233,7 +233,7 @@ int qr_scan_test()
 		return -1;
 	}
 
-    uint8_t *raw = mem_mgmt.yuv_buf;
+    uint8_t *raw = mem_mgmt.yuv_buf.addr;
 	uint32_t width = IMAGE_WIDTH, height = IMAGE_HEIGHT;
 	zbar_qr_set_data(qr, raw, width, height);
 

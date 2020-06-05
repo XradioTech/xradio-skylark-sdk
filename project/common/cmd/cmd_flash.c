@@ -388,16 +388,51 @@ static enum cmd_status cmd_flash_set_program_mode_exec(char *cmd)
  * 			write {addr} "{str}"
  * 			read {str/hex} {addr} {size} // recommanded that size should not too large
  */
+#if CMD_DESCRIBE
+#define flash_start_help_info "open flash 0"
+#define flash_stop_help_info "close flash 0"
+#define flash_erase_help_info \
+"flash erase s=<erase_mode> a=<addr>\n"\
+"\t\t\t<erase_mod>: {4kb|32kb|64kb|chip}\n"\
+"\t\t\t<addr>: {0x00~flash_max_addr}"
+#define flash_write_help_info \
+"flash write a=<addr> s=<size>\n"\
+"\t\t\t<addr>: {0x00~flash_max_addr}\n"\
+"\t\t\t<size>: {0x00~flash_max_size}"
+#define flash_read_help_info \
+"flash read a=<addr> s=<size>\n"\
+"\t\t\t<addr>: {0x00~flash_max_addr}\n"\
+"\t\t\t<size>: {0x00~flash_max_size}"
+#define flash_ow_help_info \
+"flash overwrite a=<addr> s=<size>\n"\
+"\t\t\t<addr>: {0x00~flash_max_addr}\n"\
+"\t\t\t<size>: {0x00~flash_max_size}"
+#define flash_set_rmode_help_info \
+"flash set_rmod rmod=<mode>\n"\
+"\t\t\t<mode>: {normal|fast|dual_o|dual_io|quad_o|quad_io|qpi}"
+#define flash_set_program_mode_help_info \
+"flash set_wmod wmod=<mode>\n"\
+"\t\t\t<mode>: {page|quad_page}"
+#endif
+
+static enum cmd_status cmd_flash_help_exec(char *cmd);
+
 static const struct cmd_data g_flash_cmds[] = {
-	{ "start",	cmd_flash_start_exec	},
-	{ "stop",	cmd_flash_stop_exec		},
-	{ "erase",	cmd_flash_erase_exec	},
-	{ "write",	cmd_flash_write_exec	},
-	{ "read",	cmd_flash_read_exec		},
-	{ "overwrite",	cmd_flash_overwrite_exec		},
-	{ "set_rmod", cmd_flash_set_rmode_exec },
-	{ "set_wmod", cmd_flash_set_program_mode_exec },
+	{ "start",	cmd_flash_start_exec, CMD_DESC(flash_start_help_info) },
+	{ "stop",	cmd_flash_stop_exec, CMD_DESC(flash_stop_help_info) },
+	{ "erase",	cmd_flash_erase_exec, CMD_DESC(flash_erase_help_info) },
+	{ "write",	cmd_flash_write_exec, CMD_DESC(flash_write_help_info) },
+	{ "read",	cmd_flash_read_exec, CMD_DESC(flash_read_help_info) },
+	{ "overwrite",	cmd_flash_overwrite_exec, CMD_DESC(flash_ow_help_info) },
+	{ "set_rmod", cmd_flash_set_rmode_exec, CMD_DESC(flash_set_rmode_help_info) },
+	{ "set_wmod", cmd_flash_set_program_mode_exec, CMD_DESC(flash_set_program_mode_help_info) },
+	{ "help", cmd_flash_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_flash_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_flash_cmds, cmd_nitems(g_flash_cmds), 16);
+}
 
 enum cmd_status cmd_flash_exec(char *cmd)
 {

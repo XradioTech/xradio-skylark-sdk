@@ -44,6 +44,7 @@
 
 #include "driver/chip/system_chip.h"
 #include "driver/chip/chip.h"
+#include "driver/chip/hal_global.h"
 #include "driver/chip/hal_wakeup.h"
 #include "driver/chip/hal_prcm.h"
 #include "driver/chip/hal_ccm.h"
@@ -140,7 +141,6 @@ static void pm_hibernation()
 #else
     HAL_PRCM_SetSys1WakeupPowerFlags(0x03);
 	HAL_PRCM_SetSys1SleepPowerFlags(0x3F | PRCM_SYS_SRAM_PWR_CTRL_MASK | PRCM_SYS_CACHE_SRAM_PWR_CTRL_BIT | (0x1FU << 24));
-    HAL_PRCM_SetEXTLDOMdoe(PRCM_EXTLDO_ALWAYS_ON);
     HAL_PRCM_SetTOPLDOForceActive(0);
     HAL_PRCM_EnableTOPLDODeepsleep(0);
     HAL_PRCM_EnableLDOModeSWSelEnable(0);
@@ -229,12 +229,13 @@ static void __suspend_enter(enum suspend_state_t state)
 		/* TODO: restore system bus to normal freq */
 	} else {
         HAL_PRCM_SetSys1WakeupPowerFlags(0x6);
-        HAL_PRCM_SetSys1SleepPowerFlags(0x1E);
+        if (HAL_GlobalGetChipVer() >= 0xE) {
+            HAL_PRCM_SetSys1SleepPowerFlags(0xF00001E);
+        } else {
+            HAL_PRCM_SetSys1SleepPowerFlags(0x1E);
+        }
 #if ((((__CONFIG_CACHE_POLICY>>4) & 0xF) + (__CONFIG_CACHE_POLICY& 0xF)) == 5)
         HAL_SET_BIT(PRCM->SYS1_SLEEP_CTRL, PRCM_SYS_CACHE_SRAM_SWM1_BIT);
-#endif
-#ifndef __CONFIG_WLAN
-        HAL_SET_BIT(PRCM->SYS1_SLEEP_CTRL, PRCM_SYS_WLAN_SRAM_116K_SWM5_BIT);
 #endif
 		__record_dbg_status(PM_SUSPEND_ENTER | 9);
 #ifdef __CONFIG_PSRAM

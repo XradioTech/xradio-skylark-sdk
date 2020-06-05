@@ -162,10 +162,18 @@ static enum cmd_status cmd_efpg_read_ua_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+static enum cmd_status cmd_efpg_help_exec(char *cmd);
+
 static const struct cmd_data g_efpg_cmds[] = {
-    { "get", cmd_efpg_get_exec},
-    { "read_user_area", cmd_efpg_read_ua_exec},
+    { "get", cmd_efpg_get_exec, CMD_DESC("get <field>") },
+    { "read_user_area", cmd_efpg_read_ua_exec, CMD_DESC("read_user_area <start_addr> <len_bit>") },
+    { "help", cmd_efpg_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_efpg_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_efpg_cmds, cmd_nitems(g_efpg_cmds), 16);
+}
 
 enum cmd_status cmd_efpg_exec(char *cmd)
 {

@@ -476,6 +476,9 @@ static enum cmd_status cmd_wlan_get_temp_volt(char *cmd)
 /*
  * wlan commands
  */
+
+static enum cmd_status cmd_wlan_help_exec(char *cmd);
+
 static const struct cmd_data g_wlan_cmds[] = {
 	{ "pm_dtim",			cmd_wlan_set_pm_dtim },
 	{ "get_pm_dtim",		cmd_wlan_get_pm_dtim },
@@ -493,7 +496,13 @@ static const struct cmd_data g_wlan_cmds[] = {
 	{ "scan_freq",			cmd_wlan_scan_freq },
 	{ "set_scan_param",		cmd_wlan_set_scan_param },
 	{ "get_temp_volt",		cmd_wlan_get_temp_volt },
+	{ "help",				cmd_wlan_help_exec },
 };
+
+static enum cmd_status cmd_wlan_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_wlan_cmds, cmd_nitems(g_wlan_cmds), 16);
+}
 
 enum cmd_status cmd_wlan_exec(char *cmd)
 {

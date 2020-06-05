@@ -51,6 +51,9 @@ extern "C" {
  * project hardware feature
  */
 
+/* I2S NULL sound card enable/disable */
+#define PRJCONF_I2S_NULL_SOUNDCARD_EN	1
+
 /* uart enable/disable */
 #define PRJCONF_UART_EN                 1
 

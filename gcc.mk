@@ -149,11 +149,20 @@ INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/libc
 INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/driver/cmsis
 
 ifeq ($(__CONFIG_OS_FREERTOS), y)
-  INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS
-  ifeq ($(__CONFIG_CPU_CM4F), y)
-    INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/portable/GCC/ARM_CM4F
-  else
-    INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/portable/GCC/ARM_CM3
+  ifeq ($(__CONFIG_OS_FREERTOS_VER), 80203)
+    INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/FreeRTOSv8.2.3
+    ifeq ($(__CONFIG_CPU_CM4F), y)
+      INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/FreeRTOSv8.2.3/portable/GCC/ARM_CM4F
+    else
+      INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/FreeRTOSv8.2.3/portable/GCC/ARM_CM3
+    endif
+  else ifeq ($(__CONFIG_OS_FREERTOS_VER), 100201)
+    INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/FreeRTOSv10.2.1
+    ifeq ($(__CONFIG_CPU_CM4F), y)
+      INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/FreeRTOSv10.2.1/portable/GCC/ARM_CM4F
+    else
+      INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/kernel/FreeRTOS/FreeRTOSv10.2.1/portable/GCC/ARM_CM3
+    endif
   endif
 endif
 

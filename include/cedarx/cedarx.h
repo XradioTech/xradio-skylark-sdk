@@ -58,6 +58,7 @@ int CedarxParserRegisterAAC(void);
 int CedarxParserRegisterAMR(void);
 int CedarxParserRegisterMP3(void);
 int CedarxParserRegisterWAV(void);
+int CedarxParserRegisterTS(void);
 
 int CedarxDecoderListInit(void);
 int CedarxDecoderRegisterAAC(void);

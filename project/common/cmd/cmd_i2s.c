@@ -30,84 +30,49 @@
 #include "cmd_util.h"
 #include "cmd_i2s.h"
 #include "driver/chip/hal_gpio.h"
-#include "driver/chip/hal_i2s.h"
+#include "driver/chip/hal_snd_card.h"
+#include "audio/pcm/audio_pcm.h"
+#include "audio/manager/audio_manager.h"
 
 
-#define PCM_BUF_SIZE	(128)
-#define I2S_LOOP_EN		(1)
+//CMD I2S Test config
+#define CMD_I2S_SND_CARD		SND_CARD_3
+#define CMD_I2S_LOOP_BACK_EN	0
 
+#define CMD_I2S_BUF_SIZE		3360//128
 
-static unsigned char tx_sample_resolution;
-void I2S_Loop_En(uint8_t en);
+static unsigned char tx_sample_res, rx_sample_res;
+#if 0
+static const uint8_t tx_data_8bit[128] = {
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+	0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12,
+};
 
-unsigned int tx_data_32bit[32] = {
+static const uint16_t tx_data_16bit[64] = {
+	0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234,
+	0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234,
+	0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234,
+	0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234, 0x1234,
+};
+
+static const uint32_t tx_data_32bit[32] = {
 	0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678,
 	0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678,
 	0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678,
 	0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678, 0x12345678,
 };
-
-
-/*
- * drv i2s init l=<LoopEn>	*<LoopEn> {0|1}
- */
-static enum cmd_status cmd_i2s_init_exec(char *cmd)
-{
-	int cnt;
-	uint32_t loop_en;
-
-	cnt = cmd_sscanf(cmd, "l=%u", &loop_en);
-	if (cnt != 1) {
-		CMD_ERR("cmd_sscanf return: cnt = %d\n", cnt);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
-	if (loop_en != 0 && loop_en != 1) {
-		CMD_ERR("invalid loop_en %u\n", loop_en);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
-	I2S_Param i2s_param;
-	memset(&i2s_param, 0, sizeof(i2s_param));
-	i2s_param.mclkDiv = 1;
-	int ret = HAL_I2S_Init(&i2s_param);
-	if (ret != HAL_OK) {
-		CMD_ERR("I2S Init failed..\n");
-		return CMD_STATUS_FAIL;
-	}
-
-#if I2S_LOOP_EN
-	I2S_Loop_En(loop_en);
 #endif
 
-	return CMD_STATUS_OK;
-}
-
-/*
- * drv i2s deinit
- */
-static enum cmd_status cmd_i2s_deinit_exec(char *cmd)
-{
-#if I2S_LOOP_EN
-	I2S_Loop_En(0);
-#endif
-
-	HAL_I2S_DeInit();
-
-	return CMD_STATUS_OK;
-}
-
-/*
- * drv i2s open d=<Dirrection> c=<Channels> r=<Resolution> s=<SampleRate>
- *          	*<Dirrection> {0|1}
- *				*<Channels>   {1 |2}
- *				*<Resolution> {8 |12 |16 |20 |24 |28 |32}
- *				*<SampleRate> {48000 |44100 |32000 | 24000 |22050 |16000 |12000 |11025 |8000}
- */
 static enum cmd_status cmd_i2s_open_exec(char *cmd)
 {
 	int cnt;
-	uint32_t direction, channels, resolution, sampleRate;
+	uint32_t direction, channels, resolution, sampleRate, cmd_param[3];
 
 	cnt = cmd_sscanf(cmd, "d=%u c=%u r=%u s=%u", &direction, &channels, &resolution, &sampleRate);
 	if (cnt != 4) {
@@ -120,49 +85,35 @@ static enum cmd_status cmd_i2s_open_exec(char *cmd)
 		return CMD_STATUS_INVALID_ARG;
 	}
 
-	if (channels < 1 || channels > 2) {
+	if (channels < 1 || channels > 8) {
 		CMD_ERR("invalid channels %u\n", channels);
 		return CMD_STATUS_INVALID_ARG;
 	}
 
 	switch (sampleRate) {
 		case 8000:
-			//sampleRate = I2S_SR8K;
-			break;
 		case 16000:
-			//sampleRate = I2S_SR16K;
-			break;
 		case 32000:
-			//sampleRate = I2S_SR32K;
-			break;
 
 		case 12000:
-			//sampleRate = I2S_SR12K;
-			break;
 		case 24000:
-			//sampleRate = I2S_SR24K;
-			break;
 		case 48000:
-			//sampleRate = I2S_SR48K;
-			break;
 
 		case 11025:
-			//sampleRate = I2S_SR11K;
-			break;
 		case 22050:
-			//sampleRate = I2S_SR22K;
-			break;
 		case 44100:
-			//sampleRate = I2S_SR44K;
 			break;
 
 		default:
-			CMD_ERR("Invalid sample rate(%u) failed...\n",sampleRate);
-			return HAL_INVALID;
+			CMD_ERR("invalid sample rate %u\n", sampleRate);
+			return CMD_STATUS_INVALID_ARG;
 	}
 
-	if(!direction)
-		tx_sample_resolution = resolution;
+	if(!direction){
+		tx_sample_res = resolution;
+	} else {
+		rx_sample_res = resolution;
+	}
 
 	switch(resolution){
 		case 8:
@@ -192,30 +143,33 @@ static enum cmd_status cmd_i2s_open_exec(char *cmd)
 			return HAL_INVALID;
 	}
 
-	I2S_DataParam i2s_data;
-	i2s_data.direction = direction;
-	i2s_data.channels = channels;
-	i2s_data.resolution = resolution;
-	i2s_data.sampleRate = sampleRate;
-	i2s_data.bufSize = PCM_BUF_SIZE;
-	if (HAL_I2S_Open(&i2s_data) != HAL_OK) {
-		CMD_ERR("I2S open failed..\n");
+	struct pcm_config pcm_cfg;
+	pcm_cfg.rate = sampleRate;
+	pcm_cfg.channels = channels;
+	pcm_cfg.format = resolution;
+	pcm_cfg.period_count = 1;
+	pcm_cfg.period_size = CMD_I2S_BUF_SIZE/(pcm_format_to_bits(pcm_cfg.format)/8*channels)/pcm_cfg.period_count;
+
+	cmd_param[0] = !!CMD_I2S_LOOP_BACK_EN<<24 | 0x0<<16 | 0x20<<8 | 0x2;
+	cmd_param[1] = (channels+1)/2*32;
+	cmd_param[2] = 24576000;
+	audio_maneger_ioctl(CMD_I2S_SND_CARD, PLATFORM_IOCTL_HW_CONFIG, cmd_param, 3);
+
+	cmd_param[0] = 256<<16 | 256;
+	audio_maneger_ioctl(CMD_I2S_SND_CARD, PLATFORM_IOCTL_SW_CONFIG, cmd_param, 1);
+
+	if (snd_pcm_open(CMD_I2S_SND_CARD, (Audio_Stream_Dir)direction, &pcm_cfg)) {
+		CMD_ERR("snd pcm open Fail..\n");
 		return CMD_STATUS_FAIL;
 	}
 
 	return CMD_STATUS_OK;
 }
 
-/*
- * drv i2s close d=<Dirrection>
- *				 *<Dirrection> {0|1}
- *
- */
 static enum cmd_status cmd_i2s_close_exec(char *cmd)
 {
 	int cnt;
 	uint32_t direction;
-	HAL_Status hal_status;
 
 	cnt = cmd_sscanf(cmd, "d=%u", &direction);
 	if (cnt != 1) {
@@ -228,150 +182,149 @@ static enum cmd_status cmd_i2s_close_exec(char *cmd)
 		return CMD_STATUS_INVALID_ARG;
 	}
 
-	hal_status = HAL_I2S_Close(direction);
-	if (hal_status == HAL_OK) {
-		return CMD_STATUS_OK;
-	} else {
-		CMD_ERR("HAL_I2S_Close return: hal_status = %d\n", hal_status);
+	if (snd_pcm_close(CMD_I2S_SND_CARD, (Audio_Stream_Dir)direction)) {
+		CMD_ERR("Snd pcm close Fail..\n");
 		return CMD_STATUS_FAIL;
 	}
+
+	return CMD_STATUS_OK;
 }
 
-/*
- * drv i2s write-dma l=<Length>
- * Length = 128
- */
-
-static enum cmd_status cmd_i2s_write_dma_exec(char *cmd)
+static enum cmd_status cmd_i2s_pcm_write_exec()
 {
-	int cnt;
-	uint32_t len,i,*buf_32,bit_map;
-	uint8_t *buf;
+	uint32_t i,*buf_32,bit_map;
+	uint16_t *buf_16;
+	uint8_t *buf, *buf_8;
 	int32_t size;
 
-	cnt = cmd_sscanf(cmd, "l=%u", &len);
-	if (cnt != 1) {
-		CMD_ERR("cmd_sscanf return: cnt = %d\n", cnt);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
-	if (len != (PCM_BUF_SIZE) && (len % PCM_BUF_SIZE) != 0) {
-		CMD_ERR("invalid len %u\n", len);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
-	buf = (uint8_t *)cmd_malloc(len * sizeof(uint8_t));
+	//malloc tx buffer
+	buf = (uint8_t *)cmd_malloc(CMD_I2S_BUF_SIZE);
 	if (buf == NULL) {
 		CMD_ERR("cmd_malloc return NULL.\n");
 		return CMD_STATUS_FAIL;
 	}
 
+	//copy tx data
+	if(tx_sample_res > 16){
+		buf_32 = (unsigned int *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/4;i++){
+			buf_32[i] = 0x12345678;
+		}
+		//cmd_memcpy(buf, tx_data_32bit, CMD_I2S_BUF_SIZE);
+	} else if(tx_sample_res > 8){
+		buf_16 = (uint16_t *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/2;i++){
+			buf_16[i] = 0x1234;
+		}
+		//cmd_memcpy(buf, tx_data_16bit, CMD_I2S_BUF_SIZE);
+	} else {
+		buf_8 = (uint8_t *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/1;i++){
+			buf_8[i] = 0x12;
+		}
+		//cmd_memcpy(buf, tx_data_8bit, CMD_I2S_BUF_SIZE);
+	}
+
+	//write pcm data
+	size = snd_pcm_write(CMD_I2S_SND_CARD, buf, CMD_I2S_BUF_SIZE);
+	if (size != CMD_I2S_BUF_SIZE) {
+		CMD_ERR("len = %u, but I2S WRITE size = %d\n", CMD_I2S_BUF_SIZE, size);
+		cmd_free(buf);
+		cmd_write_respond(CMD_STATUS_FAIL, "FAIL");
+		return CMD_STATUS_ACKED;
+	}
 	cmd_write_respond(CMD_STATUS_OK, "OK");
 
-	cmd_raw_mode_enable();
-#if 0
-	size = cmd_raw_mode_read(buf, (int32_t)len, 10000);
-	if (size != (int32_t)len) {
-		CMD_ERR("len = %u, but raw mode read size = %d\n", len, size);
-		cmd_free(buf);
-		cmd_raw_mode_write((uint8_t *)"FAIL", 4);
-		cmd_raw_mode_disable();
-		return CMD_STATUS_ACKED;
-	}
-#endif
-
-	cmd_memcpy(buf, tx_data_32bit, len);
-	size = HAL_I2S_Write_DMA(buf, (int32_t)len);
-	if (size != (int32_t)len) {
-		CMD_ERR("len = %u, but I2S WRITE size = %d\n", len, size);
-		cmd_free(buf);
-		cmd_raw_mode_write((uint8_t *)"FAIL", 4);
-		cmd_raw_mode_disable();
-		return CMD_STATUS_ACKED;
-	}
-
+	//printf tx data for debug
 	CMD_LOG(1, "\nwrite buf:\n");
-	bit_map = ((1<<tx_sample_resolution)-1)<<(32-tx_sample_resolution);
-	buf_32 = (unsigned int *)buf;
-	for(i=0; i<len/4; i++){
-		CMD_LOG(1, "0x%08x ", buf_32[i] & bit_map);
+	if(tx_sample_res > 16){
+		bit_map = ((1<<tx_sample_res)-1)<<(32-tx_sample_res);
+		buf_32 = (unsigned int *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/4/8; i++){
+			CMD_LOG(1, "0x%08x ", buf_32[i] & bit_map);
+		}
+	} else if(tx_sample_res > 8){
+		bit_map = (1<<tx_sample_res)-1;
+		buf_16 = (uint16_t *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/2/16; i++){
+			CMD_LOG(1, "0x%04x ", buf_16[i] & bit_map);
+		}
+	} else {
+		bit_map = (1<<tx_sample_res)-1;
+		buf_8 = (uint8_t *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/1/32; i++){
+			CMD_LOG(1, "0x%02x ", buf_8[i] & bit_map);
+		}
 	}
 	CMD_LOG(1, "\n\n");
 
+	//free tx buffer
 	cmd_free(buf);
-	cmd_raw_mode_write((uint8_t *)"OK", 2);
-	cmd_raw_mode_disable();
+
 	return CMD_STATUS_ACKED;
 }
 
-/*
- * drv i2s read-dma l=<Length>
- * Length = 128
- */
-static enum cmd_status cmd_i2S_read_dma_exec(char *cmd)
+static enum cmd_status cmd_i2s_pcm_read_exec()
 {
-	int cnt;
-	uint32_t len, i, *buf_32;
-	uint8_t *buf;
+	uint32_t i, *buf_32;
+	uint16_t *buf_16;
+	uint8_t *buf, *buf_8;
 	int32_t size;
 
-	cnt = cmd_sscanf(cmd, "l=%u", &len);
-	if (cnt != 1) {
-		CMD_ERR("cmd_sscanf return: cnt = %d\n", cnt);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
-	if (len != (PCM_BUF_SIZE) && (len % PCM_BUF_SIZE) != 0) {
-		CMD_ERR("invalid len %u\n", len);
-		return CMD_STATUS_INVALID_ARG;
-	}
-
-	buf = (uint8_t *)cmd_malloc(len * sizeof(uint8_t));
+	//malloc rx buffer
+	buf = (uint8_t *)cmd_malloc(CMD_I2S_BUF_SIZE);
 	if (buf == NULL) {
 		CMD_ERR("cmd_malloc return NULL.\n");
 		return CMD_STATUS_FAIL;
 	}
-	cmd_memset(buf, 0, len);
+	cmd_memset(buf, 0, CMD_I2S_BUF_SIZE);
 
-	size = HAL_I2S_Read_DMA(buf, (int32_t)len);
-	if (size != (int32_t)len) {
-		CMD_ERR("len = %u, but I2S read size = %d\n", len, size);
+	//read pcm_data
+	size = snd_pcm_read(CMD_I2S_SND_CARD, buf, CMD_I2S_BUF_SIZE);
+	if (size != CMD_I2S_BUF_SIZE) {
+		CMD_ERR("len = %u, but I2S read size = %d\n", CMD_I2S_BUF_SIZE, size);
 		cmd_free(buf);
 		return CMD_STATUS_FAIL;
 	}
-
 	cmd_write_respond(CMD_STATUS_OK, "OK");
+
+	//printf rx_data for debug
 	CMD_LOG(1, "\nread buf:\n");
-
-	cmd_raw_mode_enable();
-#if 0
-	size = cmd_raw_mode_write(buf, (int32_t)len);
-	if (size != (int32_t)len) {
-		CMD_ERR("len = %u, but raw mode write size = %d\n", len, size);
+	if(rx_sample_res > 16){
+		buf_32 = (unsigned int *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/4/8; i++){
+			printf("0x%08x ", buf_32[i]);
+		}
+	} else if(rx_sample_res > 8){
+		buf_16 = (uint16_t *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/2/16; i++){
+			printf("0x%04x ", buf_16[i]);
+		}
+	} else {
+		buf_8 = (uint8_t *)buf;
+		for(i=0; i<CMD_I2S_BUF_SIZE/1/32; i++){
+			printf("0x%02x ", buf_8[i]);
+		}
 	}
-#endif
-
-	buf_32 = (unsigned int *)buf;
-	for(i=0; i<len/4; i++)
-		printf("0x%08x ", buf_32[i]);
 	CMD_LOG(1, "\n");
 
+	//free rx buffer
 	cmd_free(buf);
-	cmd_raw_mode_disable();
+
 	return CMD_STATUS_ACKED;
 }
 
+
 static const struct cmd_data g_i2s_cmds[] = {
-	{ "init",			cmd_i2s_init_exec },
-	{ "deinit",			cmd_i2s_deinit_exec },
-	{ "open",			cmd_i2s_open_exec },
-	{ "close",			cmd_i2s_close_exec },
-	{ "write-dma",		cmd_i2s_write_dma_exec },
-	{ "read-dma",		cmd_i2S_read_dma_exec },
+	{ "open",		cmd_i2s_open_exec },
+	{ "close",		cmd_i2s_close_exec },
+	{ "pcm_read",	cmd_i2s_pcm_read_exec },
+	{ "pcm_write",	cmd_i2s_pcm_write_exec },
 };
 
 enum cmd_status cmd_i2s_exec(char *cmd)
 {
 	return cmd_exec(cmd, g_i2s_cmds, cmd_nitems(g_i2s_cmds));
 }
+
 

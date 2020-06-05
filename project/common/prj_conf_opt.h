@@ -205,6 +205,16 @@ extern "C" {
 #define PRJCONF_AC107_SOUNDCARD_EN		0
 #endif
 
+/* AC101 sound card enable/disable */
+#ifndef PRJCONF_AC101_SOUNDCARD_EN
+#define PRJCONF_AC101_SOUNDCARD_EN		0
+#endif
+
+/* I2S NULL sound card enable/disable */
+#ifndef PRJCONF_I2S_NULL_SOUNDCARD_EN
+#define PRJCONF_I2S_NULL_SOUNDCARD_EN	0
+#endif
+
 /* audio control enable/disable */
 #ifndef PRJCONF_AUDIO_CTRL_EN
 #define PRJCONF_AUDIO_CTRL_EN           0
@@ -213,6 +223,19 @@ extern "C" {
 /* swd enable/disable */
 #ifndef PRJCONF_SWD_EN
 #define PRJCONF_SWD_EN                  0
+#endif
+
+#if PRJCONF_AC107_SOUNDCARD_EN || PRJCONF_AC101_SOUNDCARD_EN || PRJCONF_I2S_NULL_SOUNDCARD_EN
+#define PRJCONF_PLATFORM_I2S_EN			1
+#else
+#define PRJCONF_PLATFORM_I2S_EN			0
+#endif
+
+
+#if PRJCONF_INTERNAL_SOUNDCARD_EN || PRJCONF_PLATFORM_I2S_EN
+#define PRJCONF_AUDIO_SNDCARD_EN		1
+#else
+#define PRJCONF_AUDIO_SNDCARD_EN		0
 #endif
 
 /*

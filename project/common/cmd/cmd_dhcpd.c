@@ -136,16 +136,32 @@ enum cmd_status dhcpd_set_lease_time_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+#if CMD_DESCRIBE
+#define dhcpd_start_help_info "start the dhcpd server."
+#define dhcpd_stop_help_info  "stop the dhcpd server."
+#define dhcpd_ippool_help_info "set the dhcpd server ippool, ippool <ip-addr-start> <ip-addr-end>."
+#define dhcpd_set_max_leases_help_info "set the set max leases of dhcpd server, leases <lease-num>."
+#define dhcpd_set_lease_time_help_info "set the set leases time of dhcpd server, leasetime <sec>."
+#endif
+
 /*
  * dhcp commands
  */
+static enum cmd_status cmd_dhcpd_help_exec(char *cmd);
+
 static const struct cmd_data g_dhcpd_cmds[] = {
-	{ "start",	    dhcpd_start_exec },
-	{ "stop",	    dhcpd_stop_exec },
-	{ "ippool",	    dhcpd_set_ippool_exec },
-	{ "leases",	    dhcpd_set_max_leases_exec },
-	{ "leasetime",  dhcpd_set_lease_time_exec },
+	{ "start",	    dhcpd_start_exec, CMD_DESC(dhcpd_start_help_info) },
+	{ "stop",	    dhcpd_stop_exec, CMD_DESC(dhcpd_stop_help_info) },
+	{ "ippool",	    dhcpd_set_ippool_exec, CMD_DESC(dhcpd_ippool_help_info) },
+	{ "leases",	    dhcpd_set_max_leases_exec, CMD_DESC(dhcpd_set_max_leases_help_info) },
+	{ "leasetime",  dhcpd_set_lease_time_exec, CMD_DESC(dhcpd_set_lease_time_help_info) },
+	{ "help",       cmd_dhcpd_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_dhcpd_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_dhcpd_cmds, cmd_nitems(g_dhcpd_cmds), 8);
+}
 
 enum cmd_status cmd_dhcpd_exec(char *cmd)
 {

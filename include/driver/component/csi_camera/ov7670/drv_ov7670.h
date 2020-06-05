@@ -35,6 +35,8 @@
 #ifndef __OV7670_H__
 #define __OV7670_H__
 
+#if (__CONFIG_CHIP_ARCH_VER == 1)
+
 #include "driver/component/component_def.h"
 #include "driver/chip/hal_gpio.h"
 #include "driver/chip/hal_csi.h"
@@ -133,6 +135,8 @@ Component_Status Ov7670_Demo();
 
 #ifdef __cplusplus
 	 }
+#endif
+
 #endif
 
 #endif /* _OV7670_H_ */

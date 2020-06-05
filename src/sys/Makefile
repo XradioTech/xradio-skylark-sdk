@@ -14,7 +14,7 @@ include $(ROOT_PATH)/gcc.mk
 # ----------------------------------------------------------------------------
 LIBS := libxrsys.a
 
-DIRS := . ./mbuf ./sys_heap
+DIRS := . ./mbuf ./sys_heap ./dma_heap
 
 SRCS := $(sort $(basename $(foreach dir,$(DIRS),$(wildcard $(dir)/*.[csS]))))
 

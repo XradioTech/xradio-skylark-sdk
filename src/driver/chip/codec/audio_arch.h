@@ -84,13 +84,23 @@ struct codec_driver {
 };
 
 /******************************* Platform Driver Architecture **********************************/
+/*** platform dai ops ***/
+struct platform_dai_ops {
+	int (*set_fmt)(uint32_t fmt);
+	int (*set_clkdiv)(uint32_t sample_rate);
+	int (*hw_params)(Audio_Stream_Dir dir, struct pcm_config *pcm_cfg);
+	int (*hw_free)(Audio_Stream_Dir dir);
+};
 
 /* platform ops */
 struct platform_ops {
-	HAL_Status (*open)(void *param);
+	HAL_Status (*open)(Audio_Stream_Dir dir);
 	HAL_Status (*close)(Audio_Stream_Dir dir);
+
 	int (*pcm_read)(uint8_t *buf, uint32_t size);
 	int (*pcm_write)(uint8_t *buf, uint32_t size);
+
+	int (*ioctl)(uint32_t cmd, uint32_t cmd_param[], uint32_t cmd_param_len);
 };
 
 /* platform driver */
@@ -98,9 +108,10 @@ struct platform_driver {
 	const char *name;
 	Platform_Attr platform_attr;
 
-	HAL_Status (*init)(void *param);
+	HAL_Status (*init)(void);
 	void (*deinit)(void);
 
+	const struct platform_dai_ops *dai_ops;
 	const struct platform_ops *platform_ops;
 
 	struct list_head node;
@@ -121,11 +132,6 @@ struct snd_card {
 	//board config control
 	const Pa_Switch_Ctl *pa_switch_ctl;
 
-	//user config
-	uint16_t codec_play_vol;
-	uint16_t codec_record_vol;
-	uint32_t codec_play_dev;
-	uint32_t codec_record_dev;
 	Codec_Sysclk_Src codec_sysclk_src;
 	Codec_Pllclk_Src codec_pllclk_src;
 	uint32_t codec_pll_freq_in;
@@ -168,6 +174,9 @@ HAL_Status ac107_pdm_init(Audio_Device device, uint16_t volume, uint32_t sample_
 HAL_Status ac107_pdm_deinit(void);
 HAL_Status ac107_pdm_set_volume_level(Audio_Device device, uint16_t volume);
 HAL_Status ac107_pdm_set_volume_gain(Audio_Device device, uint16_t volume);
+
+HAL_Status ac101_codec_register(void);
+HAL_Status ac101_codec_unregister(void);
 
 HAL_Status xradio_i2s_register(void);
 HAL_Status xradio_i2s_unregister(void);

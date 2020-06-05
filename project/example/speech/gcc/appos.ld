@@ -45,6 +45,9 @@ __XIP_END = ORIGIN(FLASH) + LENGTH(FLASH) -1;
 __PSRAM_BASE = ORIGIN(PSRAM);
 __PSRAM_LENGTH = LENGTH(PSRAM);
 __PSRAM_END = ORIGIN(PSRAM) + LENGTH(PSRAM) -1;
+__DMAHEAP_PSRAM_BASE = __PSRAM_BASE + __PSRAM_LENGTH - __CONFIG_DMAHEAP_PSRAM_SIZE*1024;
+__DMAHEAP_PSRAM_LENGTH = __CONFIG_DMAHEAP_PSRAM_SIZE*1024;
+__DMAHEAP_PSRAM_END = __DMAHEAP_PSRAM_BASE + __DMAHEAP_PSRAM_LENGTH -1;
 #endif
 
 /* Linker script to place sections and symbol values. Should be used together
@@ -653,5 +656,9 @@ SECTIONS
     PROVIDE(__stack = __StackTop);
 
     /* Check if data + heap + stack exceeds RAM limit */
-    ASSERT(__StackLimit >= __HeapLimit, "region RAM overflowed with stack")
+    ASSERT(__StackLimit >= __HeapLimit, "ld: region RAM overflowed with stack")
+#if (defined(__CONFIG_PSRAM))
+    /* Check if psramdata exceeds PSRAM limit */
+    ASSERT(__DMAHEAP_PSRAM_BASE > __psram_end__, "ld: region dmapsramheap overflowed with psram heap")
+#endif
 }

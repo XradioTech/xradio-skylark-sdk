@@ -33,7 +33,7 @@
 #include <time.h>
 
 #include "sys/interrupt.h"
-
+#include "kernel/os/os.h"
 #include "atcmd/at_command.h"
 
 #include "common/cmd/cmd_util.h"
@@ -61,7 +61,7 @@
 #include "lwip/dns.h"
 #include "ap_socket.h"
 
-#include "ota/ota.h" 
+#include "ota/ota.h"
 
 #include "atcmd.h"
 #include "driver/chip/hal_wakeup.h"
@@ -69,39 +69,39 @@
 extern void set_reconnect_enable(void);
 //extern int at_uart_reinit(at_serial_para_t *para);
 
-#define FUN_DEBUG_ON	0
+#define FUN_DEBUG_ON    0
 
 #if FUN_DEBUG_ON == 1
 #define FUN_DEBUG(fmt...) {\
-	printf("file:%s line:%d ", __FILE__, __LINE__);\
-	printf(fmt);\
-	}
+    printf("file:%s line:%d ", __FILE__, __LINE__);\
+    printf(fmt);\
+    }
 #else
 #define FUN_DEBUG(fmt...)
 #endif
 
-#define MANUFACTURER	"XRADIO"
-#define MODEL			"serial-to-wifi"
-#define SERIAL			"01234567"
-//#define MAC				{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}
+#define MANUFACTURER    "XRADIO"
+#define MODEL           "serial-to-wifi"
+#define SERIAL          "01234567"
+//#define MAC               {0x00, 0x11, 0x22, 0x33, 0x44, 0x55}
 
-#define CONFIG_FDCM_FLASH	(0)
+#define CONFIG_FDCM_FLASH   (0)
 
-//#define CONFIG_FDCM_ADDR	0x120000UL
-//#define CONFIG_FDCM_SIZE	0x10000UL
+//#define CONFIG_FDCM_ADDR  0x120000UL
+//#define CONFIG_FDCM_SIZE  0x10000UL
 
-#define CONFIG_FDCM_ADDR	(0x100000UL - 0x3000UL)
-#define CONFIG_FDCM_SIZE	(0x1000UL)
+#define CONFIG_FDCM_ADDR    (0x200000UL - 0x8000UL)
+#define CONFIG_FDCM_SIZE    (0x4000UL)
 
 
 #define CONFIG_CONTAINNER_SIZE sizeof(config_containner_t)
 
-#define MAX_SCAN_RESULTS			50
-#define MAX_SOCKET_NUM				4
-#define IP_ADDR_SIZE				15
-#define SOCKET_CACHE_BUFFER_SIZE	1024
+#define MAX_SCAN_RESULTS            50
+#define MAX_SOCKET_NUM              4
+#define IP_ADDR_SIZE                15
+#define SOCKET_CACHE_BUFFER_SIZE    1024
 
-#define SERVER_THREAD_STACK_SIZE	(2 * 1024)
+#define SERVER_THREAD_STACK_SIZE    (2 * 1024)
 
 typedef struct {
     s32 cmd;
@@ -116,7 +116,7 @@ typedef struct {
 typedef struct {
     char ip[IP_ADDR_SIZE+1];
     char hostname[AT_PARA_MAX_SIZE];
-	at_text_t type[4];
+    at_text_t type[4];
     u32 port;
     s32 protocol;  // 1:TCP , 2:UDP
     s32 fd;
@@ -246,64 +246,64 @@ static AT_ERROR_CODE syssetgpio(at_callback_para_t *para, at_callback_rsp_t *rsp
 static AT_ERROR_CODE sysreadgpio(at_callback_para_t *para, at_callback_rsp_t *rsp);
 
 static const callback_handler_t callback_tbl[] = {
-    {ACC_ACT,				act},
-    {ACC_RST,				reset},
-    {ACC_MODE,				mode},
-    {ACC_SAVE,				save},
-    {ACC_LOAD,				load},
-    {ACC_STATUS,			status},
-    {ACC_FACTORY,			factory},
-    {ACC_PEER,				peer},
-    {ACC_PING,				ping},
-    {ACC_SOCKON,			sockon},
-    {ACC_SOCKW,				sockw},
-    {ACC_SOCKQ,				sockq},
-    {ACC_SOCKR,				sockr},
-    {ACC_SOCKC,				sockc},
-    {ACC_SOCKD,				sockd},
-    {ACC_WIFI,				wifi},
-    {ACC_REASSOCIATE,		reassociate},
-    {ACC_GPIOC,				gpioc},
-    {ACC_GPIOR,				gpior},
-    {ACC_GPIOW,				gpiow},
-    {ACC_SCAN,				scan},
+    {ACC_ACT,               act},
+    {ACC_RST,               reset},
+    {ACC_MODE,              mode},
+    {ACC_SAVE,              save},
+    {ACC_LOAD,              load},
+    {ACC_STATUS,            status},
+    {ACC_FACTORY,           factory},
+    {ACC_PEER,              peer},
+    {ACC_PING,              ping},
+    {ACC_SOCKON,            sockon},
+    {ACC_SOCKW,             sockw},
+    {ACC_SOCKQ,             sockq},
+    {ACC_SOCKR,             sockr},
+    {ACC_SOCKC,             sockc},
+    {ACC_SOCKD,             sockd},
+    {ACC_WIFI,              wifi},
+    {ACC_REASSOCIATE,       reassociate},
+    {ACC_GPIOC,             gpioc},
+    {ACC_GPIOR,             gpior},
+    {ACC_GPIOW,             gpiow},
+    {ACC_SCAN,              scan},
 
-	{ACC_CIPSTATUS, 		   cipstatus},
+    {ACC_CIPSTATUS,         cipstatus},
 
-    {ACC_GMR,				version},
-    {ACC_RESTORE,			restory},
-    {ACC_UART_DEF,			uart_def},
-    {ACC_SLEEP,				sleep},
-    {ACC_WAKEUPGPIO,		wakeupgpio},
-    {ACC_CWMODE_CUR,		cwmode_cur},
-    {ACC_CWJAP_CUR,		cwjap_cur},
-    {ACC_CWJAP_INFO,		cwjap_info},
-    {ACC_CWLAPOPT,			cwlapopt},
-    {ACC_CWLAP,			cwlap},
-    {ACC_CWQAP,			cwqap},
-    {ACC_CWDHCP_CUR,		cwdhcp_cur},
-    {ACC_CIPSTAMAC_CUR,	cipstamac_cur},
-    {ACC_CIPSTA_CUR,		cipsta_cur},
-    {ACC_CWHOSTNAME,		cwhostname},
-    {ACC_APCFG,			set_apcfg},
+    {ACC_GMR,               version},
+    {ACC_RESTORE,           restory},
+    {ACC_UART_DEF,          uart_def},
+    {ACC_SLEEP,             sleep},
+    {ACC_WAKEUPGPIO,        wakeupgpio},
+    {ACC_CWMODE_CUR,        cwmode_cur},
+    {ACC_CWJAP_CUR,         cwjap_cur},
+    {ACC_CWJAP_INFO,        cwjap_info},
+    {ACC_CWLAPOPT,          cwlapopt},
+    {ACC_CWLAP,             cwlap},
+    {ACC_CWQAP,             cwqap},
+    {ACC_CWDHCP_CUR,        cwdhcp_cur},
+    {ACC_CIPSTAMAC_CUR,     cipstamac_cur},
+    {ACC_CIPSTA_CUR,        cipsta_cur},
+    {ACC_CWHOSTNAME,        cwhostname},
+    {ACC_APCFG,             set_apcfg},
 
-    {ACC_CIPDOMAIN,		cipdomain},
-    {ACC_CIPSTART,			cipstart},
-    {ACC_CIPSENDBUF,		cipsendbuf},
-    {ACC_CIPCLOSE,			cipclose},
-    {ACC_TCPSERVER,			tcpserver},
-    {ACC_TCPSERVERMAXCONN,	tcpservermaxconn},
-    {ACC_CIPMUX,			cipmux},
-    {ACC_CIPMODE,			cipmode},
-    {ACC_CIPDNS_CUR,		cipdns_cur},
-    {ACC_CIPRECVDATA,		ciprecvdata},
-    {ACC_CIPRECVMODE,		ciprecvmode},
-    {ACC_CIPSEND,			cipsend},
-    {ACC_SYSIOSETCFG,		sysiosetcfg},
-    {ACC_SYSIOGETCFG,		sysiogetcfg},
-	{ACC_SYSGPIODIR,		syssetiodir},
-	{ACC_SYSGPIOWRITE,		syssetgpio},
-	{ACC_SYSGPIOREAD,		sysreadgpio},
+    {ACC_CIPDOMAIN,         cipdomain},
+    {ACC_CIPSTART,          cipstart},
+    {ACC_CIPSENDBUF,        cipsendbuf},
+    {ACC_CIPCLOSE,          cipclose},
+    {ACC_TCPSERVER,         tcpserver},
+    {ACC_TCPSERVERMAXCONN,  tcpservermaxconn},
+    {ACC_CIPMUX,            cipmux},
+    {ACC_CIPMODE,           cipmode},
+    {ACC_CIPDNS_CUR,        cipdns_cur},
+    {ACC_CIPRECVDATA,       ciprecvdata},
+    {ACC_CIPRECVMODE,       ciprecvmode},
+    {ACC_CIPSEND,           cipsend},
+    {ACC_SYSIOSETCFG,       sysiosetcfg},
+    {ACC_SYSIOGETCFG,       sysiogetcfg},
+    {ACC_SYSGPIODIR,        syssetiodir},
+    {ACC_SYSGPIOWRITE,      syssetgpio},
+    {ACC_SYSGPIOREAD,       sysreadgpio},
 };
 
 static const u32 channel_freq_tbl[] = {
@@ -324,7 +324,7 @@ static const char *event[] = {
 
 static const fdcm_handle_t fdcm_hdl_tbl[] = {
     {CONFIG_FDCM_FLASH, CONFIG_FDCM_ADDR, CONFIG_FDCM_SIZE},
-    {CONFIG_FDCM_FLASH, CONFIG_FDCM_ADDR+CONFIG_FDCM_SIZE, CONFIG_FDCM_SIZE}
+    {CONFIG_FDCM_FLASH, CONFIG_FDCM_ADDR - CONFIG_FDCM_SIZE, CONFIG_FDCM_SIZE}
 };
 
 /* factory default */
@@ -443,43 +443,43 @@ void occur(uint32_t evt, uint32_t data, void *arg);
 
 static void at_wakeup_pin_irq_cb(void *arg)
 {
-	printf("SYSTE wake up!\r\n");
+    printf("SYSTE wake up!\r\n");
 }
 
 static int wkgpio_pins[] = {GPIO_PIN_4,GPIO_PIN_5,GPIO_PIN_6,GPIO_PIN_7,GPIO_PIN_7,\
-						GPIO_PIN_19,GPIO_PIN_20,GPIO_PIN_21,GPIO_PIN_22,GPIO_PIN_23};
+                        GPIO_PIN_19,GPIO_PIN_20,GPIO_PIN_21,GPIO_PIN_22,GPIO_PIN_23};
 
 void at_wakeup_gpio_init(int gpioId,int edge)
 {
-	GPIO_InitParam param;
-	GPIO_IrqParam Irq_param;
+    GPIO_InitParam param;
+    GPIO_IrqParam Irq_param;
 
-	if(edge == 1)
-	{
-		param.driving = GPIO_DRIVING_LEVEL_1;
-		param.pull = GPIO_PULL_DOWN;
-		param.mode = GPIOx_Pn_F6_EINT;
-		HAL_GPIO_Init(GPIO_PORT_A, wkgpio_pins[gpioId], &param);
+    if(edge == 1)
+    {
+        param.driving = GPIO_DRIVING_LEVEL_1;
+        param.pull = GPIO_PULL_DOWN;
+        param.mode = GPIOx_Pn_F6_EINT;
+        HAL_GPIO_Init(GPIO_PORT_A, wkgpio_pins[gpioId], &param);
 
-		Irq_param.event = GPIO_IRQ_EVT_RISING_EDGE;
-		Irq_param.callback = at_wakeup_pin_irq_cb;
-		Irq_param.arg = (void *)NULL;
-		HAL_GPIO_EnableIRQ(GPIO_PORT_A, wkgpio_pins[gpioId], &Irq_param);
-		HAL_Wakeup_SetIO(gpioId, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN);
-	}
-	else if(edge == 0)
-	{
-		param.driving = GPIO_DRIVING_LEVEL_1;
-		param.pull = GPIO_PULL_UP;
-		param.mode = GPIOx_Pn_F6_EINT;
-		HAL_GPIO_Init(GPIO_PORT_A, wkgpio_pins[gpioId], &param);
+        Irq_param.event = GPIO_IRQ_EVT_RISING_EDGE;
+        Irq_param.callback = at_wakeup_pin_irq_cb;
+        Irq_param.arg = (void *)NULL;
+        HAL_GPIO_EnableIRQ(GPIO_PORT_A, wkgpio_pins[gpioId], &Irq_param);
+        HAL_Wakeup_SetIO(gpioId, WKUPIO_WK_MODE_RISING_EDGE, GPIO_PULL_DOWN);
+    }
+    else if(edge == 0)
+    {
+        param.driving = GPIO_DRIVING_LEVEL_1;
+        param.pull = GPIO_PULL_UP;
+        param.mode = GPIOx_Pn_F6_EINT;
+        HAL_GPIO_Init(GPIO_PORT_A, wkgpio_pins[gpioId], &param);
 
-		Irq_param.event = GPIO_IRQ_EVT_FALLING_EDGE;
-		Irq_param.callback = at_wakeup_pin_irq_cb;
-		Irq_param.arg = (void *)NULL;
-		HAL_GPIO_EnableIRQ(GPIO_PORT_A, wkgpio_pins[gpioId], &Irq_param);
-		HAL_Wakeup_SetIO(gpioId, WKUPIO_WK_MODE_FALLING_EDGE, GPIO_PULL_UP);
-	}
+        Irq_param.event = GPIO_IRQ_EVT_FALLING_EDGE;
+        Irq_param.callback = at_wakeup_pin_irq_cb;
+        Irq_param.arg = (void *)NULL;
+        HAL_GPIO_EnableIRQ(GPIO_PORT_A, wkgpio_pins[gpioId], &Irq_param);
+        HAL_Wakeup_SetIO(gpioId, WKUPIO_WK_MODE_FALLING_EDGE, GPIO_PULL_UP);
+    }
 
 }
 
@@ -487,7 +487,7 @@ void at_cmd_init(void)
 {
     at_callback_t at_cb;
 
-	at_wakeup_gpio_init(5,0);
+    at_wakeup_gpio_init(5,0);
     at_queue_init(queue_buf, sizeof(queue_buf), serial_read);
 
     at_cb.handle_cb = callback;
@@ -593,13 +593,13 @@ static AT_ERROR_CODE act(at_callback_para_t *para, at_callback_rsp_t *rsp)
 static AT_ERROR_CODE reset(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     AT_ERROR_CODE aec = AEC_OK;
-	
-	at_dump("\r\nOK\r\n");
-	
-	OS_MSleep(2);
-	
+
+    at_dump("\r\nOK\r\n");
+
+    OS_MSleep(2);
+
     HAL_WDG_Reboot();
-	
+
     return aec;
 }
 
@@ -1037,15 +1037,15 @@ static AT_ERROR_CODE peer(at_callback_para_t *para, at_callback_rsp_t *rsp)
 
 static AT_ERROR_CODE disconnect(s32 id)
 {
-	at_dump("+IPS:%d,-1\r\n", id);
+    at_dump("+IPS:%d,-1\r\n", id);
 
-	FUN_DEBUG("disconnect id = %d!\n", id);
+    FUN_DEBUG("disconnect id = %d!\n", id);
     if (networks.connect[id].flag) {
-		networks.connect[id].flag = 0;
-		OS_MSleep(200);
+        networks.connect[id].flag = 0;
+        OS_MSleep(200);
 
         closesocket(networks.connect[id].fd);
-		FUN_DEBUG("disconnect closesocket id = %d!\n", id);
+        FUN_DEBUG("disconnect closesocket id = %d!\n", id);
         networks.connect[id].fd = -1;
         networks.connect[id].flag = 0;
         networks.count--;
@@ -1059,46 +1059,46 @@ static AT_ERROR_CODE disconnect(s32 id)
 
 
 static OS_Thread_t OS_Thread_sockon_handler;
-static QueueHandle_t OS_queue_sockon_handler;
+static OS_Queue_t OS_queue_sockon_handler;
 extern void at_response(AT_ERROR_CODE aec);
 AT_ERROR_CODE socket_task_create(at_callback_para_t *para);
 typedef struct {
-	at_callback_para_t para;
-	at_callback_rsp_t rsp;
+    at_callback_para_t para;
+    at_callback_rsp_t rsp;
 } at_sockontask_para_t;
 at_sockontask_para_t sockontask_data;
 
 static void sockon_task(void *arg)
 {
-	AT_ERROR_CODE ret;
-	int OS_ret;
-	at_sockontask_para_t sockpara;
+    AT_ERROR_CODE ret;
+    OS_Status status;
+    at_sockontask_para_t sockpara;
 
-	while(1)
-	{
-		OS_ret = xQueueReceive(OS_queue_sockon_handler, &sockpara,OS_WAIT_FOREVER);
-		if(OS_ret == pdPASS)
-		{
-			ret = sockon(&sockpara.para,&sockpara.rsp);
-			 if (AEC_OK == ret) {
-				ret = socket_task_create(&sockpara.para);
-			}
-			if(AEC_SOCKET_EXISTING == ret)
-			{
-				at_dump("socket%d is ALREADY CONNECT\r\n",sockpara.para.u.sockon.fd);
-			}
-			if(AEC_OK == ret)
-			{
-				at_dump("+IPS:%d,0\n",sockpara.para.u.sockon.fd);
-			}
-			else
-			{
-				at_dump("+IPS:%d,-1\n",sockpara.para.u.sockon.fd);
-			}
-			ret = AEC_UNDEFINED;
-			memset(&sockpara,0,sizeof(at_sockontask_para_t));
-		}
-	}
+    while(1)
+    {
+        status = OS_QueueReceive(&OS_queue_sockon_handler, &sockpara, OS_WAIT_FOREVER);
+        if(status == OS_OK)
+        {
+            ret = sockon(&sockpara.para,&sockpara.rsp);
+             if (AEC_OK == ret) {
+                ret = socket_task_create(&sockpara.para);
+            }
+            if(AEC_SOCKET_EXISTING == ret)
+            {
+                at_dump("socket%d is ALREADY CONNECT\r\n",sockpara.para.u.sockon.fd);
+            }
+            if(AEC_OK == ret)
+            {
+                at_dump("+IPS:%d,0\n",sockpara.para.u.sockon.fd);
+            }
+            else
+            {
+                at_dump("+IPS:%d,-1\n",sockpara.para.u.sockon.fd);
+            }
+            ret = AEC_UNDEFINED;
+            memset(&sockpara,0,sizeof(at_sockontask_para_t));
+        }
+    }
 }
 
 
@@ -1129,7 +1129,7 @@ static AT_ERROR_CODE sockon(at_callback_para_t *para, at_callback_rsp_t *rsp)
         return AEC_SOCKET_EXISTING;
     }
 
-	strncpy(networks.connect[socketid].type, para->u.net_param.type, 4);
+    strncpy(networks.connect[socketid].type, para->u.net_param.type, 4);
     /*
         if (networks.connect[socketid].fd != -1) {
             return AEC_SOCKET_FAIL;
@@ -1204,7 +1204,7 @@ static AT_ERROR_CODE sockon(at_callback_para_t *para, at_callback_rsp_t *rsp)
             while (res) {
                 if (res->ai_family == family) {
                     result = res;
-					FUN_DEBUG("sockon UDP getaddrinfo aifamily!\n");
+                    FUN_DEBUG("sockon UDP getaddrinfo aifamily!\n");
                     break;
                 }
                 res = res->ai_next;
@@ -1226,7 +1226,7 @@ static AT_ERROR_CODE sockon(at_callback_para_t *para, at_callback_rsp_t *rsp)
                 return AEC_SOCKET_FAIL;
 
             /* for receive */
-			FUN_DEBUG("sockon UDP bind address prot = %d!\n", networks.connect[socketid].port);
+            FUN_DEBUG("sockon UDP bind address prot = %d!\n", networks.connect[socketid].port);
             rc = bind(fd, (struct sockaddr *)&address, sizeof(address));
             if (rc < 0) {
                 closesocket(fd);
@@ -1585,8 +1585,8 @@ static void server_task(void *arg)
         if (server_arg->protocol == 0) { /* TCP */
             struct sockaddr_in server_addr;
             struct sockaddr_in conn_addr;
-            int sock_fd;				  /* server socked */
-            int sock_conn;		  /* request socked */
+            int sock_fd;                  /* server socked */
+            int sock_conn;        /* request socked */
             socklen_t addr_len;
             int err;
             int option;
@@ -1711,7 +1711,7 @@ static AT_ERROR_CODE sockd(at_callback_para_t *para, at_callback_rsp_t *rsp)
 
                 memset(&g_server_ctrl, 0, sizeof(g_server_ctrl));
             } else if (protocol == 1) { /* UDP */
-                struct sockaddr_in	address;
+                struct sockaddr_in  address;
                 int rc;
                 int fd;
 
@@ -1924,11 +1924,11 @@ static AT_ERROR_CODE scan(at_callback_para_t *para, at_callback_rsp_t *rsp)
 static AT_ERROR_CODE version(at_callback_para_t * para, at_callback_rsp_t * rsp)
 {
 
-	at_dump("+GMR:fw:\"%s\"\n",SDK_VERSION_STR);
+    at_dump("+GMR:fw:\"%s\"\n",SDK_VERSION_STR);
 
     at_dump("+GMR:sdk:\""SDK_VERSION_STR"\"\n");
 
-	at_dump("+GMR:tm:\"%s %s\"\n",__DATE__,__TIME__);
+    at_dump("+GMR:tm:\"%s %s\"\n",__DATE__,__TIME__);
     return AEC_OK;
 }
 
@@ -1946,32 +1946,32 @@ static AT_ERROR_CODE uart_def(at_callback_para_t * para, at_callback_rsp_t * rsp
     FUN_DEBUG("----->\n");
 
 #if 0
-	at_serial_para_t at_para;
+    at_serial_para_t at_para;
 
-	at_para.baudrate = para->u.uart.uartBaud;
-	at_para.dataBit = para->u.uart.dataBit;
-	at_para.parity = para->u.uart.parity;
-	at_para.stopBit = para->u.uart.stopBit;
-	at_para.hwfc = para->u.uart.hwfc;
+    at_para.baudrate = para->u.uart.uartBaud;
+    at_para.dataBit = para->u.uart.dataBit;
+    at_para.parity = para->u.uart.parity;
+    at_para.stopBit = para->u.uart.stopBit;
+    at_para.hwfc = para->u.uart.hwfc;
 
-	printf("at_para.baudrate = %d\r\n",para->u.uart.uartBaud);
-	printf("at_para.dataBit = %d\r\n",para->u.uart.dataBit);
-	printf("at_para.parity = %d\r\n",para->u.uart.parity);
-	printf("at_para.stopBit = %d\r\n",para->u.uart.stopBit);
-	printf("at_para.hwfc = %d\r\n",para->u.uart.hwfc);
-	//at_uart_reinit(&at_para);
+    printf("at_para.baudrate = %d\r\n",para->u.uart.uartBaud);
+    printf("at_para.dataBit = %d\r\n",para->u.uart.dataBit);
+    printf("at_para.parity = %d\r\n",para->u.uart.parity);
+    printf("at_para.stopBit = %d\r\n",para->u.uart.stopBit);
+    printf("at_para.hwfc = %d\r\n",para->u.uart.hwfc);
+    //at_uart_reinit(&at_para);
 #endif
     return AEC_OK;
 }
 
 /*
 enum suspend_state_t {
-	PM_MODE_ON              = 0,
-	PM_MODE_SLEEP           = 1,
-	PM_MODE_STANDBY         = 2,
-	PM_MODE_HIBERNATION     = 3,
-	PM_MODE_POWEROFF        = 4,
-	PM_MODE_MAX             = 5,
+    PM_MODE_ON              = 0,
+    PM_MODE_SLEEP           = 1,
+    PM_MODE_STANDBY         = 2,
+    PM_MODE_HIBERNATION     = 3,
+    PM_MODE_POWEROFF        = 4,
+    PM_MODE_MAX             = 5,
 };
 */
 #include "pm/pm.h"
@@ -1984,7 +1984,7 @@ static AT_ERROR_CODE sleep(at_callback_para_t * para, at_callback_rsp_t * rsp)
         printf("The sleep mode is not support \r\n");
         return AEC_CMD_ERROR;
     } else {
-		at_dump("OK");
+        at_dump("OK");
 
         at_wakeup_gpio_init(5,0);
         OS_MSleep(5);
@@ -1998,7 +1998,7 @@ static AT_ERROR_CODE wakeupgpio(at_callback_para_t * para, at_callback_rsp_t * r
 {
     FUN_DEBUG("-->%s\n",__func__);
 
-	at_wakeup_gpio_init(para->u.wakeupgpio.gpioId,para->u.wakeupgpio.edge);
+    at_wakeup_gpio_init(para->u.wakeupgpio.gpioId,para->u.wakeupgpio.edge);
 
     return AEC_OK;
 }
@@ -2016,19 +2016,19 @@ enum wlan_mode {
 static AT_ERROR_CODE cwmode_cur(at_callback_para_t * para, at_callback_rsp_t * rsp)
 {
     FUN_DEBUG("----->\n");
-	
+
     if(para->u.wifiMode.mode < 0 || para->u.wifiMode.mode > 4) {
         printf("The mode is not support \r\n");
         return AEC_CMD_ERROR;
     } else{
-		net_switch_mode(para->u.wifiMode.mode );
-		if(para->u.wifiMode.mode == 0){
-		
-		}else{
-		
-		}
-	}
-	
+        net_switch_mode(para->u.wifiMode.mode );
+        if(para->u.wifiMode.mode == 0){
+
+        }else{
+
+        }
+    }
+
     return AEC_OK;
 }
 
@@ -2038,13 +2038,13 @@ static AT_ERROR_CODE cwjap_cur(at_callback_para_t * para, at_callback_rsp_t * rs
 {
     uint32_t wep_open_connect_timeout_ms = 15500;
     uint32_t timeout = OS_GetTicks() + OS_TicksToMSecs(wep_open_connect_timeout_ms);
-	
-	memset(cur_ssid,0,SYSINFO_SSID_LEN_MAX*sizeof(char));
-	memset(cur_psk,0,SYSINFO_PSK_LEN_MAX*sizeof(char));
-	memcpy(cur_ssid,para->u.joinParam.ssid,strlen(para->u.joinParam.ssid));
-	memcpy(cur_psk,para->u.joinParam.pwd,strlen(para->u.joinParam.pwd));
+
+    memset(cur_ssid,0,SYSINFO_SSID_LEN_MAX*sizeof(char));
+    memset(cur_psk,0,SYSINFO_PSK_LEN_MAX*sizeof(char));
+    memcpy(cur_ssid,para->u.joinParam.ssid,strlen(para->u.joinParam.ssid));
+    memcpy(cur_psk,para->u.joinParam.pwd,strlen(para->u.joinParam.pwd));
     FUN_DEBUG("----->\n");
-	
+
     if(para->u.joinParam.ssid == NULL) {
         printf("The ssid is NULL");
         return AEC_CMD_ERROR;
@@ -2057,10 +2057,10 @@ static AT_ERROR_CODE cwjap_cur(at_callback_para_t * para, at_callback_rsp_t * rs
             printf("The ssid = %s, pwd = %s", para->u.joinParam.ssid, para->u.joinParam.pwd);
             wlan_sta_set((unsigned char*)para->u.joinParam.ssid, strlen(para->u.joinParam.ssid), (unsigned char*)para->u.joinParam.pwd);
         }
-		
+
         wlan_sta_enable();
         wlan_sta_connect();
-		
+
     }
     while (OS_TimeBeforeEqual(OS_GetTicks(), timeout)) {
         if (g_wlan_netif && netif_is_link_up(g_wlan_netif)
@@ -2071,45 +2071,45 @@ static AT_ERROR_CODE cwjap_cur(at_callback_para_t * para, at_callback_rsp_t * rs
         }
         OS_MSleep(20);
     }
-	wlan_sta_disable();
+    wlan_sta_disable();
     g_errorcode = ATC_CWJAP_CUR_TIMEOUT;
     return AEC_CMD_ERROR;
 }
 
 static AT_ERROR_CODE cwjap_info(at_callback_para_t * para, at_callback_rsp_t * rsp)
 {
-	wlan_sta_ap_t *ap = NULL;
-	struct sysinfo *_sysinfo = NULL;
-	wlan_ext_signal_t signal;
-	_sysinfo = sysinfo_get();
-	
+    wlan_sta_ap_t *ap = NULL;
+    struct sysinfo *_sysinfo = NULL;
+    wlan_ext_signal_t signal;
+    _sysinfo = sysinfo_get();
+
     FUN_DEBUG("----->\n");
 
-	ap = malloc(sizeof(wlan_sta_ap_t));
+    ap = malloc(sizeof(wlan_sta_ap_t));
 
-	if (g_wlan_netif && netif_is_link_up(g_wlan_netif)
-	    && netif_is_up(g_wlan_netif))
-	{
-		if(wlan_sta_ap_info(ap) == -1)
-		{
-			free(ap);
-			at_dump("NO AP\r\n");
-			return AEC_OK;
-		}
-		wlan_ext_request(g_wlan_netif, WLAN_EXT_CMD_GET_SIGNAL, (int)(&signal));
-		
-		at_dump("+CWJAP:\"%s\",\"%02x:%02x:%02x:%02x:%02x:%02x\",%d,%d,\"%02x:%02x:%02x:%02x:%02x:%02x\"\r\n", \
-			ap->ssid.ssid,ap->bssid[0],ap->bssid[1],ap->bssid[2],ap->bssid[3],ap->bssid[4],ap->bssid[5],\
-			ap->channel, (signal.noise + (signal.rssi/2)),\
-			_sysinfo->mac_addr[0],_sysinfo->mac_addr[1],_sysinfo->mac_addr[2],_sysinfo->mac_addr[3],_sysinfo->mac_addr[4],_sysinfo->mac_addr[5]);
-			
-			free(ap);
-			return AEC_OK;
-	}
-	else
-		free(ap);
-		at_dump("NO AP\r\n");
-		return AEC_OK;
+    if (g_wlan_netif && netif_is_link_up(g_wlan_netif)
+        && netif_is_up(g_wlan_netif))
+    {
+        if(wlan_sta_ap_info(ap) == -1)
+        {
+            free(ap);
+            at_dump("NO AP\r\n");
+            return AEC_OK;
+        }
+        wlan_ext_request(g_wlan_netif, WLAN_EXT_CMD_GET_SIGNAL, (int)(&signal));
+
+        at_dump("+CWJAP:\"%s\",\"%02x:%02x:%02x:%02x:%02x:%02x\",%d,%d,\"%02x:%02x:%02x:%02x:%02x:%02x\"\r\n", \
+            ap->ssid.ssid,ap->bssid[0],ap->bssid[1],ap->bssid[2],ap->bssid[3],ap->bssid[4],ap->bssid[5],\
+            ap->channel, (signal.noise + (signal.rssi/2)),\
+            _sysinfo->mac_addr[0],_sysinfo->mac_addr[1],_sysinfo->mac_addr[2],_sysinfo->mac_addr[3],_sysinfo->mac_addr[4],_sysinfo->mac_addr[5]);
+
+            free(ap);
+            return AEC_OK;
+    }
+    else
+        free(ap);
+        at_dump("NO AP\r\n");
+        return AEC_OK;
 }
 
 
@@ -2179,19 +2179,19 @@ static AT_ERROR_CODE cwhostname(at_callback_para_t * para, at_callback_rsp_t * r
 static AT_ERROR_CODE set_apcfg(at_callback_para_t * para, at_callback_rsp_t * rsp)
 {
     FUN_DEBUG("----->\n");
-	
-	int ssid_len;
-	
-	ssid_len = strlen(para->u.apcfgParam.ssid);
 
-	printf("para->u.apcfgParam.ssid=%s,para->u.apcfgParam.psk=%s\r\n",para->u.apcfgParam.ssid,para->u.apcfgParam.psk);
-	
-	net_switch_mode(WLAN_MODE_HOSTAP);
-	wlan_ap_disable();
-	wlan_ap_set((uint8_t *)para->u.apcfgParam.ssid,ssid_len, (uint8_t *)para->u.apcfgParam.psk);
-	wlan_ap_enable();
-	
-	return AEC_OK;
+    int ssid_len;
+
+    ssid_len = strlen(para->u.apcfgParam.ssid);
+
+    printf("para->u.apcfgParam.ssid=%s,para->u.apcfgParam.psk=%s\r\n",para->u.apcfgParam.ssid,para->u.apcfgParam.psk);
+
+    net_switch_mode(WLAN_MODE_HOSTAP);
+    wlan_ap_disable();
+    wlan_ap_set((uint8_t *)para->u.apcfgParam.ssid,ssid_len, (uint8_t *)para->u.apcfgParam.psk);
+    wlan_ap_enable();
+
+    return AEC_OK;
 
 }
 
@@ -2208,11 +2208,11 @@ static AT_ERROR_CODE cipstatus(at_callback_para_t *para, at_callback_rsp_t *rsp)
     switch (net_event) {
     case NET_CTRL_MSG_NETWORK_UP:
         net_event_index = 2;
-		if((networks.connect[0].flag)
-			| (networks.connect[1].flag)
-			| (networks.connect[2].flag)
-			| (networks.connect[3].flag))
-			net_event_index = 3;
+        if((networks.connect[0].flag)
+            | (networks.connect[1].flag)
+            | (networks.connect[2].flag)
+            | (networks.connect[3].flag))
+            net_event_index = 3;
         break;
     case NET_CTRL_MSG_NETWORK_DOWN:
         net_event_index = 5;
@@ -2228,52 +2228,52 @@ static AT_ERROR_CODE cipstatus(at_callback_para_t *para, at_callback_rsp_t *rsp)
     sprintf(rsp->vptr, "STATUS:%d\r\n", net_event_index);
 
 
-	if(net_event_index == 3)
-	{
-		sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)), "+CIPSTATUS:");
-		if(networks.connect[0].flag)
-		{
-			sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
-				"%d,\"%s\",\"%s\",%d    ",
-				0,
-				networks.connect[0].type,
-				networks.connect[0].ip,
-				networks.connect[0].port
-				);
-		}
-		if(networks.connect[1].flag)
-		{
-			sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
-				"%d,\"%s\",\"%s\",%d    ",
-				1,
-				networks.connect[1].type,
-				networks.connect[1].ip,
-				networks.connect[1].port
-				);
-		}
-		if(networks.connect[2].flag)
-		{
-			sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
-				"%d,\"%s\",\"%s\",%d    ",
-				2,
-				networks.connect[2].type,
-				networks.connect[2].ip,
-				networks.connect[2].port
-				);
-		}
-		if(networks.connect[3].flag)
-		{
-			sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
-				"%d,\"%s\",\"%s\",%d    ",
-				3,
-				networks.connect[3].type,
-				networks.connect[3].ip,
-				networks.connect[3].port
-				);
-		}
-	}
-	rsp->status = 1;
-	rsp->type  = 1;
+    if(net_event_index == 3)
+    {
+        sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)), "+CIPSTATUS:");
+        if(networks.connect[0].flag)
+        {
+            sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
+                "%d,\"%s\",\"%s\",%d    ",
+                0,
+                networks.connect[0].type,
+                networks.connect[0].ip,
+                networks.connect[0].port
+                );
+        }
+        if(networks.connect[1].flag)
+        {
+            sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
+                "%d,\"%s\",\"%s\",%d    ",
+                1,
+                networks.connect[1].type,
+                networks.connect[1].ip,
+                networks.connect[1].port
+                );
+        }
+        if(networks.connect[2].flag)
+        {
+            sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
+                "%d,\"%s\",\"%s\",%d    ",
+                2,
+                networks.connect[2].type,
+                networks.connect[2].ip,
+                networks.connect[2].port
+                );
+        }
+        if(networks.connect[3].flag)
+        {
+            sprintf(((char *)rsp->vptr + strlen((char *)rsp->vptr)),
+                "%d,\"%s\",\"%s\",%d    ",
+                3,
+                networks.connect[3].type,
+                networks.connect[3].ip,
+                networks.connect[3].port
+                );
+        }
+    }
+    rsp->status = 1;
+    rsp->type  = 1;
     return AEC_OK;
 
 }
@@ -2295,7 +2295,7 @@ static AT_ERROR_CODE cipdomain(at_callback_para_t *para, at_callback_rsp_t *rsp)
         printf("IP addr %d: %s\n", i+1, inet_ntoa( *(struct in_addr*)server->h_addr_list[i]));
     }
 
-	at_dump("+IPDNS:\"%s\"\n",inet_ntoa( *(struct in_addr*)server->h_addr_list[0]));
+    at_dump("+IPDNS:\"%s\"\n",inet_ntoa( *(struct in_addr*)server->h_addr_list[0]));
     return AEC_OK;
 }
 
@@ -2310,7 +2310,7 @@ typedef struct SocketSend_queueinf_def {
 } SocketSend_queueinf_t;
 
 #define QLEN_ATCMDSEND       5
-QueueHandle_t q_SocketSend[5];
+OS_Queue_t q_SocketSend[5];
 
 void socket0_task(void *pvParameters)
 {
@@ -2326,16 +2326,15 @@ void socket0_task(void *pvParameters)
     struct timeval tv;
 
     uint8_t id = (u32)pvParameters;
-    q_SocketSend[id] = xQueueCreate(QLEN_ATCMDSEND, sizeof(SocketSend_queueinf_t));
-
+    OS_QueueCreate(&q_SocketSend[id], QLEN_ATCMDSEND, sizeof(SocketSend_queueinf_t));
     while (1) {
 
         if(networks.connect[id].flag == 0) {
-			xQueueReceive( q_SocketSend[id], &sendinf,(TickType_t)1); //release the useless data
+            OS_QueueReceive(&q_SocketSend[id], &sendinf, 1); //release the useless data
             OS_MSleep(100);
             continue;
         }
-        if(xQueueReceive( q_SocketSend[id], &sendinf,(TickType_t)100) == pdPASS) {
+        if (OS_QueueReceive(&q_SocketSend[id], &sendinf, 100) == OS_OK) {
             if(networks.connect[id].fd == -1) {
                 at_dump("SOCKET %d ERROR\n", id);
                 free(sendinf.p_senddata);
@@ -2415,10 +2414,10 @@ void socket0_task(void *pvParameters)
             }
 
             if (rc > 0) {
-				at_dump("+IPD:");
-				if(is_disp_ipd == 1)
-					at_dump("%d,%d\r\n",id, rc);
-				at_data_output((char *)socket_cache[id].buffer,rc);
+                at_dump("+IPD:");
+                if(is_disp_ipd == 1)
+                    at_dump("%d,%d\r\n",id, rc);
+                at_data_output((char *)socket_cache[id].buffer,rc);
 
            } else if (rc == 0) {
                 disconnect(id);
@@ -2436,12 +2435,12 @@ void socket0_task(void *pvParameters)
 
 AT_ERROR_CODE socket_task_create(at_callback_para_t *para)
 {
-	char task_name[16]={0};
+    char task_name[16]={0};
     if (para->u.net_param.linkId >= MAX_SOCKET_NUM) {
         return AEC_SOCKET_FAIL;
     }
-	int sockfd = para->u.net_param.linkId;
-	sprintf(task_name, "sock%d_task", sockfd);
+    int sockfd = para->u.net_param.linkId;
+    sprintf(task_name, "sock%d_task", sockfd);
        if (networks.connect[para->u.net_param.linkId].ThreadHd == 0) {
 
             if (OS_ThreadCreate(&socket_task_handler[para->u.net_param.linkId],
@@ -2463,49 +2462,49 @@ AT_ERROR_CODE socket_task_create(at_callback_para_t *para)
 static AT_ERROR_CODE cipstart(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     FUN_DEBUG("----->\n");
-	static int is_sockon_task_create = 0;
+    static int is_sockon_task_create = 0;
     OS_Status ret = OS_OK;
-	
-	memset(&sockontask_data,0,sizeof(at_sockontask_para_t));
-	memcpy(&sockontask_data.para,para,sizeof(at_callback_para_t));
-	memcpy(&sockontask_data.rsp,rsp,sizeof(at_callback_rsp_t));
-	
-	if(0 == is_sockon_task_create)
-	{
-		is_sockon_task_create = 1;
-		OS_queue_sockon_handler = xQueueCreate(10, sizeof(at_sockontask_para_t));
-		if(OS_queue_sockon_handler == NULL)
-			FUN_DEBUG("------>%s xQueueCreate ERROR\n",__func__);
-		ret = OS_ThreadCreate(&OS_Thread_sockon_handler,
-							"sockon_task",
-							sockon_task,
-							((void *)0),
-							OS_THREAD_PRIO_APP,
-							2*1024);
-		OS_MSleep(1);
-		if(xQueueSend(OS_queue_sockon_handler, &sockontask_data, ( TickType_t ) 200 ) != pdPASS)
-		{
-			ret = OS_FAIL;
-		}
-	}
-	else
-	{
-		if(xQueueSend(OS_queue_sockon_handler, &sockontask_data, ( TickType_t ) 200 ) != pdPASS)
-		{
-			ret = OS_FAIL;
-		}
-	}
 
-	if (ret == OS_OK)
-	{
-		return AEC_OK;
+    memset(&sockontask_data,0,sizeof(at_sockontask_para_t));
+    memcpy(&sockontask_data.para,para,sizeof(at_callback_para_t));
+    memcpy(&sockontask_data.rsp,rsp,sizeof(at_callback_rsp_t));
 
-	}
-	else
-	{
-		FUN_DEBUG("sockon_task create error\n");
-		return AEC_SOCKET_FAIL;
-	}
+    if(0 == is_sockon_task_create)
+    {
+        is_sockon_task_create = 1;
+        ret = OS_QueueCreate(&OS_queue_sockon_handler, 10, sizeof(at_sockontask_para_t));
+        if(ret != OS_OK)
+            FUN_DEBUG("------>%s xQueueCreate ERROR\n",__func__);
+        ret = OS_ThreadCreate(&OS_Thread_sockon_handler,
+                            "sockon_task",
+                            sockon_task,
+                            ((void *)0),
+                            OS_THREAD_PRIO_APP,
+                            2*1024);
+        OS_MSleep(1);
+        if (OS_QueueSend(&OS_queue_sockon_handler, &sockontask_data, 200) != OS_OK)
+        {
+            ret = OS_FAIL;
+        }
+    }
+    else
+    {
+        if (OS_QueueSend(&OS_queue_sockon_handler, &sockontask_data, 200) != OS_OK)
+        {
+            ret = OS_FAIL;
+        }
+    }
+
+    if (ret == OS_OK)
+    {
+        return AEC_OK;
+
+    }
+    else
+    {
+        FUN_DEBUG("sockon_task create error\n");
+        return AEC_SOCKET_FAIL;
+    }
 }
 
 
@@ -2521,15 +2520,15 @@ static AT_ERROR_CODE cipclose(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     FUN_DEBUG("----->\n");
 
-	if(para->u.close_id.id < MAX_SOCKET_NUM)
-		disconnect(para->u.close_id.id);
+    if(para->u.close_id.id < MAX_SOCKET_NUM)
+        disconnect(para->u.close_id.id);
     return AEC_OK;
 }
 
 static AT_ERROR_CODE tcpservermaxconn(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     FUN_DEBUG("----->\n");
-		
+
     return AEC_OK;
 }
 
@@ -2537,115 +2536,115 @@ static AT_ERROR_CODE tcpservermaxconn(at_callback_para_t *para, at_callback_rsp_
 static AT_ERROR_CODE tcpserver(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     FUN_DEBUG("----->\n");
-	s16 port;
-	s32 protocol;
+    s16 port;
+    s32 protocol;
 
-	port = para->u.tcp_server.port;
-	protocol = 0;//tcp
+    port = para->u.tcp_server.port;
+    protocol = 0;//tcp
 
-	if (port > 0) {
-		if (!g_server_enable) {
-			g_server_arg.port = para->u.tcp_server.port;
-			g_server_arg.protocol = 0;
-			memset(&socket_cache[MAX_SOCKET_NUM], 0 ,sizeof(socket_cache_t));
+    if (port > 0) {
+        if (!g_server_enable) {
+            g_server_arg.port = para->u.tcp_server.port;
+            g_server_arg.protocol = 0;
+            memset(&socket_cache[MAX_SOCKET_NUM], 0 ,sizeof(socket_cache_t));
 
-			if (protocol == 0) { /* TCP */
-				server_mutex_lock();
-				g_server_net.flag = 0;
-				g_server_net.sock_fd = -1;
-				g_server_net.conn_fd = -1;
-				server_mutex_unlock();
+            if (protocol == 0) { /* TCP */
+                server_mutex_lock();
+                g_server_net.flag = 0;
+                g_server_net.sock_fd = -1;
+                g_server_net.conn_fd = -1;
+                server_mutex_unlock();
 
-				if (OS_SemaphoreCreate(&g_server_sem, 1, 1) != OS_OK) {
-					FUN_DEBUG("create semaphore failed\n");
+                if (OS_SemaphoreCreate(&g_server_sem, 1, 1) != OS_OK) {
+                    FUN_DEBUG("create semaphore failed\n");
 
-					return AEC_UNDEFINED;
-				}
+                    return AEC_UNDEFINED;
+                }
 
-				if (OS_ThreadCreate(&g_server_thread,
-				                    "",
-				                    server_task,
-				                    &g_server_arg,
-				                    OS_PRIORITY_NORMAL,
-				                    SERVER_THREAD_STACK_SIZE) != OS_OK) {
-					FUN_DEBUG("create server task failed\n");
+                if (OS_ThreadCreate(&g_server_thread,
+                                    "",
+                                    server_task,
+                                    &g_server_arg,
+                                    OS_PRIORITY_NORMAL,
+                                    SERVER_THREAD_STACK_SIZE) != OS_OK) {
+                    FUN_DEBUG("create server task failed\n");
 
-					return AEC_UNDEFINED;
-				}
+                    return AEC_UNDEFINED;
+                }
 
-				memset(&g_server_ctrl, 0, sizeof(g_server_ctrl));
-			}
-			else if (protocol == 1) { /* UDP */
-				struct sockaddr_in	address;
-				int rc;
-				int fd;
+                memset(&g_server_ctrl, 0, sizeof(g_server_ctrl));
+            }
+            else if (protocol == 1) { /* UDP */
+                struct sockaddr_in  address;
+                int rc;
+                int fd;
 
-				fd = socket(AF_INET, SOCK_DGRAM, 0);
-				if (fd < 0) {
-					return AEC_SOCKET_FAIL;
-				}
+                fd = socket(AF_INET, SOCK_DGRAM, 0);
+                if (fd < 0) {
+                    return AEC_SOCKET_FAIL;
+                }
 
-				memset(&address, 0, sizeof(address));
-				address.sin_family = AF_INET;
-				address.sin_addr.s_addr =htonl(INADDR_ANY);
-				address.sin_port = htons(port);
-				/* for receive */
-				rc = bind(fd, (struct sockaddr *)&address, sizeof(address));
-				if (rc < 0) {
-					closesocket(fd);
-					return AEC_BIND_FAIL;
-				}
+                memset(&address, 0, sizeof(address));
+                address.sin_family = AF_INET;
+                address.sin_addr.s_addr =htonl(INADDR_ANY);
+                address.sin_port = htons(port);
+                /* for receive */
+                rc = bind(fd, (struct sockaddr *)&address, sizeof(address));
+                if (rc < 0) {
+                    closesocket(fd);
+                    return AEC_BIND_FAIL;
+                }
 
-				server_mutex_lock();
-				g_server_net.flag = 1;
-				g_server_net.sock_fd = -1;
-				g_server_net.conn_fd = fd;
-				server_mutex_unlock();
-			}
+                server_mutex_lock();
+                g_server_net.flag = 1;
+                g_server_net.sock_fd = -1;
+                g_server_net.conn_fd = fd;
+                server_mutex_unlock();
+            }
 
-			g_server_enable = 1;
+            g_server_enable = 1;
 
-			return AEC_OK;
-		}
-	}
-	else if (g_server_enable) {
-		u32 flag;
-		s32 sock_fd,conn_fd;
+            return AEC_OK;
+        }
+    }
+    else if (g_server_enable) {
+        u32 flag;
+        s32 sock_fd,conn_fd;
 
-		server_mutex_lock();
-		flag = g_server_net.flag;
-		sock_fd = g_server_net.sock_fd;
-		conn_fd = g_server_net.conn_fd;
-		server_mutex_unlock();
+        server_mutex_lock();
+        flag = g_server_net.flag;
+        sock_fd = g_server_net.sock_fd;
+        conn_fd = g_server_net.conn_fd;
+        server_mutex_unlock();
 
-		if (g_server_arg.protocol == 0) { /* TCP */
-			if (sock_fd != -1) {
-				FUN_DEBUG("close fd = %d\n", sock_fd);
-				closesocket(sock_fd);
-			}
+        if (g_server_arg.protocol == 0) { /* TCP */
+            if (sock_fd != -1) {
+                FUN_DEBUG("close fd = %d\n", sock_fd);
+                closesocket(sock_fd);
+            }
 
-			if (flag) {
-				FUN_DEBUG("close fd = %d\n", conn_fd);
-				closesocket(conn_fd);
-			}
+            if (flag) {
+                FUN_DEBUG("close fd = %d\n", conn_fd);
+                closesocket(conn_fd);
+            }
 
-			OS_SemaphoreDelete(&g_server_sem);
-			OS_ThreadDelete(&g_server_thread);
+            OS_SemaphoreDelete(&g_server_sem);
+            OS_ThreadDelete(&g_server_thread);
 
-		}
-		else if (g_server_arg.protocol == 1) { /* UDP */
-			if (flag) {
-				FUN_DEBUG("close fd = %d\n", conn_fd);
-				closesocket(conn_fd);
-			}
-		}
+        }
+        else if (g_server_arg.protocol == 1) { /* UDP */
+            if (flag) {
+                FUN_DEBUG("close fd = %d\n", conn_fd);
+                closesocket(conn_fd);
+            }
+        }
 
-		g_server_enable = 0;
+        g_server_enable = 0;
 
-		return AEC_OK;
-	}
+        return AEC_OK;
+    }
 
-	return AEC_UNDEFINED;
+    return AEC_UNDEFINED;
 
 
 
@@ -2670,11 +2669,11 @@ static AT_ERROR_CODE cipmode(at_callback_para_t *para, at_callback_rsp_t *rsp)
 static AT_ERROR_CODE cipdns_cur(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
     FUN_DEBUG("----->\n");
-	ip_addr_t dnsip;
+    ip_addr_t dnsip;
 
-	memcpy((char *)(&dnsip), &para->u.set_dns.setdnsip, sizeof(at_ip_t));
+    memcpy((char *)(&dnsip), &para->u.set_dns.setdnsip, sizeof(at_ip_t));
 
-	dns_setserver(0,&dnsip);
+    dns_setserver(0,&dnsip);
     return AEC_OK;
 
 }
@@ -2699,13 +2698,13 @@ static AT_ERROR_CODE cipsend(at_callback_para_t *para, at_callback_rsp_t *rsp)
     s32 id;
     u8 *buffer;
     s32 len;
-	FUN_DEBUG("------>%s\n",__func__);
+    FUN_DEBUG("------>%s\n",__func__);
 
     SocketSend_queueinf_t sendinf;
 
-    id		= para->u.sockw.id;
-    buffer	= para->u.sockw.buf;
-    len		= para->u.sockw.len;
+    id      = para->u.sockw.id;
+    buffer  = para->u.sockw.buf;
+    len     = para->u.sockw.len;
 
     if (id >= MAX_SOCKET_NUM) {
         return AEC_DISCONNECT;
@@ -2717,16 +2716,15 @@ static AT_ERROR_CODE cipsend(at_callback_para_t *para, at_callback_rsp_t *rsp)
         return AEC_CMD_ERROR;
     }
     sendinf.datalen =  len;
-	FUN_DEBUG("------>%s memcpy id = %d\n",__func__, id);
+    FUN_DEBUG("------>%s memcpy id = %d\n",__func__, id);
     memcpy(sendinf.p_senddata, buffer, len);
-    if(xQueueSend(q_SocketSend[id], &sendinf, ( TickType_t ) 10 ) != pdPASS) {
+    if (OS_QueueSend(&q_SocketSend[id], &sendinf, 10) != OS_OK) {
         at_dump("LinkId %d Send ERROR \n", id);
-		FUN_DEBUG("LinkId %d Send ERROR \n", id);
+        FUN_DEBUG("LinkId %d Send ERROR \n", id);
         free(sendinf.p_senddata);
     }
-	FUN_DEBUG("------>%s xQueueSend Success\n",__func__);
+    FUN_DEBUG("------>%s xQueueSend Success\n",__func__);
     return AEC_OK;
-
 }
 
 
@@ -2739,40 +2737,40 @@ int is_netconnet_ap(void)
 }
 
 typedef struct {
-    GPIO_Pin	GPIONum;
+    GPIO_Pin    GPIONum;
     GPIO_Port   GPIOPort;
-    GPIO_InitParam	GPIOPara;
+    GPIO_InitParam  GPIOPara;
 } GPIO_CFG;
 GPIO_CFG BoardGPIO[3]=
 {
-	{GPIO_PIN_19,GPIO_PORT_A,{GPIOx_Pn_F0_INPUT,GPIO_DRIVING_LEVEL_1,GPIO_PULL_NONE}},
-	{GPIO_PIN_19,GPIO_PORT_A,{GPIOx_Pn_F0_INPUT,GPIO_DRIVING_LEVEL_1,GPIO_PULL_NONE}},
-	{GPIO_PIN_19,GPIO_PORT_A,{GPIOx_Pn_F0_INPUT,GPIO_DRIVING_LEVEL_1,GPIO_PULL_NONE}}
+    {GPIO_PIN_19,GPIO_PORT_A,{GPIOx_Pn_F0_INPUT,GPIO_DRIVING_LEVEL_1,GPIO_PULL_NONE}},
+    {GPIO_PIN_19,GPIO_PORT_A,{GPIOx_Pn_F0_INPUT,GPIO_DRIVING_LEVEL_1,GPIO_PULL_NONE}},
+    {GPIO_PIN_19,GPIO_PORT_A,{GPIOx_Pn_F0_INPUT,GPIO_DRIVING_LEVEL_1,GPIO_PULL_NONE}}
 };
 
 static AT_ERROR_CODE sysiosetcfg(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
 
-	if(para->u.setgpio_para.ID > 2)
-		return AEC_PARA_ERROR;
+    if(para->u.setgpio_para.ID > 2)
+        return AEC_PARA_ERROR;
 
-	para->u.setgpio_para.ID -= para->u.setgpio_para.ID;
+    para->u.setgpio_para.ID -= para->u.setgpio_para.ID;
 
-	BoardGPIO[para->u.setgpio_para.ID].GPIOPara.driving = GPIO_DRIVING_LEVEL_1;
+    BoardGPIO[para->u.setgpio_para.ID].GPIOPara.driving = GPIO_DRIVING_LEVEL_1;
 
-	if(para->u.setgpio_para.mode <= 1)
-		BoardGPIO[para->u.setgpio_para.ID].GPIOPara.mode = para->u.setgpio_para.mode;
-	else
-		return AEC_PARA_ERROR;
+    if(para->u.setgpio_para.mode <= 1)
+        BoardGPIO[para->u.setgpio_para.ID].GPIOPara.mode = para->u.setgpio_para.mode;
+    else
+        return AEC_PARA_ERROR;
 
-	if(para->u.setgpio_para.pull <= 2)
-		BoardGPIO[para->u.setgpio_para.ID].GPIOPara.pull = para->u.setgpio_para.pull;
-	else
-		return AEC_PARA_ERROR;
+    if(para->u.setgpio_para.pull <= 2)
+        BoardGPIO[para->u.setgpio_para.ID].GPIOPara.pull = para->u.setgpio_para.pull;
+    else
+        return AEC_PARA_ERROR;
 
-	HAL_GPIO_Init(BoardGPIO[para->u.setgpio_para.ID].GPIOPort, 	\
-					BoardGPIO[para->u.setgpio_para.ID].GPIONum,	\
-					&BoardGPIO[para->u.setgpio_para.ID].GPIOPara);
+    HAL_GPIO_Init(BoardGPIO[para->u.setgpio_para.ID].GPIOPort,  \
+                    BoardGPIO[para->u.setgpio_para.ID].GPIONum, \
+                    &BoardGPIO[para->u.setgpio_para.ID].GPIOPara);
 
     return AEC_OK;
 }
@@ -2780,19 +2778,19 @@ static AT_ERROR_CODE sysiosetcfg(at_callback_para_t *para, at_callback_rsp_t *rs
 
 static AT_ERROR_CODE sysiogetcfg(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
-	char *modestr[]={"Input","Output"};
-	char *pullstr[]={"pull none","pull up","pull down"};
-	at_dump("OI1 driver level is %d\r\n",BoardGPIO[0].GPIOPara.driving);
-	at_dump("OI1 mode is %s\r\n",modestr[BoardGPIO[0].GPIOPara.mode]);
-	at_dump("OI1 pull is %s\r\n",pullstr[BoardGPIO[0].GPIOPara.pull]);
+    char *modestr[]={"Input","Output"};
+    char *pullstr[]={"pull none","pull up","pull down"};
+    at_dump("OI1 driver level is %d\r\n",BoardGPIO[0].GPIOPara.driving);
+    at_dump("OI1 mode is %s\r\n",modestr[BoardGPIO[0].GPIOPara.mode]);
+    at_dump("OI1 pull is %s\r\n",pullstr[BoardGPIO[0].GPIOPara.pull]);
 
-	at_dump("OI2 driver level is %d\r\n",BoardGPIO[1].GPIOPara.driving);
-	at_dump("OI2 mode is %s\r\n",modestr[BoardGPIO[1].GPIOPara.mode]);
-	at_dump("OI2 pull is %s\r\n",pullstr[BoardGPIO[1].GPIOPara.pull]);
+    at_dump("OI2 driver level is %d\r\n",BoardGPIO[1].GPIOPara.driving);
+    at_dump("OI2 mode is %s\r\n",modestr[BoardGPIO[1].GPIOPara.mode]);
+    at_dump("OI2 pull is %s\r\n",pullstr[BoardGPIO[1].GPIOPara.pull]);
 
-	at_dump("OI3 driver level is %d\r\n",BoardGPIO[2].GPIOPara.driving);
-	at_dump("OI3 mode is %s\r\n",modestr[BoardGPIO[2].GPIOPara.mode]);
-	at_dump("OI3 pull is %s\r\n",pullstr[BoardGPIO[2].GPIOPara.pull]);
+    at_dump("OI3 driver level is %d\r\n",BoardGPIO[2].GPIOPara.driving);
+    at_dump("OI3 mode is %s\r\n",modestr[BoardGPIO[2].GPIOPara.mode]);
+    at_dump("OI3 pull is %s\r\n",pullstr[BoardGPIO[2].GPIOPara.pull]);
 
     return AEC_OK;
 }
@@ -2800,64 +2798,64 @@ static AT_ERROR_CODE sysiogetcfg(at_callback_para_t *para, at_callback_rsp_t *rs
 
 static AT_ERROR_CODE syssetiodir(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
-	if(para->u.setiodir_para.ID > 2)
-		return AEC_PARA_ERROR;
+    if(para->u.setiodir_para.ID > 2)
+        return AEC_PARA_ERROR;
 
-	if(para->u.setiodir_para.mode <= 1)
-		BoardGPIO[para->u.setiodir_para.ID].GPIOPara.mode = para->u.setiodir_para.mode;
-	else
-		return AEC_PARA_ERROR;
+    if(para->u.setiodir_para.mode <= 1)
+        BoardGPIO[para->u.setiodir_para.ID].GPIOPara.mode = para->u.setiodir_para.mode;
+    else
+        return AEC_PARA_ERROR;
 
-	HAL_GPIO_Init(BoardGPIO[para->u.setiodir_para.ID].GPIOPort, 	\
-					BoardGPIO[para->u.setiodir_para.ID].GPIONum,	\
-					&BoardGPIO[para->u.setiodir_para.ID].GPIOPara);
+    HAL_GPIO_Init(BoardGPIO[para->u.setiodir_para.ID].GPIOPort,     \
+                    BoardGPIO[para->u.setiodir_para.ID].GPIONum,    \
+                    &BoardGPIO[para->u.setiodir_para.ID].GPIOPara);
 
     return AEC_OK;
 }
 
 static AT_ERROR_CODE syssetgpio(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
-	if(para->u.writeiodata_para.ID > 2)
-		return AEC_PARA_ERROR;
+    if(para->u.writeiodata_para.ID > 2)
+        return AEC_PARA_ERROR;
 
-	if(para->u.writeiodata_para.data == 0)
-	{
-		HAL_GPIO_WritePin(BoardGPIO[para->u.writeiodata_para.ID].GPIOPort, 	\
-						BoardGPIO[para->u.writeiodata_para.ID].GPIONum,	\
-						GPIO_PIN_LOW);
-	}
-	else
-	{
-		HAL_GPIO_WritePin(BoardGPIO[para->u.writeiodata_para.ID].GPIOPort, 	\
-						BoardGPIO[para->u.writeiodata_para.ID].GPIONum,	\
-						GPIO_PIN_HIGH);
-	}
+    if(para->u.writeiodata_para.data == 0)
+    {
+        HAL_GPIO_WritePin(BoardGPIO[para->u.writeiodata_para.ID].GPIOPort,  \
+                        BoardGPIO[para->u.writeiodata_para.ID].GPIONum, \
+                        GPIO_PIN_LOW);
+    }
+    else
+    {
+        HAL_GPIO_WritePin(BoardGPIO[para->u.writeiodata_para.ID].GPIOPort,  \
+                        BoardGPIO[para->u.writeiodata_para.ID].GPIONum, \
+                        GPIO_PIN_HIGH);
+    }
 
     return AEC_OK;
 }
 
 static AT_ERROR_CODE sysreadgpio(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
-	if(para->u.readiodata_para.ID > 2)
-		return AEC_PARA_ERROR;
+    if(para->u.readiodata_para.ID > 2)
+        return AEC_PARA_ERROR;
 
-	at_dump("Level is %d\r\n",HAL_GPIO_ReadPin(BoardGPIO[para->u.readiodata_para.ID].GPIOPort, 	\
-						BoardGPIO[para->u.readiodata_para.ID].GPIONum));
+    at_dump("Level is %d\r\n",HAL_GPIO_ReadPin(BoardGPIO[para->u.readiodata_para.ID].GPIOPort,  \
+                        BoardGPIO[para->u.readiodata_para.ID].GPIONum));
     return AEC_OK;
 }
 
 #if 0
 static AT_ERROR_CODE deleteap(at_callback_para_t *para, at_callback_rsp_t *rsp)
 {
-	if(para->u.deleteap_para.apnum > SYSINFO_HISTORY_AP_MAX)
-		return AEC_PARA_ERROR;
+    if(para->u.deleteap_para.apnum > SYSINFO_HISTORY_AP_MAX)
+        return AEC_PARA_ERROR;
 
-	if(delete_history_ap(para->u.deleteap_para.apnum) == -1)
-	{
-		return AEC_CMD_FAIL;
-	}
-	else
-		return AEC_OK;
+    if(delete_history_ap(para->u.deleteap_para.apnum) == -1)
+    {
+        return AEC_CMD_FAIL;
+    }
+    else
+        return AEC_OK;
 }
 #endif
 
@@ -2868,27 +2866,27 @@ void occur(uint32_t evt, uint32_t data, void *arg)
     switch (idx) {
     case NET_CTRL_MSG_WLAN_CONNECTED:
         net_evevt_state = NET_CTRL_MSG_WLAN_CONNECTED;
-		if(OTA_start == 0)
-        	at_dump("+EVT:2\n");
+        if(OTA_start == 0)
+            at_dump("+EVT:2\n");
         break;
     case NET_CTRL_MSG_WLAN_DISCONNECTED:
         net_evevt_state = NET_CTRL_MSG_WLAN_DISCONNECTED;
-		if(OTA_start == 0)
-			at_dump("+EVT:3\n");
+        if(OTA_start == 0)
+            at_dump("+EVT:3\n");
         break;
     case NET_CTRL_MSG_WLAN_SCAN_SUCCESS:
         break;
     case NET_CTRL_MSG_WLAN_CONNECT_FAILED:
         break;
     case NET_CTRL_MSG_NETWORK_UP:
-		if(net_evevt_state == NET_CTRL_MSG_NETWORK_UP)
-			return;
+        if(net_evevt_state == NET_CTRL_MSG_NETWORK_UP)
+            return;
         net_evevt_state = NET_CTRL_MSG_NETWORK_UP;
-		if(OTA_start == 0)
-        	at_dump("+EVT:4\n");
+        if(OTA_start == 0)
+            at_dump("+EVT:4\n");
         break;
     case NET_CTRL_MSG_NETWORK_DOWN:
-		
+
         break;
     case NET_CTRL_MSG_WLAN_SCAN_FAILED:
     case NET_CTRL_MSG_WLAN_4WAY_HANDSHAKE_FAILED:
@@ -2899,7 +2897,7 @@ void occur(uint32_t evt, uint32_t data, void *arg)
 
     if(idx >= 0 && idx < TABLE_SIZE(event)) {
         if (at_event(idx)) {
-			if(OTA_start == 0)
+            if(OTA_start == 0)
             at_dump("msg:%d\r\n%s\r\n", idx, event[idx]);
         }
     } else {
@@ -2913,27 +2911,27 @@ OS_Thread_t ap_task_ctrl_thread;
 static int create_port;
 void tcp_server_task(void *pvParameters)
 {
-	while (1) {
-		ap_socket_task(create_port);
-	}
+    while (1) {
+        ap_socket_task(create_port);
+    }
 }
 
-void ap_server_task(int port) 
+void ap_server_task(int port)
 {
-	create_port = port;
-	
-	if (OS_ThreadCreate(&ap_task_ctrl_thread,
-						"tcp_server_task",
-						tcp_server_task,
-						NULL,
-						OS_THREAD_PRIO_APP,
-						(2 * 1024)) != OS_OK) {
-		printf("thread create error\n");
-	}
+    create_port = port;
+
+    if (OS_ThreadCreate(&ap_task_ctrl_thread,
+                        "tcp_server_task",
+                        tcp_server_task,
+                        NULL,
+                        OS_THREAD_PRIO_APP,
+                        (2 * 1024)) != OS_OK) {
+        printf("thread create error\n");
+    }
 }
 
 void ap_task_delete(void)
 {
-	OS_ThreadDelete(&ap_task_ctrl_thread);
+    OS_ThreadDelete(&ap_task_ctrl_thread);
 }
 

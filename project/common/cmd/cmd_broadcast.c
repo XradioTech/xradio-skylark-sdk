@@ -253,13 +253,21 @@ enum cmd_status broadcast_send_exec(char *cmd)
 /*
  * dhcp commands
  */
+static enum cmd_status cmd_broadcast_help_exec(char *cmd);
+
 static const struct cmd_data g_broadcast_cmds[] = {
-	{ "recv",    broadcast_recv_exec },
-	{ "send",    broadcast_send_exec },
-	{ "state",   broadcast_state_exec },
-	{ "reset",   broadcast_reset_exec },
-	{ "stop",    broadcast_stop_exec },
+	{ "recv",    broadcast_recv_exec, CMD_DESC("p=<port> i=<host_ip> r=<range>, receive data form server") },
+	{ "send",    broadcast_send_exec, CMD_DESC("not support") },
+	{ "state",   broadcast_state_exec, CMD_DESC("get the packets num received") },
+	{ "reset",   broadcast_reset_exec, CMD_DESC("reset the packets num received") },
+	{ "stop",    broadcast_stop_exec, CMD_DESC("stop receive data form server") },
+	{ "help",    cmd_broadcast_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_broadcast_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_broadcast_cmds, cmd_nitems(g_broadcast_cmds), 8);
+}
 
 enum cmd_status cmd_broadcast_exec(char *cmd)
 {

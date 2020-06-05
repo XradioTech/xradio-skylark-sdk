@@ -10,19 +10,13 @@ LIBRARY_PATHS += -L$(ROOT_PATH)/lib/$(PLATFORM_RELATIVE_PATH)
 LIBRARY_PATHS += $(PRJ_EXTRA_LIBS_PATH)
 
 # wlan libs
-ifeq ($(__CONFIG_WLAN_STA), y)
-  ifeq ($(__CONFIG_WLAN_STA_WPS), y)
-    LIB_WPA += -lwpas_wps
-  else
-    LIB_WPA += -lwpas
-  endif
+ifeq ($(__CONFIG_WLAN_STA_WPS), y)
+  LIB_WPA += -lwpas_wps
+else
+  LIB_WPA += -lwpas
 endif
 
-ifeq ($(__CONFIG_WLAN_AP), y)
-  LIB_WPA += -lhostapd
-endif
-
-LIB_WPA += -lwpa
+LIB_WPA += -lhostapd -lwpa
 
 ifeq ($(__CONFIG_ETF), y)
   LIB_WLAN := -lxretf
@@ -90,6 +84,8 @@ LIBRARIES += -ladt
 LIBRARIES += -lutil
 LIBRARIES += -ljpeg
 LIBRARIES += -lzbar
+LIBRARIES += -leq
+LIBRARIES += -lopus
 
 endif # __CONFIG_BOOTLOADER
 
@@ -210,7 +206,14 @@ XZ_LZMA2_DICT_SIZE ?= 8KiB
 XZ := xz -f -k --no-sparse --armthumb --check=$(XZ_CHECK) \
          --lzma2=preset=6,dict=$(XZ_LZMA2_DICT_SIZE),lc=3,lp=1,pb=1
 
-XZ_DEFAULT_BINS := app.bin
+ifeq ($(__CONFIG_BIN_COMPRESS_APP), y)
+XZ_DEFAULT_BINS += app.bin
+endif
+
+ifeq ($(__CONFIG_BIN_COMPRESS_APP_PSRAM), y)
+XZ_DEFAULT_BINS += app_psram.bin
+endif
+
 XZ_BINS ?= $(XZ_DEFAULT_BINS)
 
 endif # __CONFIG_BIN_COMPRESS

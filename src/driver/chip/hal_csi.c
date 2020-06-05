@@ -33,6 +33,7 @@
  */
 
 #if (__CONFIG_CHIP_ARCH_VER == 1)
+
 #include "driver/chip/hal_csi.h"
 #include "driver/chip/hal_gpio.h"
 #include "driver/chip/hal_dma.h"

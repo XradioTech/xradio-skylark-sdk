@@ -118,8 +118,6 @@ typedef struct {
 typedef struct {
 	SENSOR_PowerCtrlCfg pwcfg;
 	uint8_t i2c_id;
-	SENSOR_PixelSize pixel_size;
-	SENSOR_PixelOutFmt pixel_outfmt;
 } SENSOR_ConfigParam;
 
 typedef struct {

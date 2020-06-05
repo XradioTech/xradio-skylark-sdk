@@ -488,14 +488,22 @@ static enum cmd_status cmd_fs_close_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+static enum cmd_status cmd_fs_help_exec(char *cmd);
+
 static const struct cmd_data g_fs_cmds[] = {
-	{ "mount",		cmd_fs_mount_exec },
-	{ "unmount",	cmd_fs_unmount_exec },
-	{ "test",		cmd_fs_test_exec },
-	{ "rmdir",		cmd_fs_emptydir_exec },
-	{ "open",		cmd_fs_open_exec },
-	{ "close",		cmd_fs_close_exec },
+	{ "mount",		cmd_fs_mount_exec, CMD_DESC("mount file system") },
+	{ "unmount",	cmd_fs_unmount_exec, CMD_DESC("unmount file system") },
+	{ "test",		cmd_fs_test_exec, CMD_DESC("test file system, fs test t=<thread-cnt> n=<file-num> l=<file-size>, eg. fs test t=1 n=2 l=2097152") },
+	{ "rmdir",		cmd_fs_emptydir_exec, CMD_DESC("remove directory") },
+	{ "open",		cmd_fs_open_exec, CMD_DESC("open file, fs open <file-path>, eg. fs open fs_test/test.txt") },
+	{ "close",		cmd_fs_close_exec, CMD_DESC("close file") },
+	{ "help",		cmd_fs_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_fs_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_fs_cmds, cmd_nitems(g_fs_cmds), 8);
+}
 
 enum cmd_status cmd_fs_exec(char *cmd)
 {

@@ -77,21 +77,18 @@
  */
 
 #ifdef __CONFIG_PSRAM
-
 #include <stdlib.h>
 #include <string.h>
-/* Defining MPU_WRAPPERS_INCLUDED_FROM_API_FILE prevents task.h from redefining
-all the API functions to use the MPU wrappers.  That should only be done when
-task.h is included from an application file. */
-#define MPU_WRAPPERS_INCLUDED_FROM_API_FILE
-
-#include "FreeRTOS.h"
-#include "task.h"
+#include "kernel/os/os_thread.h"
 #include "driver/chip/hal_dcache.h"
 #include "driver/chip/psram/psram.h"
+#include "sys/dma_heap.h"
+#include "sys/xr_debug.h"
 
-
-#undef MPU_WRAPPERS_INCLUDED_FROM_API_FILE
+#define psramHeapTraceMALLOC( pvAddress, uiSize )
+#define psramHeapTraceFREE( pvAddress, uiSize )
+#define psramHeapCOVERAGE_TEST_MARKER()
+#define psramHeapASSERT(condition)
 
 /* Block sizes must not get too small. */
 #define psram_heapMINIMUM_BLOCK_SIZE	( ( size_t ) ( psram_xHeapStructSize << 1 ) )
@@ -99,13 +96,13 @@ task.h is included from an application file. */
 /* alligh 16 Bytes */
 #define psram_portBYTE_ALIGNMENT		16
 #if psram_portBYTE_ALIGNMENT == 32
-	#define psram_portBYTE_ALIGNMENT_MASK   ( 0x001f )
+#define psram_portBYTE_ALIGNMENT_MASK   ( 0x001f )
 #endif
 #if psram_portBYTE_ALIGNMENT == 16
-	#define psram_portBYTE_ALIGNMENT_MASK   ( 0x000f )
+#define psram_portBYTE_ALIGNMENT_MASK   ( 0x000f )
 #endif
 #if psram_portBYTE_ALIGNMENT == 8
-	#define psram_portBYTE_ALIGNMENT_MASK   ( 0x0007 )
+#define psram_portBYTE_ALIGNMENT_MASK   ( 0x0007 )
 #endif
 
 /* Assumes 8bit bytes! */
@@ -113,16 +110,15 @@ task.h is included from an application file. */
 
 /* Allocate the memory for the heap. */
 
-	#define psram_configTOTAL_HEAP_SIZE	( PSRAM_END_ADDR - (size_t)__psram_end__ + 1 )
+#define psram_configTOTAL_HEAP_SIZE	( PSRAM_END_ADDR - (size_t)__psram_end__ - DMAHEAP_PSRAM_LENGTH + 1 )
 
-	static uint8_t *psram_ucHeap = __psram_end__;
+static uint8_t *psram_ucHeap = __psram_end__;
 
 /* Define the linked list structure.  This is used to link free blocks in order
 of their memory address. */
-typedef struct psram_A_BLOCK_LINK
-{
-	struct psram_A_BLOCK_LINK *pxNextFreeBlock;	/*<< The next free block in the list. */
-	size_t xBlockSize;						/*<< The size of the free block. */
+typedef struct psram_A_BLOCK_LINK {
+    struct psram_A_BLOCK_LINK *pxNextFreeBlock;	/*<< The next free block in the list. */
+    size_t xBlockSize;						/*<< The size of the free block. */
 } psram_BlockLink_t;
 
 /*-----------------------------------------------------------*/
@@ -165,415 +161,360 @@ static size_t psram_xBlockAllocatedBit = 0;
 
 void *_psram_malloc( size_t xWantedSize )
 {
-psram_BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
-void *pvReturn = NULL;
+    psram_BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
+    void *pvReturn = NULL;
+    OS_ThreadSuspendScheduler();
+    {
+        /* If this is the first call to malloc then the heap will require
+        initialisation to setup the list of free blocks. */
+        if( psram_pxEnd == NULL ) {
+            psram_heap_init();
+        } else {
+            psramHeapCOVERAGE_TEST_MARKER();
+        }
 
-	vTaskSuspendAll();
-	{
-		/* If this is the first call to malloc then the heap will require
-		initialisation to setup the list of free blocks. */
-		if( psram_pxEnd == NULL )
-		{
-			psram_heap_init();
-		}
-		else
-		{
-			mtCOVERAGE_TEST_MARKER();
-		}
+        /* Check the requested block size is not so large that the top bit is
+        set.  The top bit of the block size member of the psram_BlockLink_t structure
+        is used to determine who owns the block - the application or the
+        kernel, so it must be free. */
+        if( ( xWantedSize & psram_xBlockAllocatedBit ) == 0 ) {
+            /* The wanted size is increased so it can contain a psram_BlockLink_t
+            structure in addition to the requested amount of bytes. */
+            if( xWantedSize > 0 ) {
+                xWantedSize += psram_xHeapStructSize;
 
-		/* Check the requested block size is not so large that the top bit is
-		set.  The top bit of the block size member of the psram_BlockLink_t structure
-		is used to determine who owns the block - the application or the
-		kernel, so it must be free. */
-		if( ( xWantedSize & psram_xBlockAllocatedBit ) == 0 )
-		{
-			/* The wanted size is increased so it can contain a psram_BlockLink_t
-			structure in addition to the requested amount of bytes. */
-			if( xWantedSize > 0 )
-			{
-				xWantedSize += psram_xHeapStructSize;
+                /* Ensure that blocks are always aligned to the required number
+                of bytes. */
+                if( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) != 0x00 ) {
+                    /* Byte alignment required. */
+                    xWantedSize += ( psram_portBYTE_ALIGNMENT - ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) );
+                    psramHeapASSERT( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
+                } else {
+                    psramHeapCOVERAGE_TEST_MARKER();
+                }
+            } else {
+                psramHeapCOVERAGE_TEST_MARKER();
+            }
 
-				/* Ensure that blocks are always aligned to the required number
-				of bytes. */
-				if( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) != 0x00 )
-				{
-					/* Byte alignment required. */
-					xWantedSize += ( psram_portBYTE_ALIGNMENT - ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) );
-					configASSERT( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
-				}
-				else
-				{
-					mtCOVERAGE_TEST_MARKER();
-				}
-			}
-			else
-			{
-				mtCOVERAGE_TEST_MARKER();
-			}
+            if( ( xWantedSize > 0 ) && ( xWantedSize <= psram_xFreeBytesRemaining ) ) {
+                /* Traverse the list from the start	(lowest address) block until
+                one	of adequate size is found. */
+                pxPreviousBlock = &psram_xStart;
+                pxBlock = psram_xStart.pxNextFreeBlock;
+                while( ( pxBlock->xBlockSize < xWantedSize ) && ( pxBlock->pxNextFreeBlock != NULL ) ) {
+                    pxPreviousBlock = pxBlock;
+                    pxBlock = pxBlock->pxNextFreeBlock;
+                }
 
-			if( ( xWantedSize > 0 ) && ( xWantedSize <= psram_xFreeBytesRemaining ) )
-			{
-				/* Traverse the list from the start	(lowest address) block until
-				one	of adequate size is found. */
-				pxPreviousBlock = &psram_xStart;
-				pxBlock = psram_xStart.pxNextFreeBlock;
-				while( ( pxBlock->xBlockSize < xWantedSize ) && ( pxBlock->pxNextFreeBlock != NULL ) )
-				{
-					pxPreviousBlock = pxBlock;
-					pxBlock = pxBlock->pxNextFreeBlock;
-				}
+                /* If the end marker was reached then a block of adequate size
+                was	not found. */
+                if( pxBlock != psram_pxEnd ) {
+                    /* Return the memory space pointed to - jumping over the
+                    psram_BlockLink_t structure at its start. */
+                    pvReturn = ( void * ) ( ( ( uint8_t * ) pxPreviousBlock->pxNextFreeBlock ) + psram_xHeapStructSize );
 
-				/* If the end marker was reached then a block of adequate size
-				was	not found. */
-				if( pxBlock != psram_pxEnd )
-				{
-					/* Return the memory space pointed to - jumping over the
-					psram_BlockLink_t structure at its start. */
-					pvReturn = ( void * ) ( ( ( uint8_t * ) pxPreviousBlock->pxNextFreeBlock ) + psram_xHeapStructSize );
+                    /* This block is being returned for use so must be taken out
+                    of the list of free blocks. */
+                    pxPreviousBlock->pxNextFreeBlock = pxBlock->pxNextFreeBlock;
 
-					/* This block is being returned for use so must be taken out
-					of the list of free blocks. */
-					pxPreviousBlock->pxNextFreeBlock = pxBlock->pxNextFreeBlock;
+                    /* If the block is larger than required it can be split into
+                    two. */
+                    if( ( pxBlock->xBlockSize - xWantedSize ) > psram_heapMINIMUM_BLOCK_SIZE ) {
+                        /* This block is to be split into two.  Create a new
+                        block following the number of bytes requested. The void
+                        cast is used to prevent byte alignment warnings from the
+                        compiler. */
+                        pxNewBlockLink = ( void * ) ( ( ( uint8_t * ) pxBlock ) + xWantedSize );
+                        psramHeapASSERT( ( ( ( size_t ) pxNewBlockLink ) & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
 
-					/* If the block is larger than required it can be split into
-					two. */
-					if( ( pxBlock->xBlockSize - xWantedSize ) > psram_heapMINIMUM_BLOCK_SIZE )
-					{
-						/* This block is to be split into two.  Create a new
-						block following the number of bytes requested. The void
-						cast is used to prevent byte alignment warnings from the
-						compiler. */
-						pxNewBlockLink = ( void * ) ( ( ( uint8_t * ) pxBlock ) + xWantedSize );
-						configASSERT( ( ( ( size_t ) pxNewBlockLink ) & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
+                        /* Calculate the sizes of two blocks split from the
+                        single block. */
+                        pxNewBlockLink->xBlockSize = pxBlock->xBlockSize - xWantedSize;
+                        pxBlock->xBlockSize = xWantedSize;
 
-						/* Calculate the sizes of two blocks split from the
-						single block. */
-						pxNewBlockLink->xBlockSize = pxBlock->xBlockSize - xWantedSize;
-						pxBlock->xBlockSize = xWantedSize;
+                        /* Insert the new block into the list of free blocks. */
+                        psram_prvInsertBlockIntoFreeList( pxNewBlockLink );
+                    } else {
+                        psramHeapCOVERAGE_TEST_MARKER();
+                    }
 
-						/* Insert the new block into the list of free blocks. */
-						psram_prvInsertBlockIntoFreeList( pxNewBlockLink );
-					}
-					else
-					{
-						mtCOVERAGE_TEST_MARKER();
-					}
+                    psram_xFreeBytesRemaining -= pxBlock->xBlockSize;
 
-					psram_xFreeBytesRemaining -= pxBlock->xBlockSize;
+                    if( psram_xFreeBytesRemaining < psram_xMinimumEverFreeBytesRemaining ) {
+                        psram_xMinimumEverFreeBytesRemaining = psram_xFreeBytesRemaining;
+                    } else {
+                        psramHeapCOVERAGE_TEST_MARKER();
+                    }
 
-					if( psram_xFreeBytesRemaining < psram_xMinimumEverFreeBytesRemaining )
-					{
-						psram_xMinimumEverFreeBytesRemaining = psram_xFreeBytesRemaining;
-					}
-					else
-					{
-						mtCOVERAGE_TEST_MARKER();
-					}
+                    /* The block is being returned - it is allocated and owned
+                    by the application and has no "next" block. */
+                    pxBlock->xBlockSize |= psram_xBlockAllocatedBit;
+                    pxBlock->pxNextFreeBlock = NULL;
+                } else {
+                    psramHeapCOVERAGE_TEST_MARKER();
+                }
+            } else {
+                psramHeapCOVERAGE_TEST_MARKER();
+            }
+        } else {
+            psramHeapCOVERAGE_TEST_MARKER();
+        }
 
-					/* The block is being returned - it is allocated and owned
-					by the application and has no "next" block. */
-					pxBlock->xBlockSize |= psram_xBlockAllocatedBit;
-					pxBlock->pxNextFreeBlock = NULL;
-				}
-				else
-				{
-					mtCOVERAGE_TEST_MARKER();
-				}
-			}
-			else
-			{
-				mtCOVERAGE_TEST_MARKER();
-			}
-		}
-		else
-		{
-			mtCOVERAGE_TEST_MARKER();
-		}
+        psramHeapTraceMALLOC( pvReturn, xWantedSize );
+    }
+    ( void ) OS_ThreadResumeScheduler();
 
-		traceMALLOC( pvReturn, xWantedSize );
-	}
-	( void ) xTaskResumeAll();
+#if( configUSE_MALLOC_FAILED_HOOK == 1 )
+    {
+        if( pvReturn == NULL ) {
+            extern void vApplicationMallocFailedHook( void );
+            vApplicationMallocFailedHook();
+        } else {
+            psramHeapCOVERAGE_TEST_MARKER();
+        }
+    }
+#endif
 
-	#if( configUSE_MALLOC_FAILED_HOOK == 1 )
-	{
-		if( pvReturn == NULL )
-		{
-			extern void vApplicationMallocFailedHook( void );
-			vApplicationMallocFailedHook();
-		}
-		else
-		{
-			mtCOVERAGE_TEST_MARKER();
-		}
-	}
-	#endif
-
-	configASSERT( ( ( ( uint32_t ) pvReturn ) & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
-	return pvReturn;
+    psramHeapASSERT( ( ( ( uint32_t ) pvReturn ) & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
+    return pvReturn;
 }
 /*-----------------------------------------------------------*/
 
 void _psram_free( void *pv )
 {
-uint8_t *puc = ( uint8_t * ) pv;
-psram_BlockLink_t *pxLink;
+    uint8_t *puc = ( uint8_t * ) pv;
+    psram_BlockLink_t *pxLink;
 
-	if( pv != NULL )
-	{
-		/* The memory being freed will have an psram_BlockLink_t structure immediately
-		before it. */
-		puc -= psram_xHeapStructSize;
+    if( pv != NULL ) {
+        /* The memory being freed will have an psram_BlockLink_t structure immediately
+        before it. */
+        puc -= psram_xHeapStructSize;
 
-		/* This casting is to keep the compiler from issuing warnings. */
-		pxLink = ( void * ) puc;
+        /* This casting is to keep the compiler from issuing warnings. */
+        pxLink = ( void * ) puc;
 
-		/* Check the block is actually allocated. */
-		configASSERT( ( pxLink->xBlockSize & psram_xBlockAllocatedBit ) != 0 );
-		configASSERT( pxLink->pxNextFreeBlock == NULL );
+        /* Check the block is actually allocated. */
+        psramHeapASSERT( ( pxLink->xBlockSize & psram_xBlockAllocatedBit ) != 0 );
+        psramHeapASSERT( pxLink->pxNextFreeBlock == NULL );
 
-		if( ( pxLink->xBlockSize & psram_xBlockAllocatedBit ) != 0 )
-		{
-			if( pxLink->pxNextFreeBlock == NULL )
-			{
-				/* The block is being returned to the heap - it is no longer
-				allocated. */
-				pxLink->xBlockSize &= ~psram_xBlockAllocatedBit;
+        if( ( pxLink->xBlockSize & psram_xBlockAllocatedBit ) != 0 ) {
+            if( pxLink->pxNextFreeBlock == NULL ) {
+                /* The block is being returned to the heap - it is no longer
+                allocated. */
+                pxLink->xBlockSize &= ~psram_xBlockAllocatedBit;
 
-				vTaskSuspendAll();
-				{
-					/* Add this block to the list of free blocks. */
-					psram_xFreeBytesRemaining += pxLink->xBlockSize;
-					traceFREE( pv, pxLink->xBlockSize );
-					psram_prvInsertBlockIntoFreeList( ( ( psram_BlockLink_t * ) pxLink ) );
-				}
-				( void ) xTaskResumeAll();
-			}
-			else
-			{
-				mtCOVERAGE_TEST_MARKER();
-			}
-		}
-		else
-		{
-			mtCOVERAGE_TEST_MARKER();
-		}
-	}
+                OS_ThreadSuspendScheduler();
+                {
+                    /* Add this block to the list of free blocks. */
+                    psram_xFreeBytesRemaining += pxLink->xBlockSize;
+                    psramHeapTraceFREE( pv, pxLink->xBlockSize );
+                    psram_prvInsertBlockIntoFreeList( ( ( psram_BlockLink_t * ) pxLink ) );
+                }
+                ( void ) OS_ThreadResumeScheduler();
+            } else {
+                psramHeapCOVERAGE_TEST_MARKER();
+            }
+        } else {
+            psramHeapCOVERAGE_TEST_MARKER();
+        }
+    }
 }
 /*-----------------------------------------------------------*/
 
 size_t psram_GetFreeHeapSize( void )
 {
-	return psram_xFreeBytesRemaining;
+    return psram_xFreeBytesRemaining;
 }
 /*-----------------------------------------------------------*/
 
 size_t psram_GetMinimumEverFreeHeapSize( void )
 {
-	return psram_xMinimumEverFreeBytesRemaining;
+    return psram_xMinimumEverFreeBytesRemaining;
 }
 /*-----------------------------------------------------------*/
 
 static void psram_heap_init( void )
 {
-psram_BlockLink_t *pxFirstFreeBlock;
-uint8_t *pucAlignedHeap;
-size_t uxAddress;
-size_t xTotalHeapSize = psram_configTOTAL_HEAP_SIZE;
+    psram_BlockLink_t *pxFirstFreeBlock;
+    uint8_t *pucAlignedHeap;
+    size_t uxAddress;
+    size_t xTotalHeapSize = psram_configTOTAL_HEAP_SIZE;
 
-	/* Ensure the heap starts on a correctly aligned boundary. */
-	uxAddress = ( size_t ) psram_ucHeap;
+    /* Ensure the heap starts on a correctly aligned boundary. */
+    uxAddress = ( size_t ) psram_ucHeap;
 
-	if( ( uxAddress & psram_portBYTE_ALIGNMENT_MASK ) != 0 )
-	{
-		uxAddress += ( psram_portBYTE_ALIGNMENT - 1 );
-		uxAddress &= ~( ( size_t ) psram_portBYTE_ALIGNMENT_MASK );
-		xTotalHeapSize -= uxAddress - ( size_t ) psram_ucHeap;
-	}
+    if( ( uxAddress & psram_portBYTE_ALIGNMENT_MASK ) != 0 ) {
+        uxAddress += ( psram_portBYTE_ALIGNMENT - 1 );
+        uxAddress &= ~( ( size_t ) psram_portBYTE_ALIGNMENT_MASK );
+        xTotalHeapSize -= uxAddress - ( size_t ) psram_ucHeap;
+    }
 
-	pucAlignedHeap = ( uint8_t * ) uxAddress;
+    pucAlignedHeap = ( uint8_t * ) uxAddress;
 
-	/* psram_xStart is used to hold a pointer to the first item in the list of free
-	blocks.  The void cast is used to prevent compiler warnings. */
-	psram_xStart.pxNextFreeBlock = ( void * ) pucAlignedHeap;
-	psram_xStart.xBlockSize = ( size_t ) 0;
+    /* psram_xStart is used to hold a pointer to the first item in the list of free
+    blocks.  The void cast is used to prevent compiler warnings. */
+    psram_xStart.pxNextFreeBlock = ( void * ) pucAlignedHeap;
+    psram_xStart.xBlockSize = ( size_t ) 0;
 
-	/* psram_pxEnd is used to mark the end of the list of free blocks and is inserted
-	at the end of the heap space. */
-	uxAddress = ( ( size_t ) pucAlignedHeap ) + xTotalHeapSize;
-	uxAddress -= psram_xHeapStructSize;
-	uxAddress &= ~( ( size_t ) psram_portBYTE_ALIGNMENT_MASK );
-	psram_pxEnd = ( void * ) uxAddress;
-	psram_pxEnd->xBlockSize = 0;
-	psram_pxEnd->pxNextFreeBlock = NULL;
+    /* psram_pxEnd is used to mark the end of the list of free blocks and is inserted
+    at the end of the heap space. */
+    uxAddress = ( ( size_t ) pucAlignedHeap ) + xTotalHeapSize;
+    uxAddress -= psram_xHeapStructSize;
+    uxAddress &= ~( ( size_t ) psram_portBYTE_ALIGNMENT_MASK );
+    psram_pxEnd = ( void * ) uxAddress;
+    psram_pxEnd->xBlockSize = 0;
+    psram_pxEnd->pxNextFreeBlock = NULL;
 
-	/* To start with there is a single free block that is sized to take up the
-	entire heap space, minus the space taken by psram_pxEnd. */
-	pxFirstFreeBlock = ( void * ) pucAlignedHeap;
-	pxFirstFreeBlock->xBlockSize = uxAddress - ( size_t ) pxFirstFreeBlock;
-	pxFirstFreeBlock->pxNextFreeBlock = psram_pxEnd;
+    /* To start with there is a single free block that is sized to take up the
+    entire heap space, minus the space taken by psram_pxEnd. */
+    pxFirstFreeBlock = ( void * ) pucAlignedHeap;
+    pxFirstFreeBlock->xBlockSize = uxAddress - ( size_t ) pxFirstFreeBlock;
+    pxFirstFreeBlock->pxNextFreeBlock = psram_pxEnd;
 
-	/* Only one block exists - and it covers the entire usable heap space. */
-	psram_xMinimumEverFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
-	psram_xFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
+    /* Only one block exists - and it covers the entire usable heap space. */
+    psram_xMinimumEverFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
+    psram_xFreeBytesRemaining = pxFirstFreeBlock->xBlockSize;
 
-	/* Work out the position of the top bit in a size_t variable. */
-	psram_xBlockAllocatedBit = ( ( size_t ) 1 ) << ( ( sizeof( size_t ) * psram_heapBITS_PER_BYTE ) - 1 );
+    /* Work out the position of the top bit in a size_t variable. */
+    psram_xBlockAllocatedBit = ( ( size_t ) 1 ) << ( ( sizeof( size_t ) * psram_heapBITS_PER_BYTE ) - 1 );
 }
 /*-----------------------------------------------------------*/
 
 static void psram_prvInsertBlockIntoFreeList( psram_BlockLink_t *pxBlockToInsert )
 {
-psram_BlockLink_t *pxIterator;
-uint8_t *puc;
+    psram_BlockLink_t *pxIterator;
+    uint8_t *puc;
 
-	/* Iterate through the list until a block is found that has a higher address
-	than the block being inserted. */
-	for( pxIterator = &psram_xStart; pxIterator->pxNextFreeBlock < pxBlockToInsert; pxIterator = pxIterator->pxNextFreeBlock )
-	{
-		/* Nothing to do here, just iterate to the right position. */
-	}
+    /* Iterate through the list until a block is found that has a higher address
+    than the block being inserted. */
+    for( pxIterator = &psram_xStart; pxIterator->pxNextFreeBlock < pxBlockToInsert; pxIterator = pxIterator->pxNextFreeBlock ) {
+        /* Nothing to do here, just iterate to the right position. */
+    }
 
-	/* Do the block being inserted, and the block it is being inserted after
-	make a contiguous block of memory? */
-	puc = ( uint8_t * ) pxIterator;
-	if( ( puc + pxIterator->xBlockSize ) == ( uint8_t * ) pxBlockToInsert )
-	{
-		pxIterator->xBlockSize += pxBlockToInsert->xBlockSize;
-		pxBlockToInsert = pxIterator;
-	}
-	else
-	{
-		mtCOVERAGE_TEST_MARKER();
-	}
+    /* Do the block being inserted, and the block it is being inserted after
+    make a contiguous block of memory? */
+    puc = ( uint8_t * ) pxIterator;
+    if( ( puc + pxIterator->xBlockSize ) == ( uint8_t * ) pxBlockToInsert ) {
+        pxIterator->xBlockSize += pxBlockToInsert->xBlockSize;
+        pxBlockToInsert = pxIterator;
+    } else {
+        psramHeapCOVERAGE_TEST_MARKER();
+    }
 
-	/* Do the block being inserted, and the block it is being inserted before
-	make a contiguous block of memory? */
-	puc = ( uint8_t * ) pxBlockToInsert;
-	if( ( puc + pxBlockToInsert->xBlockSize ) == ( uint8_t * ) pxIterator->pxNextFreeBlock )
-	{
-		if( pxIterator->pxNextFreeBlock != psram_pxEnd )
-		{
-			/* Form one big block from the two blocks. */
-			pxBlockToInsert->xBlockSize += pxIterator->pxNextFreeBlock->xBlockSize;
-			pxBlockToInsert->pxNextFreeBlock = pxIterator->pxNextFreeBlock->pxNextFreeBlock;
-		}
-		else
-		{
-			pxBlockToInsert->pxNextFreeBlock = psram_pxEnd;
-		}
-	}
-	else
-	{
-		pxBlockToInsert->pxNextFreeBlock = pxIterator->pxNextFreeBlock;
-	}
+    /* Do the block being inserted, and the block it is being inserted before
+    make a contiguous block of memory? */
+    puc = ( uint8_t * ) pxBlockToInsert;
+    if( ( puc + pxBlockToInsert->xBlockSize ) == ( uint8_t * ) pxIterator->pxNextFreeBlock ) {
+        if( pxIterator->pxNextFreeBlock != psram_pxEnd ) {
+            /* Form one big block from the two blocks. */
+            pxBlockToInsert->xBlockSize += pxIterator->pxNextFreeBlock->xBlockSize;
+            pxBlockToInsert->pxNextFreeBlock = pxIterator->pxNextFreeBlock->pxNextFreeBlock;
+        } else {
+            pxBlockToInsert->pxNextFreeBlock = psram_pxEnd;
+        }
+    } else {
+        pxBlockToInsert->pxNextFreeBlock = pxIterator->pxNextFreeBlock;
+    }
 
-	/* If the block being inserted plugged a gab, so was merged with the block
-	before and the block after, then it's pxNextFreeBlock pointer will have
-	already been set, and should not be set here as that would make it point
-	to itself. */
-	if( pxIterator != pxBlockToInsert )
-	{
-		pxIterator->pxNextFreeBlock = pxBlockToInsert;
-	}
-	else
-	{
-		mtCOVERAGE_TEST_MARKER();
-	}
+    /* If the block being inserted plugged a gab, so was merged with the block
+    before and the block after, then it's pxNextFreeBlock pointer will have
+    already been set, and should not be set here as that would make it point
+    to itself. */
+    if( pxIterator != pxBlockToInsert ) {
+        pxIterator->pxNextFreeBlock = pxBlockToInsert;
+    } else {
+        psramHeapCOVERAGE_TEST_MARKER();
+    }
 }
 
 void *_psram_realloc( void *pv, size_t xWantedSize )
 {
-	psram_BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
-	void *pvReturn = NULL;
-	uint8_t *srcaddr = pv;
+    psram_BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
+    void *pvReturn = NULL;
+    uint8_t *srcaddr = pv;
 
-	psram_BlockLink_t *pxBlockold,*pxBlockjudge;
-	vTaskSuspendAll();
-	{
-		/* If this is the first call to malloc then the heap will require
-		initialisation to setup the list of free blocks. */
-		if( psram_pxEnd == NULL )
-		{
-			psram_heap_init();
-		}
-		else
-		{
-			mtCOVERAGE_TEST_MARKER();
-		}
+    psram_BlockLink_t *pxBlockold,*pxBlockjudge;
+    OS_ThreadSuspendScheduler();
+    {
+        /* If this is the first call to malloc then the heap will require
+        initialisation to setup the list of free blocks. */
+        if( psram_pxEnd == NULL ) {
+            psram_heap_init();
+        } else {
+            psramHeapCOVERAGE_TEST_MARKER();
+        }
 
-		/* Check the requested block size is not so large that the top bit is
-		set.  The top bit of the block size member of the BlockLink_t structure
-		is used to determine who owns the block - the application or the
-		kernel, so it must be free. */
-		if( ( xWantedSize & psram_xBlockAllocatedBit ) == 0 )
-		{
-			if( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) != 0x00 )
-			{
-				/* Byte alignment required. */
-				xWantedSize += ( psram_portBYTE_ALIGNMENT - ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) );
-				configASSERT( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
-			}
-			else
-			{
-				mtCOVERAGE_TEST_MARKER();
-			}
+        if(xWantedSize == 0) {
+            _psram_free(srcaddr);
+            goto out;
+        }
 
-			if( ( xWantedSize > 0 ) && ( xWantedSize <= psram_xFreeBytesRemaining ) )
-			{
-				if(srcaddr == NULL)
-				{
-					pvReturn = _psram_malloc(xWantedSize);
-					goto out;
-				}
+        /* Check the requested block size is not so large that the top bit is
+        set.  The top bit of the block size member of the BlockLink_t structure
+        is used to determine who owns the block - the application or the
+        kernel, so it must be free. */
+        if( ( xWantedSize & psram_xBlockAllocatedBit ) == 0 ) {
+            if( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) != 0x00 ) {
+                /* Byte alignment required. */
+                xWantedSize += ( psram_portBYTE_ALIGNMENT - ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) );
+                psramHeapASSERT( ( xWantedSize & psram_portBYTE_ALIGNMENT_MASK ) == 0 );
+            } else {
+                psramHeapCOVERAGE_TEST_MARKER();
+            }
+
+            if( ( xWantedSize > 0 ) && ( xWantedSize <= psram_xFreeBytesRemaining ) ) {
+                if(srcaddr == NULL) {
+                    pvReturn = _psram_malloc(xWantedSize);
+                    goto out;
+                }
                 pxBlockold = (psram_BlockLink_t *)(srcaddr -  psram_xHeapStructSize);
-				pxBlockjudge = (psram_BlockLink_t *)((uint8_t*)pxBlockold+((pxBlockold->xBlockSize)&(~psram_xBlockAllocatedBit)));
+                pxBlockjudge = (psram_BlockLink_t *)((uint8_t*)pxBlockold+((pxBlockold->xBlockSize)&(~psram_xBlockAllocatedBit)));
 
-				pxPreviousBlock = &psram_xStart;
-				pxBlock = psram_xStart.pxNextFreeBlock;
-				while(pxBlock != pxBlockjudge&& ( pxBlock->pxNextFreeBlock != NULL ))
-				{
-					pxPreviousBlock = pxBlock;
-					pxBlock = pxBlock->pxNextFreeBlock;
-				}
-				if((xWantedSize< pxBlock->xBlockSize&&(( pxBlock->xBlockSize - xWantedSize ) > psram_heapMINIMUM_BLOCK_SIZE))&&pxBlock == pxBlockjudge)
-				{
-					pxBlockold->xBlockSize += xWantedSize;
-					pxNewBlockLink = (psram_BlockLink_t *)((uint8_t*)pxBlock + xWantedSize);
-					pxNewBlockLink->xBlockSize = pxBlock->xBlockSize - xWantedSize;
+                pxPreviousBlock = &psram_xStart;
+                pxBlock = psram_xStart.pxNextFreeBlock;
+                while(pxBlock != pxBlockjudge&& ( pxBlock->pxNextFreeBlock != NULL )) {
+                    pxPreviousBlock = pxBlock;
+                    pxBlock = pxBlock->pxNextFreeBlock;
+                }
+                uint32_t oldSize = (pxBlockold->xBlockSize&(~psram_xBlockAllocatedBit)) - psram_xHeapStructSize;
+                if( (pxBlock == pxBlockjudge) &&  (xWantedSize < pxBlock->xBlockSize) && (xWantedSize >= oldSize) && (( pxBlock->xBlockSize - xWantedSize ) > psram_heapMINIMUM_BLOCK_SIZE) ) {
+                    uint32_t addSize = (xWantedSize - oldSize)&(~psram_xBlockAllocatedBit);
+                    if(addSize == 0) {
+                        pvReturn = srcaddr;
+                        goto out;
+                    }
+                    pxBlockold->xBlockSize += addSize;
+                    pxNewBlockLink = (psram_BlockLink_t *)((uint8_t*)pxBlock + addSize);
+                    pxNewBlockLink->xBlockSize = (pxBlock->xBlockSize - addSize) & (~psram_xBlockAllocatedBit);
 
-					pxPreviousBlock->pxNextFreeBlock = pxBlock->pxNextFreeBlock;
-						/* Insert the new block into the list of free blocks. */
-					psram_prvInsertBlockIntoFreeList( pxNewBlockLink );
-					pxBlock->pxNextFreeBlock = NULL;
-					pvReturn = srcaddr;
-					psram_xFreeBytesRemaining -= xWantedSize;
+                    pxPreviousBlock->pxNextFreeBlock = pxBlock->pxNextFreeBlock;
+                    /* Insert the new block into the list of free blocks. */
+                    psram_prvInsertBlockIntoFreeList( pxNewBlockLink );
+                    pxBlock->pxNextFreeBlock = NULL;
+                    pvReturn = srcaddr;
+                    psram_xFreeBytesRemaining -= addSize;
 
-					if( psram_xFreeBytesRemaining < psram_xMinimumEverFreeBytesRemaining )
-					{
-						psram_xMinimumEverFreeBytesRemaining = psram_xFreeBytesRemaining;
-					}
-				}
-				else
-				{
-				    pvReturn = _psram_malloc((((pxBlockold->xBlockSize)&(~psram_xBlockAllocatedBit))-psram_xHeapStructSize)+xWantedSize);
-					memcpy((uint8_t*)pvReturn,srcaddr,((pxBlockold->xBlockSize&(~psram_xBlockAllocatedBit))-psram_xHeapStructSize));
-					_psram_free(srcaddr);
-				}
-			}
-			else
-			{
-				mtCOVERAGE_TEST_MARKER();
-			}
-		}
-		else
-		{
-			mtCOVERAGE_TEST_MARKER();
-		}
-	}
+                    if( psram_xFreeBytesRemaining < psram_xMinimumEverFreeBytesRemaining ) {
+                        psram_xMinimumEverFreeBytesRemaining = psram_xFreeBytesRemaining;
+                    }
+                } else {
+                    pvReturn = _psram_malloc(xWantedSize);
+                    if(pvReturn == NULL)
+                        goto out;
+                    memcpy((uint8_t*)pvReturn,srcaddr, oldSize > xWantedSize ? xWantedSize : oldSize);
+                    _psram_free(srcaddr);
+                }
+            } else {
+                psramHeapCOVERAGE_TEST_MARKER();
+            }
+        } else {
+            psramHeapCOVERAGE_TEST_MARKER();
+        }
+    }
 out:
-	( void ) xTaskResumeAll();
-	configASSERT( ( ( ( size_t ) pvReturn ) & ( size_t ) psram_portBYTE_ALIGNMENT_MASK ) == 0 );
-	return pvReturn;
+    ( void ) OS_ThreadResumeScheduler();
+    psramHeapASSERT( ( ( ( size_t ) pvReturn ) & ( size_t ) psram_portBYTE_ALIGNMENT_MASK ) == 0 );
+    return pvReturn;
 }
 
 #endif /* __CONFIG_PSRAM */

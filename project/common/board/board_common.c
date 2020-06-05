@@ -64,7 +64,11 @@ void board_chip_clock_init(void)
 			volt = PRCM_LDO1_VOLT_1225MV;
 			factor = PRCM_SYS_CLK_FACTOR_240M;
 #else
-			volt = PRCM_LDO1_VOLT_1375MV;
+            if (HAL_GlobalGetChipVer() >= 0xE) {
+                volt = PRCM_LDO1_VOLT_1325MV;
+            } else {
+                volt = PRCM_LDO1_VOLT_1375MV;
+            }
 #endif
 		}
 	} else {
@@ -100,7 +104,7 @@ void board_chip_clock_init(void)
 	HAL_PRCM_SetDevClock(BOARD_DEV_CLK_FACTOR);
 	HAL_CCM_BusSetClock(BOARD_AHB2_CLK_DIV, BOARD_APB_CLK_SRC, BOARD_APB_CLK_DIV);
 #ifdef __CONFIG_PSRAM
-	HAL_PRCM_SetDev2Clock(BOARD_DEV2_CLK_FACTOR);
+	HAL_PRCM_SetDev2Clock(PRCM_DEV2_CLK_FACTOR_384M);
 	HAL_PRCM_EnableDev2Clock();
 #endif
 #if (__CONFIG_CHIP_ARCH_VER == 2)

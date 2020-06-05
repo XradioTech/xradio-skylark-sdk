@@ -200,7 +200,7 @@ shttpd_open_listening_port(int port)
 	if (listen(sock, 5) != 0)
 		goto fail;
 
-#if !defined(FREE_RTOS)
+#if !defined(SHTTPD_XR_OS)
 
 	(void) fcntl(sock, F_SETFD, FD_CLOEXEC);
 #endif
@@ -1485,7 +1485,7 @@ shttpd_socketpair(int sp[2])
 	(void) _shttpd_set_non_blocking_mode(sp[0]);
 	(void) _shttpd_set_non_blocking_mode(sp[1]);
 
-#if !defined FREE_RTOS
+#if !defined SHTTPD_XR_OS
 	(void) fcntl(sp[0], F_SETFD, FD_CLOEXEC);
 	(void) fcntl(sp[1], F_SETFD, FD_CLOEXEC);
 #endif

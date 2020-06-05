@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "kernel/os/os_time.h"
 #include "kernel/os/os_thread.h"
 #include "audio/pcm/audio_pcm.h"
 #include "audio/manager/audio_manager.h"

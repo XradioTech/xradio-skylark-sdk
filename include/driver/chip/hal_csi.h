@@ -32,6 +32,8 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#if (__CONFIG_CHIP_ARCH_VER == 1)
+
 #ifndef _DRIVER_CHIP_HAL_CSI_H_
 #define _DRIVER_CHIP_HAL_CSI_H_
 
@@ -227,4 +229,6 @@ void HAL_CSI_Moudle_Enalbe(CSI_CTRL ctrl);
 #endif
 
 #endif /* _DRIVER_CHIP_HAL_CSI_H_ */
+
+#endif
 

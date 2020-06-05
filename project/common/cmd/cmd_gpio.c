@@ -210,12 +210,33 @@ static enum cmd_status cmd_gpio_write_exec(char *cmd)
 	return CMD_STATUS_OK;
 }
 
+#if CMD_DESCRIBE
+#define gpio_config_help_info "gpio config <gpio> m=<mode> p=<pull> l=<level> [e=<event>]\n"\
+"\t\t\teg. gpio config pa6 m=1 p=1 l=1\n"\
+"\t\t\teg. gpio config pa6 m=1 p=1 l=1 e=0"
+#define gpio_deconfig_help_info "gpio deconfig <gpio> [m=<mode>]\n"\
+"\t\t\teg. gpio deconfig pa6\n"\
+"\t\t\teg. gpio deconfig pa6 m=6"
+#define gpio_read_help_info "gpio read <gpio>\n"\
+"\t\t\teg. gpio read pa6"
+#define gpio_write_help_info "gpio write <gpio> v=<value>\n"\
+"\t\t\teg. gpio write pa6 v=0"
+#endif
+
+static enum cmd_status cmd_gpio_help_exec(char *cmd);
+
 static const struct cmd_data g_gpio_cmds[] = {
-	{ "config",     cmd_gpio_config_exec },
-	{ "deconfig",   cmd_gpio_deconfig_exec },
-	{ "read",       cmd_gpio_read_exec },
-	{ "write",      cmd_gpio_write_exec },
+	{ "config",     cmd_gpio_config_exec, CMD_DESC(gpio_config_help_info) },
+	{ "deconfig",   cmd_gpio_deconfig_exec, CMD_DESC(gpio_deconfig_help_info) },
+	{ "read",       cmd_gpio_read_exec, CMD_DESC(gpio_read_help_info) },
+	{ "write",      cmd_gpio_write_exec, CMD_DESC(gpio_write_help_info) },
+	{ "help",       cmd_gpio_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_gpio_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_gpio_cmds, cmd_nitems(g_gpio_cmds), 8);
+}
 
 enum cmd_status cmd_gpio_exec(char *cmd)
 {

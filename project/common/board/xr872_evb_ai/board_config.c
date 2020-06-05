@@ -164,7 +164,7 @@ static const FlashBoardCfg g_flash_cfg[] = {
 	{
 		.type = FLASH_DRV_FLASHC,
 		.mode = FLASH_READ_DUAL_O_MODE,
-		.flashc.clk = (48 * 1000 * 1000),
+		.flashc.clk = (96 * 1000 * 1000),
 	},
 };
 
@@ -260,7 +260,7 @@ static const matrix_button g_matrix_buttons_col[] = {
 
 #define BOARD_PA_PORT           	GPIO_PORT_A
 #define BOARD_PA_PIN            	GPIO_PIN_23
-#define BOARD_PA_ON_DELAY_BEFORE	150
+#define BOARD_PA_ON_DELAY_BEFORE	5
 #define BOARD_PA_ON_DELAY_AFTER		100
 
 __xip_rodata
@@ -277,6 +277,7 @@ static const Pa_Switch_Ctl pa_switch_ctl = {
 	.pin_param_cnt = HAL_ARRAY_SIZE(g_pinmux_pa_switch),
 };
 
+#if PRJCONF_INTERNAL_SOUNDCARD_EN
 __xip_rodata const static struct snd_card_board_config xradio_internal_codec_snd_card = {
 	.card_num = SND_CARD_0,
 	.card_name = HAL_SND_CARD_NAME(XRADIO_INTERNAL_CODEC_NAME, SND_CARD_SUFFIX),
@@ -290,8 +291,9 @@ __xip_rodata const static struct snd_card_board_config xradio_internal_codec_snd
 	.codec_pll_freq_in = 0,	//xradio_internal_codec not use
 	.i2s_fmt = 0,			//xradio_internal_codec not use
 };
+#endif
 
-/*
+#if PRJCONF_AC107_SOUNDCARD_EN
 __xip_rodata const static struct snd_card_board_config ac107_codec_snd_card = {
 	.card_num = SND_CARD_1,
 	.card_name = HAL_SND_CARD_NAME(AC107_CODEC_NAME, SND_CARD_SUFFIX),
@@ -305,10 +307,56 @@ __xip_rodata const static struct snd_card_board_config ac107_codec_snd_card = {
 	.codec_pll_freq_in = 0,
 	.i2s_fmt = DAIFMT_CBS_CFS | DAIFMT_I2S | DAIFMT_NB_NF,
 };
-*/
+#endif
+
+#if PRJCONF_AC101_SOUNDCARD_EN
+__xip_rodata const static struct snd_card_board_config ac101_codec_snd_card = {
+	.card_num = SND_CARD_2,
+	.card_name = HAL_SND_CARD_NAME(AC101_CODEC_NAME, SND_CARD_SUFFIX),
+	.codec_link = XRADIO_CODEC_AC101,
+	.platform_link = XRADIO_PLATFORM_I2S,
+
+	.pa_switch_ctl = &pa_switch_ctl,
+
+	.codec_sysclk_src = SYSCLK_SRC_MCLK,
+	.codec_pllclk_src = 0,
+	.codec_pll_freq_in = 0,
+	.i2s_fmt = DAIFMT_CBS_CFS | DAIFMT_I2S | DAIFMT_NB_NF,
+};
+#endif
+
+#if PRJCONF_I2S_NULL_SOUNDCARD_EN
+__xip_rodata const static struct snd_card_board_config xradio_i2s_null_snd_card = {
+	.card_num = SND_CARD_3,
+	.card_name = HAL_SND_CARD_NAME(XRADIO_CODEC_NULL_NAME, SND_CARD_SUFFIX),
+	.codec_link = XRADIO_CODEC_NULL,
+	.platform_link = XRADIO_PLATFORM_I2S,
+
+	.pa_switch_ctl = NULL,
+
+	.codec_sysclk_src = 0,
+	.codec_pllclk_src = 0,
+	.codec_pll_freq_in = 0,
+	.i2s_fmt = DAIFMT_CBS_CFS | DAIFMT_I2S | DAIFMT_NB_NF,
+};
+#endif
+
 const static struct snd_card_board_config *snd_cards_board_cfg[] = {
+#if PRJCONF_INTERNAL_SOUNDCARD_EN
 	&xradio_internal_codec_snd_card,
-	//&ac107_codec_snd_card,
+#endif
+
+#if PRJCONF_AC107_SOUNDCARD_EN
+	&ac107_codec_snd_card,
+#endif
+
+#if PRJCONF_AC101_SOUNDCARD_EN
+	&ac101_codec_snd_card,
+#endif
+
+#if PRJCONF_I2S_NULL_SOUNDCARD_EN
+	&xradio_i2s_null_snd_card,
+#endif
 };
 
 struct board_pinmux_info {

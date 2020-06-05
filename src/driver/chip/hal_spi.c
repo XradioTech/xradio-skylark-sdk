@@ -802,11 +802,13 @@ out:
   * @brief Open a SPI device before using this spi device.
   * @note Other SPI devices will block when open a spi device, please make sure
   *       this device will be close eventually.
+  *       HAL_SPI_Open use in spi master mode,
+  *       HAL_SPI_Slave_Open use in spi slave mode.
   * @param port: spi port
   * @param cs: spi cs pin. SPI_TCTRL_SS_SEL_SS0~3 are pin cs0~cs3.
   * @param config:
-  *        @arg config->mode: spi in master mode or slave mode. slave is not
-  *             supported for now.
+  *        @arg config->mode: spi in master mode or slave mode,but HAL_SPI_Open
+  *                           api only suport mater mode.
   *        @arg config->opMode: use dma to move data or CPU to move data.
   *        @arg config->firstBit: data on line is MSB or LSB.
   *        @arg config->sclk: spi device working frequency.
@@ -945,6 +947,8 @@ out:
 
 /**
   * @brief Close a SPI device to release SPI port.
+  * @note  HAL_SPI_Close use in spi master mode,
+  *        HAL_SPI_Slave_Close use in spi slave mode.
   * @param port: spi port
   * @retval HAL_Status: The status of driver
   */
@@ -1049,6 +1053,8 @@ out:
 
 /**
   * @brief Receive data from SPI device.
+  * @note  HAL_SPI_Receive use in spi master mode,
+  *        HAL_SPI_Slave_StartReceive_DMA use in spi slave mode.
   * @param port: spi port
   * @param data: the buf to store received data, created by user.
   * @param size: the data size needed to receive.
@@ -1143,6 +1149,8 @@ out:
 
 /**
   * @brief Transmit data to SPI device.
+  * @note  HAL_SPI_Transmit use in spi master mode,
+  *        HAL_SPI_Slave_StartTransmit_DMA use in spi slave mode.
   * @param port: spi port
   * @param data: the data transmitted to SPI device.
   * @param size: the data size needed to transmit.

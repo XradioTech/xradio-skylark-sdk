@@ -213,9 +213,6 @@ HAL_Status HAL_EFUSE_Read(uint32_t start_bit, uint32_t bit_num, uint8_t *data)
 
 static void EFUSE_WriteData(uint8_t index, uint32_t data)
 {
-    uint32_t tmp;
-    tmp = HAL_PRCM_GetTOPLDOVoltage();
-    HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_2V4);
 	EFUSE_EnableClkGate();
 	EFUSE_SetIndex(index << 2);
 	EFUSE_SetProgValue(data);
@@ -226,7 +223,6 @@ static void EFUSE_WriteData(uint8_t index, uint32_t data)
 
 	EFUSE_ClrCtrlReg();
 	EFUSE_DisableClkGate();
-    HAL_PRCM_SetTOPLDOVoltage(tmp);
 }
 
 /**
@@ -282,6 +278,12 @@ HAL_Status HAL_EFUSE_Write(uint32_t start_bit, uint32_t bit_num, uint8_t *data)
 		efuse_word[1] &= (1U << bit_cnt) - 1;
 	efuse_word[1] = efuse_word[1] << bit_shift;
 
+	uint32_t tmp;
+	tmp = HAL_PRCM_GetTOPLDOVoltage();
+	HAL_ThreadSuspendScheduler();
+	HAL_PRCM_SetTOPLDOVoltage(PRCM_TOPLDO_VOLT_2V4);
+	HAL_UDelay(200);
+
 	EFUSE_WriteData((uint8_t)word_idx, efuse_word[1]);
 
 	word_idx++;
@@ -299,7 +301,8 @@ HAL_Status HAL_EFUSE_Write(uint32_t start_bit, uint32_t bit_num, uint8_t *data)
 		p_data += 4;
 		bit_cnt -= (bit_cnt <= 32) ? bit_cnt : 32;
 	}
-
+	HAL_PRCM_SetTOPLDOVoltage(tmp);
+	HAL_ThreadResumeScheduler();
 	flags = HAL_EnterCriticalSection();
 	gEfuseState = EFUSE_STATE_READY;
 	HAL_ExitCriticalSection(flags);

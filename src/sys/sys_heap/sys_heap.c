@@ -78,15 +78,15 @@
 
 #include <stdlib.h>
 #include <string.h>
-/* Defining MPU_WRAPPERS_INCLUDED_FROM_API_FILE prevents task.h from redefining
-all the API functions to use the MPU wrappers.  That should only be done when
-task.h is included from an application file. */
-#define MPU_WRAPPERS_INCLUDED_FROM_API_FILE
 
-#include "FreeRTOS.h"
-#include "task.h"
+#include "kernel/os/os_thread.h"
 #include "sys/sys_heap.h"
-#undef MPU_WRAPPERS_INCLUDED_FROM_API_FILE
+#include "sys/xr_debug.h"
+
+#define sysHeapTraceMALLOC( pvAddress, uiSize )
+#define sysHeapTraceFREE( pvAddress, uiSize )
+#define sysHeapCOVERAGE_TEST_MARKER()
+#define sysHeapASSERT(condition)
 
 /*-----------------------------------------------------------*/
 
@@ -107,14 +107,17 @@ void *sys_heap_malloc( sys_heap_t *sysHeap, size_t size )
     BlockLink_t *pxBlock, *pxPreviousBlock, *pxNewBlockLink;
     void *pvReturn = NULL;
 
-    vTaskSuspendAll();
+    OS_ThreadSuspendScheduler();
     {
+        if(sysHeap == NULL) {
+            goto out;
+        }
         /* If this is the first call to malloc then the heap will require
         initialisation to setup the list of free blocks. */
         if( sysHeap->pxEnd == NULL ) {
             goto out;
         } else {
-            mtCOVERAGE_TEST_MARKER();
+            sysHeapCOVERAGE_TEST_MARKER();
         }
 
         /* Check the requested block size is not so large that the top bit is
@@ -132,12 +135,12 @@ void *sys_heap_malloc( sys_heap_t *sysHeap, size_t size )
                 if( ( size & sysHeap->portByte_Alignment_Mask ) != 0x00 ) {
                     /* Byte alignment required. */
                     size += ( sysHeap->portByte_Alignment - ( size & sysHeap->portByte_Alignment_Mask ) );
-                    configASSERT( ( size & sysHeap->portByte_Alignment_Mask ) == 0 );
+                    sysHeapASSERT( ( size & sysHeap->portByte_Alignment_Mask ) == 0 );
                 } else {
-                    mtCOVERAGE_TEST_MARKER();
+                    sysHeapCOVERAGE_TEST_MARKER();
                 }
             } else {
-                mtCOVERAGE_TEST_MARKER();
+                sysHeapCOVERAGE_TEST_MARKER();
             }
 
             if( ( size > 0 ) && ( size <= sysHeap->xFreeBytesRemaining ) ) {
@@ -169,7 +172,7 @@ void *sys_heap_malloc( sys_heap_t *sysHeap, size_t size )
                         cast is used to prevent byte alignment warnings from the
                         compiler. */
                         pxNewBlockLink = ( void * ) ( ( ( uint8_t * ) pxBlock ) + size );
-                        configASSERT( ( ( ( size_t ) pxNewBlockLink ) & sysHeap->portByte_Alignment_Mask ) == 0 );
+                        sysHeapASSERT( ( ( ( size_t ) pxNewBlockLink ) & sysHeap->portByte_Alignment_Mask ) == 0 );
 
                         /* Calculate the sizes of two blocks split from the
                         single block. */
@@ -179,7 +182,7 @@ void *sys_heap_malloc( sys_heap_t *sysHeap, size_t size )
                         /* Insert the new block into the list of free blocks. */
                         sys_heap_prvInsertBlockIntoFreeList( sysHeap, pxNewBlockLink );
                     } else {
-                        mtCOVERAGE_TEST_MARKER();
+                        sysHeapCOVERAGE_TEST_MARKER();
                     }
 
                     sysHeap->xFreeBytesRemaining -= pxBlock->xBlockSize;
@@ -187,7 +190,7 @@ void *sys_heap_malloc( sys_heap_t *sysHeap, size_t size )
                     if( sysHeap->xFreeBytesRemaining < sysHeap->xMinimumEverFreeBytesRemaining ) {
                         sysHeap->xMinimumEverFreeBytesRemaining = sysHeap->xFreeBytesRemaining;
                     } else {
-                        mtCOVERAGE_TEST_MARKER();
+                        sysHeapCOVERAGE_TEST_MARKER();
                     }
 
                     /* The block is being returned - it is allocated and owned
@@ -195,20 +198,20 @@ void *sys_heap_malloc( sys_heap_t *sysHeap, size_t size )
                     pxBlock->xBlockSize |= sysHeap->xBlockAllocatedBit;
                     pxBlock->pxNextFreeBlock = NULL;
                 } else {
-                    mtCOVERAGE_TEST_MARKER();
+                    sysHeapCOVERAGE_TEST_MARKER();
                 }
             } else {
-                mtCOVERAGE_TEST_MARKER();
+                sysHeapCOVERAGE_TEST_MARKER();
             }
         } else {
-            mtCOVERAGE_TEST_MARKER();
+            sysHeapCOVERAGE_TEST_MARKER();
         }
 
-        traceMALLOC( pvReturn, size );
+        sysHeapTraceMALLOC( pvReturn, size );
     }
 
 out:
-    ( void ) xTaskResumeAll();
+    ( void ) OS_ThreadResumeScheduler();
 
 #if( configUSE_MALLOC_FAILED_HOOK == 1 )
     {
@@ -216,12 +219,12 @@ out:
             extern void vApplicationMallocFailedHook( void );
             vApplicationMallocFailedHook();
         } else {
-            mtCOVERAGE_TEST_MARKER();
+            sysHeapCOVERAGE_TEST_MARKER();
         }
     }
 #endif
 
-    configASSERT( ( ( ( uint32_t ) pvReturn ) & sysHeap->portByte_Alignment_Mask ) == 0 );
+    sysHeapASSERT( ( ( ( uint32_t ) pvReturn ) & sysHeap->portByte_Alignment_Mask ) == 0 );
     return pvReturn;
 }
 /*-----------------------------------------------------------*/
@@ -231,7 +234,7 @@ void sys_heap_free( sys_heap_t *sysHeap, void *ptr )
     uint8_t *puc = ( uint8_t * ) ptr;
     BlockLink_t *pxLink;
 
-    if( ptr != NULL ) {
+    if( (ptr != NULL) && (sysHeap != NULL) ) {
         /* The memory being freed will have an BlockLink_t structure immediately
         before it. */
         puc -= sysHeap->xHeapStructSize;
@@ -240,8 +243,8 @@ void sys_heap_free( sys_heap_t *sysHeap, void *ptr )
         pxLink = ( void * ) puc;
 
         /* Check the block is actually allocated. */
-        configASSERT( ( pxLink->xBlockSize & sysHeap->xBlockAllocatedBit ) != 0 );
-        configASSERT( pxLink->pxNextFreeBlock == NULL );
+        sysHeapASSERT( ( pxLink->xBlockSize & sysHeap->xBlockAllocatedBit ) != 0 );
+        sysHeapASSERT( pxLink->pxNextFreeBlock == NULL );
 
         if( ( pxLink->xBlockSize & sysHeap->xBlockAllocatedBit ) != 0 ) {
             if( pxLink->pxNextFreeBlock == NULL ) {
@@ -249,19 +252,19 @@ void sys_heap_free( sys_heap_t *sysHeap, void *ptr )
                 allocated. */
                 pxLink->xBlockSize &= ~(sysHeap->xBlockAllocatedBit);
 
-                vTaskSuspendAll();
+                OS_ThreadSuspendScheduler();
                 {
                     /* Add this block to the list of free blocks. */
                     sysHeap->xFreeBytesRemaining += pxLink->xBlockSize;
-                    traceFREE( ptr, pxLink->xBlockSize );
+                    sysHeapTraceFREE( ptr, pxLink->xBlockSize );
                     sys_heap_prvInsertBlockIntoFreeList( sysHeap, ( ( BlockLink_t * ) pxLink ) );
                 }
-                ( void ) xTaskResumeAll();
+                ( void ) OS_ThreadResumeScheduler();
             } else {
-                mtCOVERAGE_TEST_MARKER();
+                sysHeapCOVERAGE_TEST_MARKER();
             }
         } else {
-            mtCOVERAGE_TEST_MARKER();
+            sysHeapCOVERAGE_TEST_MARKER();
         }
     }
 }
@@ -353,7 +356,7 @@ static void sys_heap_prvInsertBlockIntoFreeList( sys_heap_t *sysHeap, BlockLink_
         pxIterator->xBlockSize += pxBlockToInsert->xBlockSize;
         pxBlockToInsert = pxIterator;
     } else {
-        mtCOVERAGE_TEST_MARKER();
+        sysHeapCOVERAGE_TEST_MARKER();
     }
 
     /* Do the block being inserted, and the block it is being inserted before
@@ -378,7 +381,7 @@ static void sys_heap_prvInsertBlockIntoFreeList( sys_heap_t *sysHeap, BlockLink_
     if( pxIterator != pxBlockToInsert ) {
         pxIterator->pxNextFreeBlock = pxBlockToInsert;
     } else {
-        mtCOVERAGE_TEST_MARKER();
+        sysHeapCOVERAGE_TEST_MARKER();
     }
 }
 
@@ -389,14 +392,22 @@ void *sys_heap_realloc( sys_heap_t *sysHeap, uint8_t *ptr, size_t size )
     void *pvReturn = NULL;
 
     BlockLink_t *pxBlockold,*pxBlockjudge;
-    vTaskSuspendAll();
+    OS_ThreadSuspendScheduler();
     {
+        if(sysHeap == NULL) {
+            goto out;
+        }
         /* If this is the first call to malloc then the heap will require
         initialisation to setup the list of free blocks. */
         if( sysHeap->pxEnd == NULL ) {
             goto out;
         } else {
-            mtCOVERAGE_TEST_MARKER();
+            sysHeapCOVERAGE_TEST_MARKER();
+        }
+
+        if(size == 0) {
+            sys_heap_free(sysHeap, ptr);
+            goto out;
         }
 
         /* Check the requested block size is not so large that the top bit is
@@ -407,9 +418,9 @@ void *sys_heap_realloc( sys_heap_t *sysHeap, uint8_t *ptr, size_t size )
             if( ( size & sysHeap->portByte_Alignment_Mask ) != 0x00 ) {
                 /* Byte alignment required. */
                 size += ( sysHeap->portByte_Alignment - ( size & sysHeap->portByte_Alignment_Mask ) );
-                configASSERT( ( size & sysHeap->portByte_Alignment_Mask ) == 0 );
+                sysHeapASSERT( ( size & sysHeap->portByte_Alignment_Mask ) == 0 );
             } else {
-                mtCOVERAGE_TEST_MARKER();
+                sysHeapCOVERAGE_TEST_MARKER();
             }
 
             if( ( size > 0 ) && ( size <= sysHeap->xFreeBytesRemaining ) ) {
@@ -426,36 +437,44 @@ void *sys_heap_realloc( sys_heap_t *sysHeap, uint8_t *ptr, size_t size )
                     pxPreviousBlock = pxBlock;
                     pxBlock = pxBlock->pxNextFreeBlock;
                 }
-                if((size< pxBlock->xBlockSize&&(( pxBlock->xBlockSize - size ) > (sysHeap->heapMinmun_Block_Size))) && pxBlock == pxBlockjudge) {
-                    pxBlockold->xBlockSize += size;
-                    pxNewBlockLink = (BlockLink_t *)((uint8_t*)pxBlock + size);
-                    pxNewBlockLink->xBlockSize = pxBlock->xBlockSize - size;
+                uint32_t oldSize = ((pxBlockold->xBlockSize&(~(sysHeap->xBlockAllocatedBit))) - sysHeap->xHeapStructSize);
+                if( (pxBlock == pxBlockjudge) && (size< pxBlock->xBlockSize) && (size >= oldSize) && (( pxBlock->xBlockSize - size ) > (sysHeap->heapMinmun_Block_Size))) {
+                    uint32_t addSize = (size - oldSize) & (~(sysHeap->xBlockAllocatedBit));
+                    if(addSize == 0) {
+                        pvReturn = ptr;
+                        goto out;
+                    }
+                    pxBlockold->xBlockSize += addSize;
+                    pxNewBlockLink = (BlockLink_t *)((uint8_t*)pxBlock + addSize);
+                    pxNewBlockLink->xBlockSize = (pxBlock->xBlockSize - addSize) & (~(sysHeap->xBlockAllocatedBit));
 
                     pxPreviousBlock->pxNextFreeBlock = pxBlock->pxNextFreeBlock;
                     /* Insert the new block into the list of free blocks. */
                     sys_heap_prvInsertBlockIntoFreeList(sysHeap, pxNewBlockLink );
                     pxBlock->pxNextFreeBlock = NULL;
                     pvReturn = ptr;
-                    sysHeap->xFreeBytesRemaining -= size;
+                    sysHeap->xFreeBytesRemaining -= addSize;
 
                     if( sysHeap->xFreeBytesRemaining < sysHeap->xMinimumEverFreeBytesRemaining ) {
                         sysHeap->xMinimumEverFreeBytesRemaining = sysHeap->xFreeBytesRemaining;
                     }
                 } else {
-                    pvReturn = sys_heap_malloc(sysHeap, (((pxBlockold->xBlockSize)&(~(sysHeap->xBlockAllocatedBit)))-(sysHeap->xHeapStructSize))+size);
-                    memcpy((uint8_t*)pvReturn,ptr,((pxBlockold->xBlockSize&(~(sysHeap->xBlockAllocatedBit)))-sysHeap->xHeapStructSize));
+                    pvReturn = sys_heap_malloc(sysHeap, size);
+                    if(pvReturn == 0)
+                        goto out;
+                    memcpy((uint8_t*)pvReturn, ptr, oldSize > size ? size : oldSize);
                     sys_heap_free(sysHeap, ptr);
                 }
             } else {
-                mtCOVERAGE_TEST_MARKER();
+                sysHeapCOVERAGE_TEST_MARKER();
             }
         } else {
-            mtCOVERAGE_TEST_MARKER();
+            sysHeapCOVERAGE_TEST_MARKER();
         }
     }
 out:
-    ( void ) xTaskResumeAll();
-    configASSERT( ( ( ( size_t ) pvReturn ) & (( size_t ) (sysHeap->portByte_Alignment_Mask)) ) == 0 );
+    ( void ) OS_ThreadResumeScheduler();
+    sysHeapASSERT( ( ( ( size_t ) pvReturn ) & (( size_t ) (sysHeap->portByte_Alignment_Mask)) ) == 0 );
     return pvReturn;
 }
 

@@ -92,7 +92,7 @@ static enum cmd_status cmd_auddbg_pa_exec(char *cmd)
 		return CMD_STATUS_INVALID_ARG;
 	}
 
-	audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_MUTE, AUDIO_OUT_DEV_SPK, AUDIO_UNMUTE);
+	audio_manager_handler(AUDIO_SND_CARD_DEFAULT, AUDIO_MANAGER_SET_MUTE, AUDIO_OUT_DEV_SPK, on ? AUDIO_UNMUTE : AUDIO_MUTE);
 
 	return CMD_STATUS_OK;
 }
@@ -149,15 +149,22 @@ static enum cmd_status cmd_auddbg_codec_dac_exec(char *cmd)
  *          audbg write 0x51 0x20
  *          audbg codec-dac
  */
+static enum cmd_status cmd_auddbg_help_exec(char *cmd);
 
 static const struct cmd_data g_auddbg_cmds[] = {
-	{ "i2s",		cmd_auddbg_i2s_reg_exec },
-	{ "codec",		cmd_auddbg_codec_reg_exec },
-	{ "pa",     	cmd_auddbg_pa_exec },
-	{ "read",    	cmd_auddbg_codec_read_exec },
-	{ "write",    	cmd_auddbg_codec_write_exec },
-	{ "codec-dac",	cmd_auddbg_codec_dac_exec },
+	{ "i2s",		cmd_auddbg_i2s_reg_exec, CMD_DESC("print the i2s register") },
+	{ "codec",		cmd_auddbg_codec_reg_exec, CMD_DESC("print the codec register") },
+	{ "pa",     	cmd_auddbg_pa_exec, CMD_DESC("open/close pa, auddbg pa {0|1}") },
+	{ "read",    	cmd_auddbg_codec_read_exec, CMD_DESC("read register, auddbg read <addr>") },
+	{ "write",    	cmd_auddbg_codec_write_exec, CMD_DESC("write register, auddbg write <addr> <value>") },
+	{ "codec-dac",	cmd_auddbg_codec_dac_exec, CMD_DESC("codec ADC part debug") },
+	{ "help",	    cmd_auddbg_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_auddbg_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_auddbg_cmds, cmd_nitems(g_auddbg_cmds), 8);
+}
 
 enum cmd_status cmd_auddbg_exec(char *cmd)
 {

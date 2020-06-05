@@ -43,37 +43,72 @@
 #include "audio/reverb/resample.h"
 #endif
 
+#define SUPPORT_EQ
+#ifdef SUPPORT_EQ
+#include "kernel/os/os_mutex.h"
+#include "audio/eq/eq.h"
+#endif
+
 #define AUDIO_PERIOD_SIZE           1024
 #define AUDIO_PERIOD_COUNT          2
 
+#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
+/* 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000 */
+#define SAMPLE_RATE_MAX_NUM         9
 struct CardPcmConfig {
     unsigned int  channels;
     unsigned int  rate;
+    unsigned int  valid;
 };
+#endif
 
 typedef struct CardContext {
     SoundStreamT base;
     struct pcm_config input_config;
 #ifdef SUPPORT_FIXED_OUTPUT_CONFIG
-    struct CardPcmConfig output_cfg;
+    struct CardPcmConfig support_cfg[SAMPLE_RATE_MAX_NUM + 1];
     struct pcm_config *output_config;
     resample_info res_info;
     unsigned int rate;
     unsigned int channel;
+#endif
+#ifdef SUPPORT_EQ
+    eq_prms_t prms_config;
+    unsigned int radio;
+    void* equalizer;
+    OS_Mutex_t eq_lock;
 #endif
 } CardContext;
 
 static int card_pcm_open(SoundStreamT *stream)
 {
     CardContext *context = (CardContext *)stream;
+#ifdef SUPPORT_EQ
+    if (context->equalizer) {
+        uint32_t chan, sampleRate;
+        chan = context->input_config.channels;
+        sampleRate = context->input_config.rate;
+#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
+        if (context->output_config) {
+            chan = context->output_config->channels;
+            sampleRate = context->output_config->rate;
+        }
+#endif
+        if (context->prms_config.chan != chan ||
+                context->prms_config.sampling_rate != sampleRate) {
+            context->prms_config.chan = chan;
+            context->prms_config.sampling_rate = sampleRate;
+            context->radio = (context->prms_config.chan > 1) ? 4 : 2;
+            eq_destroy(context->equalizer);
+            context->equalizer = eq_create(&context->prms_config);
+            if (context->equalizer == NULL) {
+                printf("eq create fail.\n");
+            }
+        }
+    }
+#endif
 #ifdef SUPPORT_FIXED_OUTPUT_CONFIG
     if (context->output_config) {
-        if (context->output_cfg.channels == 0) {
-            context->output_config->channels = context->input_config.channels;
-        }
-        if (context->output_cfg.rate == 0) {
-            context->output_config->rate = context->input_config.rate;
-        }
         return snd_pcm_open(AUDIO_SND_CARD_DEFAULT, PCM_OUT, context->output_config);
     }
 #endif
@@ -87,18 +122,6 @@ static int card_pcm_close(SoundStreamT *stream)
 
 static int card_pcm_flush(SoundStreamT *stream)
 {
-    CardContext *context = (CardContext *)stream;
-#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
-    if (context->output_config) {
-        if (context->output_cfg.channels == 0) {
-            context->output_config->channels = context->input_config.channels;
-        }
-        if (context->output_cfg.rate == 0) {
-            context->output_config->rate = context->input_config.rate;
-        }
-        return snd_pcm_flush(AUDIO_SND_CARD_DEFAULT);
-    }
-#endif
     return snd_pcm_flush(AUDIO_SND_CARD_DEFAULT);
 }
 
@@ -110,14 +133,16 @@ static int card_pcm_write(SoundStreamT *stream, struct SscPcmConfig *config, voi
 #endif
     void *outData = data;
     unsigned int dataLen = count;
+#if (defined(SUPPORT_FIXED_OUTPUT_CONFIG) || defined(SUPPORT_EQ))
     CardContext *context = (CardContext *)stream;
+#endif
+
 #ifdef SUPPORT_FIXED_OUTPUT_CONFIG
     res_info = &context->res_info;
     if (context->output_config) {
         /* convert channel */
-        if ((context->output_cfg.channels == 0) || (context->output_cfg.channels == context->input_config.channels)) {
-            context->output_config->channels = context->input_config.channels;
-        } else { /* request output channel is not equal to channel of this audio */
+        if (context->output_config->channels != context->input_config.channels) {
+            /* request output channel is not equal to channel of this audio */
             /* infact, we only support convert 2 channels to 1 channels */
             char *src_data[2];
             src_data[0] = (char *)outData;
@@ -127,9 +152,7 @@ static int card_pcm_write(SoundStreamT *stream, struct SscPcmConfig *config, voi
         }
 
         /* convert sample rate */
-        if ((context->output_cfg.rate == 0) || (context->output_cfg.rate == context->input_config.rate)) {
-            context->output_config->rate = context->input_config.rate;
-        } else {
+        if (context->output_config->rate != context->input_config.rate) {
             unsigned int out_channel;
             unsigned int in_rate;
 
@@ -150,6 +173,13 @@ static int card_pcm_write(SoundStreamT *stream, struct SscPcmConfig *config, voi
             dataLen = res_info->out_frame_indeed * (res_info->BitsPerSample / 8) * res_info->NumChannels;
         }
 
+#ifdef SUPPORT_EQ
+        if (context->equalizer) {
+            OS_MutexLock(&context->eq_lock, OS_WAIT_FOREVER);
+            eq_process(context->equalizer, (short*)outData, dataLen/context->radio);
+            OS_MutexUnlock(&context->eq_lock);
+        }
+#endif
         snd_pcm_write(AUDIO_SND_CARD_DEFAULT, outData, dataLen);
 
         if (has_resample) {
@@ -158,28 +188,44 @@ static int card_pcm_write(SoundStreamT *stream, struct SscPcmConfig *config, voi
         return count;
     }
 #endif
+#ifdef SUPPORT_EQ
+    if (context->equalizer) {
+        OS_MutexLock(&context->eq_lock, OS_WAIT_FOREVER);
+        eq_process(context->equalizer, (short*)outData, dataLen/context->radio);
+        OS_MutexUnlock(&context->eq_lock);
+    }
+#endif
     return snd_pcm_write(AUDIO_SND_CARD_DEFAULT, outData, dataLen);
 }
 
 static int card_pcm_read(SoundStreamT *stream, void *data, unsigned int count)
 {
-    CardContext *context = (CardContext *)stream;
-#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
-    if (context->output_config) {
-        if (context->output_cfg.channels == 0) {
-            context->output_config->channels = context->input_config.channels;
-        }
-        if (context->output_cfg.rate == 0) {
-            context->output_config->rate = context->input_config.rate;
-        }
-        return snd_pcm_read(AUDIO_SND_CARD_DEFAULT, data, count);
-    }
-#endif
     return snd_pcm_read(AUDIO_SND_CARD_DEFAULT, data, count);
 }
 
+#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
+static int check_config_param(CardContext *context, struct SscPcmConfig *config)
+{
+    int i;
+
+    if (config->channels > 1) {
+        return -1;
+    }
+    for (i = 0; i < SAMPLE_RATE_MAX_NUM + 1; i++) {
+        if (context->support_cfg[i].rate == config->rate) {
+            return 0;
+        }
+    }
+    return -1;
+}
+#endif
+
 static int card_pcm_ioctl(SoundStreamT *stream, SoundStreamCmd cmd, void *param)
 {
+#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
+    int i;
+    int select_num = 0;
+#endif
     struct SscPcmConfig *config;
     CardContext *context = (CardContext *)stream;
 
@@ -191,12 +237,36 @@ static int card_pcm_ioctl(SoundStreamT *stream, SoundStreamCmd cmd, void *param)
         context->input_config.format       = PCM_FORMAT_S16_LE;
         context->input_config.period_count = AUDIO_PERIOD_COUNT;
         context->input_config.period_size  = AUDIO_PERIOD_SIZE;
+#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
+        if (context->output_config) {
+            for (i = 0; i < SAMPLE_RATE_MAX_NUM + 1; i++) {
+                if (context->support_cfg[i].valid) {
+                    if (context->support_cfg[i].rate >= config->rate) {
+                        select_num = i;
+                        break;
+                    }
+                    select_num = i;
+                }
+            }
+            if (context->support_cfg[select_num].channels == 0) {
+                context->output_config->channels = config->channels;
+            } else {
+                context->output_config->channels = context->support_cfg[select_num].channels;
+            }
+            if (context->support_cfg[select_num].rate == 0) {
+                context->output_config->rate = config->rate;
+            } else {
+                context->output_config->rate = context->support_cfg[select_num].rate;
+            }
+        }
+#endif
         break;
 #ifdef SUPPORT_FIXED_OUTPUT_CONFIG
     case STREAM_CMD_SET_OUTPUT_CONFIG:
+    case STREAM_CMD_ADD_OUTPUT_CONFIG:
         config = (struct SscPcmConfig *)param;
-        if (config->channels > 1) {
-            printf("invalid output config. channel:%u\n", config->channels);
+        if (check_config_param(context, config) == -1) {
+            printf("invalid output config. channel:%u, rate:%u\n", config->channels, config->rate);
             break;
         }
 
@@ -206,8 +276,14 @@ static int card_pcm_ioctl(SoundStreamT *stream, SoundStreamCmd cmd, void *param)
                 break;
             }
         }
-        context->output_cfg.channels = config->channels;
-        context->output_cfg.rate     = config->rate;
+        for (i = 0; i < SAMPLE_RATE_MAX_NUM + 1; i++) {
+            if (context->support_cfg[i].rate == config->rate) {
+                context->support_cfg[i].channels = config->channels;
+                context->support_cfg[i].valid = 1;
+                break;
+            }
+        }
+
         context->output_config->channels     = config->channels;
         context->output_config->rate         = config->rate;
         context->output_config->format       = PCM_FORMAT_S16_LE;
@@ -217,6 +293,48 @@ static int card_pcm_ioctl(SoundStreamT *stream, SoundStreamCmd cmd, void *param)
     case STREAM_CMD_CLEAR_OUTPUT_CONFIG:
         free(context->output_config);
         context->output_config = NULL;
+        for (i = 0; i < SAMPLE_RATE_MAX_NUM + 1; i++) {
+            context->support_cfg[i].valid = 0;
+        }
+        break;
+#endif
+#ifdef SUPPORT_EQ
+    case STREAM_CMD_SET_EQ_MODE:
+        if (context->equalizer)
+            return 0;
+
+        OS_MutexCreate(&context->eq_lock);
+        eq_prms_t *prms_config = (eq_prms_t*)param;
+        context->prms_config.chan = context->input_config.channels;
+        context->prms_config.sampling_rate = context->input_config.rate;
+#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
+        if (context->output_config) {
+            context->prms_config.chan = context->output_config->channels;
+            context->prms_config.sampling_rate = context->output_config->rate;
+        }
+#endif
+        if (context->prms_config.chan <= 0)
+            context->prms_config.chan = 1;
+
+        context->radio = (context->prms_config.chan > 1) ? 4 : 2;
+        if (prms_config && prms_config->core_prms) {
+            context->prms_config.biq_num = prms_config->biq_num;
+            context->prms_config.core_prms = prms_config->core_prms;
+        }
+        context->equalizer = eq_create(&context->prms_config);
+        if (context->equalizer == NULL) {
+            OS_MutexDelete(&context->eq_lock);
+            return -1;
+        }
+        break;
+    case STREAM_CMD_CLEAR_EQ_MODE:
+        if (context->equalizer) {
+            OS_MutexLock(&context->eq_lock, OS_WAIT_FOREVER);
+            eq_destroy(context->equalizer);
+            context->equalizer = NULL;
+            OS_MutexUnlock(&context->eq_lock);
+            OS_MutexDelete(&context->eq_lock);
+        }
         break;
 #endif
     default:
@@ -244,6 +362,20 @@ static SoundStreamT * card_pcm_create(void)
         return NULL;
     }
     memset(context, 0, sizeof(CardContext));
+
+#ifdef SUPPORT_FIXED_OUTPUT_CONFIG
+    /* from minimum value to maximum value */
+    context->support_cfg[0].rate = 8000;
+    context->support_cfg[1].rate = 11025;
+    context->support_cfg[2].rate = 12000;
+    context->support_cfg[3].rate = 16000;
+    context->support_cfg[4].rate = 22050;
+    context->support_cfg[5].rate = 24000;
+    context->support_cfg[6].rate = 32000;
+    context->support_cfg[7].rate = 44100;
+    context->support_cfg[8].rate = 48000;
+    context->support_cfg[9].rate = 0;  /* zero mean using original rate of the media */
+#endif
 
     context->base.ops = &cardStreamOps;
     return &context->base;

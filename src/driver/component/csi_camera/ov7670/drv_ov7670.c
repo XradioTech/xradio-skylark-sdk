@@ -32,6 +32,8 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#if (__CONFIG_CHIP_ARCH_VER == 1)
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -624,5 +626,5 @@ void Drv_Ov7670_DeInit()
 	}
 }
 
-
+#endif
 

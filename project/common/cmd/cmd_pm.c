@@ -215,21 +215,61 @@ static enum cmd_status cmd_pm_net_prepare_exec(char *cmd)
 }
 #endif
 
-static const struct cmd_data g_pm_cmds[] = {
-	{ "config",      cmd_pm_config_exec },
-	{ "dump",        cmd_pm_dump_exec },
-	{ "wk_check",    cmd_pm_check_exec },
-	{ "wk_timer",    cmd_pm_wakeuptimer_exec },
-	{ "wk_io",       cmd_pm_wakeupio_exec },
-	{ "wk_event",    cmd_pm_wakeupevent_exec },
-	{ "wk_read",     cmd_pm_wakeupread_exec },
-	{ "sleep",       cmd_pm_sleep_exec },
-	{ "standby",     cmd_pm_standby_exec },
-	{ "hibernation", cmd_pm_hibernation_exec },
-#if PRJCONF_NET_EN
-	{ "net_prepare", cmd_pm_net_prepare_exec },
+#if CMD_DESCRIBE
+#define pm_config_help_info \
+"pm config l=<Test_Level> d=<Delay_ms> u=<Buffer_len>\n"\
+"\t\t\t<Test_Level>: TEST_NONE ~ TEST_DEVICES.\n"\
+"\t\t\t<Delay_ms>: based on ms.\n"\
+"\t\t\t<Buffer_len>: buffer data len when uart suspend.\n"\
+"\t\t\teg. pm config l=0 d=0 u=1024"
+#define pm_dump_help_info \
+"pm dump <0xAddr> <Len> <Idx>\n"\
+"\t\t\t<Addr>: addres to dump.\n"\
+"\t\t\t<Len>: length to dump.\n"\
+"\t\t\t<Idx>: idx to dump.\n"\
+"\t\t\teg. pm dump 0x40040000 64 0"
+#define pm_check_help_info "pm check"
+#define pm_wk_timer_help_info \
+"pm wk_timer <Seconds>\n"\
+"\t\t\t<Seconds>: seconds.\n"\
+"\t\t\teg. pm wk_timer 10"
+#define pm_wk_io_help_info \
+"pm wk_io p=<Port_Num> m=<Mode> p=<Pull>\n"\
+"\t\t\t<Port_Num>: 0 ~ 9\n"\
+"\t\t\t<Mode>: 0: negative edge, 1: positive edge, 2: disable this port as wakeup io.\n"\
+"\t\t\t<Pull>: 0: no pull, 1: pull up, 2: pull down.\n"\
+"\t\t\teg. pm wk_io p=2 m=1 p=0"
+#define pm_wk_event_help_info "get pm wakeup event"
+#define pm_wk_read_help_info "get pm wakeup io and timer"
+#define pm_sleep_help_info "enter sleep mode"
+#define pm_standby_help_info "enter standby mode"
+#define pm_hb_help_info "enter hibernation mode"
+#define pm_np_help_info "pm net prepare"
 #endif
+
+static enum cmd_status cmd_pm_help_exec(char *cmd);
+
+static const struct cmd_data g_pm_cmds[] = {
+	{ "config",      cmd_pm_config_exec, CMD_DESC(pm_config_help_info) },
+	{ "dump",        cmd_pm_dump_exec, CMD_DESC(pm_dump_help_info) },
+	{ "wk_check",    cmd_pm_check_exec, CMD_DESC(pm_check_help_info) },
+	{ "wk_timer",    cmd_pm_wakeuptimer_exec, CMD_DESC(pm_wk_timer_help_info) },
+	{ "wk_io",       cmd_pm_wakeupio_exec, CMD_DESC(pm_wk_io_help_info) },
+	{ "wk_event",    cmd_pm_wakeupevent_exec, CMD_DESC(pm_wk_event_help_info) },
+	{ "wk_read",     cmd_pm_wakeupread_exec, CMD_DESC(pm_wk_read_help_info) },
+	{ "sleep",       cmd_pm_sleep_exec, CMD_DESC(pm_sleep_help_info) },
+	{ "standby",     cmd_pm_standby_exec, CMD_DESC(pm_standby_help_info) },
+	{ "hibernation", cmd_pm_hibernation_exec, CMD_DESC(pm_hb_help_info) },
+#if PRJCONF_NET_EN
+	{ "net_prepare", cmd_pm_net_prepare_exec, CMD_DESC(pm_np_help_info) },
+#endif
+	{ "help",		cmd_pm_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_pm_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_pm_cmds, cmd_nitems(g_pm_cmds), 16);
+}
 
 enum cmd_status cmd_pm_exec(char *cmd)
 {

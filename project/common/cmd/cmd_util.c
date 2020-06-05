@@ -67,6 +67,66 @@ enum cmd_status cmd2_exec(char *cmd, const struct cmd2_data *cdata, int count)
 	return CMD_STATUS_UNKNOWN_CMD;
 }
 
+enum cmd_status cmd_help_exec(const struct cmd_data *cdata, int count, int align)
+{
+	for (int i = 0; i < count; ++i, ++cdata) {
+#if CMD_DESCRIBE
+		if (cdata->desc)
+			CMD_LOG(1, "[*] %-*.*s : %s\n", align, cmd_strlen(cdata->name), cdata->name, cdata->desc);
+		else
+#endif
+		CMD_LOG(1, "[*] %s\n", cdata->name);
+	}
+
+	CMD_LOG(1, "\nFor detail please use xxx help\n");
+	return CMD_STATUS_ACKED;
+}
+
+enum cmd_status cmd2_help_exec(const struct cmd2_data *cdata, int count, int align)
+{
+	for (int i = 0; i < count; ++i, ++cdata) {
+#if CMD_DESCRIBE
+		if (cdata->desc)
+			CMD_LOG(1, "[*] %-*.*s : %s\n", align, cmd_strlen(cdata->name), cdata->name, cdata->desc);
+		else
+#endif
+		CMD_LOG(1, "[*] %s\n", cdata->name);
+	}
+
+	CMD_LOG(1, "\nFor detail please use xxx help\n");
+	return CMD_STATUS_ACKED;
+}
+
+enum cmd_status cmd_main_exec(char *cmd, const struct cmd_data *cdata, int count)
+{
+	enum cmd_status status = CMD_STATUS_OK;
+
+	if (cmd[0] != '\0') {
+#if (!CONSOLE_ECHO_EN)
+		if (cmd_strcmp(cmd, "efpg"))
+			CMD_LOG(CMD_DBG_ON, "$ %s\n", cmd);
+#endif
+
+		status = cmd_exec(cmd, cdata, count);
+		if (status != CMD_STATUS_ACKED) {
+			cmd_write_respond(status, cmd_get_status_desc(status));
+			if (status == CMD_STATUS_INVALID_ARG ||
+			    status == CMD_STATUS_UNKNOWN_CMD) {
+				CMD_LOG(1, "Use 'help' to list available subcommands\n");
+			}
+		}
+	}
+#if (!CONSOLE_ECHO_EN)
+	else { /* empty command */
+		CMD_LOG(1, "$\n");
+	}
+#endif
+#if CONSOLE_ECHO_EN
+	console_write((uint8_t *)"$ ", 2);
+#endif
+	return status;
+}
+
 /* parse all argument vectors from a command string, return argument count */
 int cmd_parse_argv(char *cmd, char *argv[], int size)
 {

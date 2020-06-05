@@ -42,10 +42,23 @@
 extern "C" {
 #endif
 
+#define CMD_DESCRIBE 1
+
+#if CMD_DESCRIBE
+#define CMD_DESC(desc) (char *)desc
+#define CMD_HELP_DESC "print this message and quit"
+#else
+#define CMD_DESC(desc)
+#define CMD_HELP_DESC
+#endif
+
 /* command format: <command-name> <arg>... */
 struct cmd_data {
 	char *name;
 	enum cmd_status (*exec)(char *);
+#if CMD_DESCRIBE
+	char *desc;
+#endif
 };
 
 /* command2 format: <command-name>[ <arg>...] */
@@ -53,10 +66,16 @@ struct cmd2_data {
 	char *name;
 	int name_len;
 	enum cmd_status (*exec)(char *);
+#if CMD_DESCRIBE
+	char *desc;
+#endif
 };
 
 enum cmd_status cmd_exec(char *cmd, const struct cmd_data *cdata, int count);
+enum cmd_status cmd_help_exec(const struct cmd_data *cdata, int count, int align);
+enum cmd_status cmd_main_exec(char *cmd, const struct cmd_data *cdata, int count);
 enum cmd_status cmd2_exec(char *cmd, const struct cmd2_data *cdata, int count);
+enum cmd_status cmd2_help_exec(const struct cmd2_data *cdata, int count, int align);
 
 int cmd_parse_argv(char *cmd, char *argv[], int size);
 

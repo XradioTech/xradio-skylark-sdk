@@ -187,7 +187,7 @@ int32_t HAL_PsramCtrl_ConfigCCMU(uint32_t clk)
     uint32_t div;
     CCM_PeriphClkDivN div_n = 0;
     CCM_PeriphClkDivM div_m = 0;
-
+    clk = clk * 2;
     if (clk > HAL_GetHFClock()) {
         mclk = HAL_GetDev2Clock();
         src = CCM_AHB_PERIPH_CLK_SRC_DEVCLK; /* same with DEV2 */
@@ -230,7 +230,7 @@ int32_t HAL_PsramCtrl_Clk_With_Dev2Clk(uint32_t clk)
     uint32_t div;
     CCM_PeriphClkDivN div_n = 0;
     CCM_PeriphClkDivM div_m = 0;
-
+    clk = clk * 2;
     mclk = HAL_GetDev2Clock();
     div = (mclk + clk - 1) / clk;
     div = (div == 0) ? 1 : div;
@@ -510,74 +510,70 @@ static int32_t __psram_ctrl_request_done(struct psram_ctrl *ctrl)
     return ret;
 }
 
-#define PSRAM_MAGIC_BYTE_DATA (0x5a)
-#define PSRAM_MAGIC_WORD_DATA (0x5aa5a55a)
-static const uint8_t freqArr[] = {192, 160, 137, 120, 96, 80};
-static const uint32_t freqFactorArr[] = {PRCM_DEV2_CLK_FACTOR_192M, PRCM_DEV2_CLK_FACTOR_320M,
-                                PRCM_DEV2_CLK_FACTOR_274M, PRCM_DEV2_CLK_FACTOR_240M,
-                                PRCM_DEV2_CLK_FACTOR_192M, PRCM_DEV2_CLK_FACTOR_320M};
+#define PSRAM_WR_CHECK_LEN      (12)
+#define PSRAM_MAGIC_WORD_DATA1  (0x00ff00ff)
+#define PSRAM_MAGIC_WORD_DATA2  (0x5aa55aa5)
+#define PSRAM_MAGIC_WORD_DATA3  (0xa55aa55a)
 
-static __always_inline int32_t __psram_wr_check(uint32_t addr)
+static int32_t __psram_wr_check(uint32_t addr)
 {
-    *(volatile uint8_t*)(addr+1) = PSRAM_MAGIC_BYTE_DATA;
-    if( *(volatile uint8_t*)(addr+1) != PSRAM_MAGIC_BYTE_DATA) {
-        return -1;
+    uint32_t *ptr = (uint32_t *)addr;
+    for(int i=0; i<PSRAM_WR_CHECK_LEN; i+=3) {
+        ptr[i] = PSRAM_MAGIC_WORD_DATA1;
+        ptr[i+1] = PSRAM_MAGIC_WORD_DATA2;
+        ptr[i+2] = PSRAM_MAGIC_WORD_DATA3;
     }
-
-    *(volatile uint32_t*)(addr) = PSRAM_MAGIC_WORD_DATA;
-    if(*(volatile uint32_t*)(addr) != PSRAM_MAGIC_WORD_DATA) {
-        return -1;
+    HAL_Memset((uint8_t*)0x1500000, 0, 128);
+    for(int i=0; i<PSRAM_WR_CHECK_LEN; i+=3) {
+        if(ptr[i] != PSRAM_MAGIC_WORD_DATA1
+         || ptr[i+1] != PSRAM_MAGIC_WORD_DATA2
+         || ptr[i+2] != PSRAM_MAGIC_WORD_DATA3
+         ) {
+            return -1;
+         }
     }
-
     return 0;
 }
 
 int32_t HAL_PsramCtrl_DQS_Delay_Cal_Policy(struct psram_ctrl *ctrl)
 {
-    if(HAL_GET_BIT(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_CAL_SUCCEED))
-        return 0;
-
-    uint8_t baseCal;
+    uint8_t dqsCal;
     uint8_t minCal = 0;
     uint8_t maxCal = 0;
     int32_t dcacheWT_idx = -1;
     dcacheWT_idx = HAL_Dcache_Enable_WriteThrough(PSRAM_START_ADDR, rounddown2(PSRAM_END_ADDR, 16)); /*no check return*/
-    baseCal = HAL_GET_BIT_VAL(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG,
-                PSRAMC_CAL_RESULT_VAL_SHIFT, PSRAMC_CAL_RESULT_VAL_MASK);
-    PRC_DBG("auto result cal=%d\n", baseCal);
-    for(int i=0; i<ARRAY_SIZE(freqArr); i++) {
-        HAL_PRCM_SetDev2Clock(freqFactorArr[i]);
-        HAL_PsramCtrl_Clk_With_Dev2Clk(freqArr[i]*1000000);
-        ctrl->freq = freqArr[i]*1000000;
-        minCal = 0;
-        maxCal = 0;
-        for(int j=baseCal; j<64; j++) {
-            HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
-                    PSRAMC_OVERWR_CAL_VAL(j) | PSRAMC_OVERWR_CAL);
-            HAL_UDelay(10);
-            if(!(__psram_wr_check(PSRAM_START_ADDR)
-                || __psram_wr_check(PSRAM_END_ADDR - 4))) {
-                if(minCal == 0) {
-                    minCal = j;
-                }
-                maxCal = j;
-            } else {
-                if((maxCal != 0) && (minCal != maxCal)) break;
-                else if(minCal != 0){
-                    minCal = 0;
-                    maxCal = 0;
-                }
+    minCal = 0;
+    maxCal = 0;
+    for(int j=0; j<64; j++) {
+        HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
+                PSRAMC_OVERWR_CAL_VAL(j) | PSRAMC_OVERWR_CAL);
+        HAL_UDelay(10);
+        if(!(__psram_wr_check(PSRAM_START_ADDR)
+            || __psram_wr_check(PSRAM_END_ADDR + 1 - PSRAM_WR_CHECK_LEN*sizeof(uint32_t)))) {
+            if(minCal == 0) {
+                minCal = j;
+            }
+            maxCal = j;
+        } else {
+            if((maxCal != 0) && (minCal != maxCal))
+                break;
+            else if(minCal != 0){
+                minCal = 0;
+                maxCal = 0;
             }
         }
-        if(maxCal != 0) {
-            baseCal = (minCal + maxCal) / 2;
-            PRC_DBG("DQS_Delay_Cal_Policy: minCal=%d, maxCal=%d, set cal=%d\n", minCal, maxCal, (minCal + maxCal) / 2);
-            break;
-        }
     }
+
+    if(maxCal - minCal < 2) {
+        HAL_ERR("%s: Can not find correct dqs\n", __func__);
+        goto out;
+    }
+    dqsCal = (minCal + maxCal) / 2;
+    PRC_DBG("%s: minCal=%d, maxCal=%d, set cal=%d\n", __func__, minCal, maxCal, (minCal + maxCal) / 2);
     HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_DQS_DELAY_CFG, PSRAMC_OVERWR_CAL_MASK | PSRAMC_OVERWR_CAL,
-                    PSRAMC_OVERWR_CAL_VAL(baseCal) | PSRAMC_OVERWR_CAL);
+                    PSRAMC_OVERWR_CAL_VAL(dqsCal) | PSRAMC_OVERWR_CAL);
     HAL_UDelay(10);
+out:
     HAL_Dcache_Disable_WriteThrough(dcacheWT_idx);
     return -1;
 }
@@ -1100,7 +1096,7 @@ HAL_Status HAL_PsramCtrl_Init(struct psram_ctrl *ctrl, const PSRAMCtrl_InitParam
     /* enable ccmu */
     HAL_CCM_BusReleasePeriphReset(CCM_BUS_PERIPH_BIT_PSRAM_CTRL);
     HAL_CCM_BusEnablePeriphClock(CCM_BUS_PERIPH_BIT_PSRAM_CTRL);
-    HAL_PsramCtrl_ConfigCCMU(ctrl->freq);
+    HAL_PsramCtrl_ConfigCCMU(96000000);
 
     PSRAM_CTRL->S_RW_OPRT_CFG = 0;
     PSRAM_CTRL->S_DUMMY_DATA_H = 0;
@@ -1128,17 +1124,18 @@ HAL_Status HAL_PsramCtrl_Init(struct psram_ctrl *ctrl, const PSRAMCtrl_InitParam
                              PSRAMC_IOX_DEF_OUTPUT_MODE(3, PSRAMC_IOX_DEF_OUTPUT1) |
                              PSRAM_SELECT | PSRAMC_ADDR_SIZE_24BIT | PSRAMC_CBUS_RW_EN;
         HAL_PsramCtrl_Set_BusWidth(ctrl, PSRAMC_SBUS_CMD_SEND_1BIT | PSRAMC_SBUS_DATA_GW_1BIT);
-        HAL_MODIFY_REG(PSRAM_CTRL->CACHE_RLVT_CFG, PSRAMC_CACHE_LL_CFG_MASK, PSRAMC_CACHE_LL_64BIT);
+        HAL_PsramCtrl_Set_RD_BuffSize(PSRAMC_CACHE_LL_256BIT);
+        HAL_PsramCtrl_Set_WR_BuffSize(PSRAMC_WR_CACHE_LINE_LEN_16B);
         break;
     case PSRAM_CHIP_OPI_APS32 :
-        HAL_PsramCtrl_Set_DQS_Delay_Cal(cfg->freq);
+        //HAL_PsramCtrl_Set_DQS_Delay_Cal(cfg->freq);
         delay.cbus_read_op = PSRAMC_CBUS_CMD_8BIT | PSRAMC_CBUS_ADDR_8BIT | PSRAMC_CBUS_DUMY_8BIT |
                              PSRAMC_CBUS_DUMY_WID(0) | PSRAMC_CBUS_DATA_8BIT;
         delay.cbus_write_op = PSRAMC_CBUS_WR_CMD(0x80) | PSRAMC_CBUS_WR_OP_CMD_8BIT |
                               PSRAMC_CBUS_WR_OP_ADDR_8BIT |
                               PSRAMC_CBUS_WR_OP_DUMY_8BIT | PSRAMC_CBUS_WR_OP_DUMY_NUM(0) |
                               PSRAMC_CBUS_WR_OP_DATA_8BIT;
-        delay.common_cfg = PSRAMC_MAX_READ_LATENCY(0x0CU) | PSRAMC_MAX_CEN_LOW_CYC_NUM(0x1C0U) |
+        delay.common_cfg = PSRAMC_MAX_READ_LATENCY(0x0CU) | PSRAMC_MAX_CEN_LOW_CYC_NUM(0x1C0U) | PSRAMC_CLK_STOP_CE_LOW |
                            PSRAMC_MIN_WR_CLC_2 | PSRAMC_DDR_MODE_EN | PSRAMC_CLK_OUTPUT_HLD |
                            PSRAMC_WR_NEED_DQS | PSRAMC_WR_AF_DQS_DUMMY | PSRAMC_WR_AF_DM_DUMMY |
                            PSRAMC_CEDIS_CLK_VALID;
@@ -1158,7 +1155,7 @@ HAL_Status HAL_PsramCtrl_Init(struct psram_ctrl *ctrl, const PSRAMCtrl_InitParam
         HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_TIM_CFG, PSRAMC_CS_OUTP_DHCYC_MASK, PSRAMC_CS_OUTP_DHCYC(2));
         HAL_PsramCtrl_Set_BusWidth(ctrl, PSRAMC_SBUS_CMD_SEND_8BIT | PSRAMC_SBUS_DATA_GW_8BIT);
         //HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_TIM_CFG, PSRAMC_CS_OUTP_DHCYC_MASK, PSRAMC_CS_OUTP_DHCYC(3));
-        HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_TIM_CFG, PSRAMC_DQS_OUTP_DHCYC_MASK, PSRAMC_DQS_OUTP_DHCYC(1));
+        HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_TIM_CFG, PSRAMC_DQS_OUTP_DHCYC_MASK, PSRAMC_DQS_OUTP_DHCYC(2));
 #ifdef __CONFIG_PLATFORM_FPGA
         if (cfg->freq >= 24 * 1000 * 1000) {
             HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_TIM_CFG, PSRAMC_DQS_OUTP_DHCYC_MASK, PSRAMC_DQS_OUTP_DHCYC(3));
@@ -1166,7 +1163,7 @@ HAL_Status HAL_PsramCtrl_Init(struct psram_ctrl *ctrl, const PSRAMCtrl_InitParam
 #endif
         break;
     case PSRAM_CHIP_OPI_APS64 :
-        HAL_PsramCtrl_Set_DQS_Delay_Cal(cfg->freq);
+        //HAL_PsramCtrl_Set_DQS_Delay_Cal(cfg->freq);
         delay.cbus_read_op = PSRAMC_CBUS_CMD_8BIT | PSRAMC_CBUS_ADDR_8BIT | PSRAMC_CBUS_DUMY_8BIT |
                              PSRAMC_CBUS_DUMY_WID(0) | PSRAMC_CBUS_DATA_8BIT; //0x444004
         delay.cbus_write_op = PSRAMC_CBUS_WR_CMD(0x80) | PSRAMC_CBUS_WR_OP_CMD_8BIT |

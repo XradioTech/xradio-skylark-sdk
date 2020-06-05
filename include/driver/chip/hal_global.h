@@ -35,6 +35,8 @@
 #ifndef _DRIVER_CHIP_HAL_GLOBAL_H_
 #define _DRIVER_CHIP_HAL_GLOBAL_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -44,6 +46,7 @@ void HAL_GlobalInit(void);
 uint32_t HAL_GlobalGetChipVer(void);
 uint8_t HAL_GlobalGetSmpsBgtr(void);
 uint8_t HAL_GlobalGetTopLdoVsel(void);
+uint8_t HAL_GlobalGetDigLdoVsel(void);
 
 #ifdef __cplusplus
 }

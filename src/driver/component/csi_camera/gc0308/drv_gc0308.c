@@ -37,33 +37,61 @@
 #include <stdlib.h>
 
 #include "kernel/os/os.h"
+#include "pm/pm.h"
 #include "driver/chip/hal_i2c.h"
-#include "driver/chip/hal_csi.h"
-
+#include "driver/component/csi_camera/private/camera_debug.h"
 #include "driver/component/csi_camera/gc0308/drv_gc0308.h"
 #include "gc0308_cfg.h"
 
-#define GC0308_SCCB_ID 0x21  			//GC0308 ID
-#define GC0308_CHIP_ID 0x9b
-#define GC0308_IIC_CLK_FREQ	100000
+#define GC0308_INF_ON		1
+#define GC0308_DBG_ON		1
+#define GC0308_WARN_ON		1
+#define GC0308_ERR_ON		1
 
-#define SENSOR_DBG_LEVEL INFO
-enum LOG_LEVEL{
-	OFF = 0,
-	ERROR,
-	WARN,
-	DEBUG,
-	INFO,
-};
-#define SENSOR_DBG(level, fmt, args...) \
-	do {		\
-		if (level <= SENSOR_DBG_LEVEL)	\
-			printf(fmt,##args);	\
-	} while (0)
+#if (GC0308_ERR_ON == 1)
+#define GC0308_LOGE(fmt, arg...)    CAMERA_LOG(GC0308_ERR_ON, fmt, ##arg)
+#else
+#define GC0308_LOGE(fmt, arg...)
+#endif
 
-static uint8_t i2c_id;
+#if (GC0308_WARN_ON == 1)
+#define GC0308_LOGW(fmt, arg...)    CAMERA_LOG(GC0308_WARN_ON, fmt, ##arg)
+#else
+#define GC0308_LOGW(fmt, arg...)
+#endif
 
-static void GC0308_InitSccb(void)
+#if (GC0308_DBG_ON == 1)
+#define GC0308_LOGD(fmt, arg...)    CAMERA_LOG(GC0308_DBG_ON, fmt, ##arg)
+#else
+#define GC0308_LOGD(fmt, arg...)
+#endif
+
+#if (GC0308_INF_ON == 1)
+#define GC0308_LOGI(fmt, arg...)    CAMERA_LOG(GC0308_INF_ON, fmt, ##arg)
+#else
+#define GC0308_LOGI(fmt, arg...)
+#endif
+
+#define GC0308_SCCB_ID			0x21 //GC0308 ID
+#define GC0308_CHIP_ID			0x9b
+#define GC0308_IIC_CLK_FREQ		100000
+
+typedef struct {
+	uint8_t i2c_id;
+#ifdef CONFIG_PM
+	uint8_t suspend;
+	struct soc_device dev;
+#endif
+} sensor_Private;
+
+static sensor_Private gsensor_Private;
+
+static sensor_Private* GC0308_SensorGetPriv()
+{
+	return &gsensor_Private;
+}
+
+static void GC0308_InitSccb(uint8_t i2c_id)
 {
     I2C_InitParam initParam;
 
@@ -72,19 +100,21 @@ static void GC0308_InitSccb(void)
     HAL_I2C_Init(i2c_id, &initParam);
 }
 
-static void GC0308_DeInitSccb(void)
+static void GC0308_DeInitSccb(uint8_t i2c_id)
 {
     HAL_I2C_DeInit(i2c_id);
 }
 
 int GC0308_WriteSccb(uint8_t sub_addr, uint8_t data)
 {
-    return HAL_I2C_SCCB_Master_Transmit_IT(i2c_id, GC0308_SCCB_ID, sub_addr, &data);
+	sensor_Private* priv = GC0308_SensorGetPriv();
+    return HAL_I2C_SCCB_Master_Transmit_IT(priv->i2c_id, GC0308_SCCB_ID, sub_addr, &data);
 }
 
 int GC0308_ReadSccb(uint8_t sub_addr, uint8_t *data)
 {
-    return HAL_I2C_SCCB_Master_Receive_IT(i2c_id, GC0308_SCCB_ID, sub_addr, data);
+	sensor_Private* priv = GC0308_SensorGetPriv();
+    return HAL_I2C_SCCB_Master_Receive_IT(priv->i2c_id, GC0308_SCCB_ID, sub_addr, data);
 }
 
 /**
@@ -372,7 +402,7 @@ void GC0308_SetPixelOutFmt(SENSOR_PixelOutFmt pixel_out_fmt)
         GC0308_WriteSccb(0x24, 0xa6);
         break;
     default:
-        SENSOR_DBG(ERROR, "GC0308:untest pixel out fmt %d\n", pixel_out_fmt);
+        GC0308_LOGE("GC0308:untest pixel out fmt %d\n", pixel_out_fmt);
         break;
 	}
 }
@@ -420,14 +450,14 @@ static HAL_Status GC0308_Init(void)
     OS_MSleep(100);
 
     if (GC0308_ReadSccb(0x00, &chip_id) != 1) {
-        SENSOR_DBG(ERROR, "GC0308 sccb read error\n");
+        GC0308_LOGE("GC0308 sccb read error\n");
         return HAL_ERROR;
     } else {
 	    if(chip_id!= GC0308_CHIP_ID) {
-		    SENSOR_DBG(ERROR, "GC0308 get chip id wrong 0x%02x\n", chip_id);
+		    GC0308_LOGE("GC0308 get chip id wrong 0x%02x\n", chip_id);
 		    return HAL_ERROR;
 	    } else {
-		    SENSOR_DBG(INFO, "GC0308 chip id read success 0x%02x\n", chip_id);
+		    GC0308_LOGI("GC0308 chip id read success 0x%02x\n", chip_id);
 	    }
     }
 
@@ -435,12 +465,12 @@ static HAL_Status GC0308_Init(void)
 
     for (i = 0; i < sizeof(gc0308_init_reg_tbl) / sizeof(gc0308_init_reg_tbl[0]); i++) {
         if (!GC0308_WriteSccb(gc0308_init_reg_tbl[i][0], gc0308_init_reg_tbl[i][1])) {
-            SENSOR_DBG(ERROR, "GC0308 sccb read error\n");
+            GC0308_LOGE("GC0308 sccb read error\n");
             return HAL_ERROR;
         }
     }
 
-   SENSOR_DBG(DEBUG, "GC0308 Init Done \r\n");
+   GC0308_LOGI("GC0308 Init Done \r\n");
 
     return HAL_OK;
 }
@@ -456,7 +486,7 @@ HAL_Status HAL_GC0308_IoCtl(SENSOR_IoctrlCmd attr, uint32_t arg)
             break;
         }
         default:
-            SENSOR_DBG(ERROR, "un support camsensor cmd %d\n", attr);
+            GC0308_LOGE("un support camsensor cmd %d\n", attr);
             return HAL_ERROR;
             break;
     }
@@ -464,25 +494,77 @@ HAL_Status HAL_GC0308_IoCtl(SENSOR_IoctrlCmd attr, uint32_t arg)
     return HAL_OK;
 }
 
+#ifdef CONFIG_PM
+static int sensor_suspend(struct soc_device *dev, enum suspend_state_t state)
+{
+	sensor_Private *priv = (sensor_Private*)dev->platform_data;
+	priv->suspend = 1;
+
+	switch (state) {
+	case PM_MODE_SLEEP:
+	case PM_MODE_STANDBY:
+	case PM_MODE_HIBERNATION:
+		HAL_GC0308_Suspend();
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int sensor_resume(struct soc_device *dev, enum suspend_state_t state)
+{
+	sensor_Private *priv = (sensor_Private*)dev->platform_data;
+
+	switch (state) {
+	case PM_MODE_SLEEP:
+	case PM_MODE_STANDBY:
+	case PM_MODE_HIBERNATION:
+		HAL_GC0308_Resume();
+		break;
+	default:
+		break;
+	}
+	priv->suspend = 0;
+
+	return 0;
+}
+
+static const struct soc_device_driver sensor_drv = {
+	.name = "sensor",
+	.suspend = sensor_suspend,
+	.resume = sensor_resume,
+};
+#endif
+
 /**
   * @brief Init the GC0308.
   * @retval HAL_Status : The driver status.
   */
 HAL_Status HAL_GC0308_Init(SENSOR_ConfigParam *cfg)
 {
-    i2c_id = cfg->i2c_id;
+	sensor_Private* priv = GC0308_SensorGetPriv();
 
-	GC0308_InitSccb();
+	priv->i2c_id = cfg->i2c_id;
+	GC0308_InitSccb(priv->i2c_id);
+
+#ifdef CONFIG_PM
+	if (!priv->suspend) {
+		priv->dev.name = "sensor";
+		priv->dev.driver = &sensor_drv;
+		priv->dev.platform_data = priv;
+		pm_register_ops(&priv->dev);
+	}
+#endif
 
     GC0308_InitPower(&cfg->pwcfg);
 
     if (GC0308_Init() != HAL_OK) {
-	    SENSOR_DBG(ERROR, "GC0308  Init error!!\n");
+	    GC0308_LOGE("GC0308  Init error!!\n");
 	    return HAL_ERROR;
     }
 
-	/* sensor set, windows cfg_set, pixelformat cfg_set and so on */
-    GC0308_SetPixelOutFmt(cfg->pixel_outfmt);
     OS_MSleep(500);
     return HAL_OK;
 }
@@ -493,9 +575,15 @@ HAL_Status HAL_GC0308_Init(SENSOR_ConfigParam *cfg)
   */
 void HAL_GC0308_DeInit(SENSOR_ConfigParam *cfg)
 {
-    i2c_id = 0;
+	sensor_Private* priv = GC0308_SensorGetPriv();
+
+#ifdef CONFIG_PM
+	if (!priv->suspend)
+		pm_unregister_ops(&priv->dev);
+#endif
+
     GC0308_DeInitPower(&cfg->pwcfg);
-	GC0308_DeInitSccb();
+	GC0308_DeInitSccb(priv->i2c_id);
 }
 
 /**
@@ -529,8 +617,8 @@ void HAL_GC0308_Resume(void)
 	GC0308_ReadSccb(0x1a, &analog_mode1);
 	GC0308_ReadSccb(0x25, &output_en);
 
-	analog_mode1 &= (~(0x1));
-	output_en = 0x7;
+	analog_mode1 &= (~0x1);
+	output_en = 0xff;
 
 	GC0308_WriteSccb(0x1a, analog_mode1);
 	GC0308_WriteSccb(0x25, output_en);

@@ -56,7 +56,7 @@ typedef enum {
 int audio_manager_init(void);
 int audio_manager_deinit(void);
 int audio_manager_handler(Snd_Card_Num card_num, Audio_Manager_Cmd cmd, Audio_Device dev, uint32_t param);
-int audio_maneger_ioctl(Snd_Card_Num card_num, Codec_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len);
+int audio_maneger_ioctl(Snd_Card_Num card_num, Snd_Card_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len);
 int audio_manager_reg_read(Snd_Card_Num card_num, uint32_t reg);
 int audio_manager_reg_write(Snd_Card_Num card_num, uint32_t reg, uint32_t val);
 int audio_manager_get_current_dev(Snd_Card_Num card_num);

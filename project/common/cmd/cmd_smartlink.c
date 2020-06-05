@@ -422,22 +422,31 @@ enum cmd_status cmd_smartlink_set_smartconfig_key_exec(char *cmd)
 }
 #endif
 
+static enum cmd_status cmd_smartlink_help_exec(char *cmd);
+
 static const struct cmd_data g_smartlink_cmds[] = {
-    { "start",		cmd_smartlink_start_exec},
-    { "stop",		cmd_smartlink_stop_exec},
+    { "start",		cmd_smartlink_start_exec, CMD_DESC("start smart link") },
+    { "stop",		cmd_smartlink_stop_exec, CMD_DESC("stop smart link") },
 #ifdef SMARTLINK_USE_AIRKISS
-    { "set_airkiss_key",		cmd_smartlink_set_airkiss_key_exec},
+    { "set_airkiss_key",		cmd_smartlink_set_airkiss_key_exec, CMD_DESC("set airkiss key") },
 #endif
 #ifdef SMARTLINK_USE_SMARTCONFIG
-    { "set_smartconfig_key",	cmd_smartlink_set_smartconfig_key_exec},
+    { "set_smartconfig_key",	cmd_smartlink_set_smartconfig_key_exec, CMD_DESC("set smart config key") },
 #endif
+    { "help",	cmd_smartlink_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_smartlink_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_smartlink_cmds, cmd_nitems(g_smartlink_cmds), 24);
+}
 
 enum cmd_status cmd_smartlink_exec(char *cmd)
 {
 	if (g_wlan_netif == NULL) {
 		return CMD_STATUS_FAIL;
 	}
+
 	return cmd_exec(cmd, g_smartlink_cmds, cmd_nitems(g_smartlink_cmds));
 }
 

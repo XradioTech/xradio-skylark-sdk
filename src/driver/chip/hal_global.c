@@ -34,7 +34,9 @@
 
 #include "hal_base.h"
 
+#if (__CONFIG_CHIP_ARCH_VER == 1)
 static uint8_t g_chip_version = 0;
+#endif
 
 /**
  * @brief Global initialization for HAL module
@@ -71,6 +73,7 @@ static uint8_t GlobalGetBitValue(uint32_t start_bit, uint8_t bit_cnt)
  * @brief Get chip version
  * @return Chip version, 0 on failure
  */
+#if (__CONFIG_CHIP_ARCH_VER == 1)
 uint32_t HAL_GlobalGetChipVer(void)
 {
 	uint32_t start_bit;
@@ -83,6 +86,12 @@ uint32_t HAL_GlobalGetChipVer(void)
 
 	return g_chip_version;
 }
+#elif (__CONFIG_CHIP_ARCH_VER == 2)
+uint32_t HAL_GlobalGetChipVer(void)
+{
+	return GlobalGetBitValue(136, 4);
+}
+#endif
 
 uint8_t HAL_GlobalGetSmpsBgtr(void)
 {
@@ -99,4 +108,9 @@ uint8_t HAL_GlobalGetSmpsBgtr(void)
 uint8_t HAL_GlobalGetTopLdoVsel(void)
 {
 	return GlobalGetBitValue(68, 4);
+}
+
+uint8_t HAL_GlobalGetDigLdoVsel(void)
+{
+	return GlobalGetBitValue(166, 4);
 }

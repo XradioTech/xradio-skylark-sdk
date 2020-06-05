@@ -192,11 +192,14 @@ retry:
 			if (console_is_rx_ready(uart)) {
 				data = console_get_rx_data(uart);
 #if CONSOLE_ECHO_EN
-				if (data == '\b') {
+				if (data == '\b' || data == 0x7f) { /* backspace or delete */
+					if (cnt <= 0) {
+						continue;
+					}
 					HAL_UART_PutTxData(uart, '\b');
 					HAL_UART_PutTxData(uart, ' ');
 					HAL_UART_PutTxData(uart, '\b');
-					if (cnt) {
+					if (cnt > 0) {
 						--cnt;
 					}
 					continue;

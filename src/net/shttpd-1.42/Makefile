@@ -23,8 +23,5 @@ OBJS := $(addsuffix .o,$(SRCS))
 # extra include path
 INCLUDE_PATHS += -I$(INCLUDE_ROOT_PATH)/net/shttpd/
 
-# extra flags
-CC_FLAGS += -DFREE_RTOS
-
 # library make rules
 include $(LIB_MAKE_RULES)

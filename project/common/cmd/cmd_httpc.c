@@ -433,9 +433,38 @@ void httpc_cmd_task(void *arg)
 	OS_ThreadDelete(&g_httpc_thread);
 }
 
+#if CMD_DESCRIBE
+#define httpc_help_info \
+"[*] net httpc <cmd> <url> file=<file_test> <user> <password>\n"\
+"[*] cmd: {get | -get | post | auth-get | ssl-get | ssl-post}\n"\
+"[*]	get: get method\n"\
+"[*]	-get: same as get method, but use new interfaces\n"\
+"[*]	post: post method\n"\
+"[*]	auth-get: get method with login, at this time <user> and <password> are valid, otherwise, this parameter need not be written\n"\
+"[*]	ssl-get: get method with ssl\n"\
+"[*]	ssl-post: post method with ssl\n"\
+"[*] url: server url\n"\
+"[*] file_test: only used in post method and represents the file sent to the server\n"\
+"[*] user: username, used only in auth-get method\n"\
+"[*] password: password, used only in auth-get method"
+#endif /* CMD_DESCRIBE */
+
+static enum cmd_status cmd_httpc_help_exec(char *cmd)
+{
+#if CMD_DESCRIBE
+	CMD_LOG(1, "%s\n", httpc_help_info);
+#endif
+	return CMD_STATUS_ACKED;
+}
+
 enum cmd_status cmd_httpc_exec(char *cmd)
 {
 	int n = cmd_strlen(cmd);
+
+	if (cmd_strcmp(cmd, "help") == 0) {
+		cmd_write_respond(CMD_STATUS_OK, "OK");
+		return cmd_httpc_help_exec(cmd);
+	}
 
 	if (OS_ThreadIsValid(&g_httpc_thread)) {
 		CMD_ERR("httpc task is running\n");

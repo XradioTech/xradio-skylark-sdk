@@ -289,8 +289,17 @@ static int __Control(SoundCtrl* s, int cmd, void* para)
         case SOUND_CONTROL_SET_OUTPUT_CONFIG:
             snd_stream_control(sc->ssc, STREAM_TYPE_SOUND_CARD, STREAM_CMD_SET_OUTPUT_CONFIG, para);
             break;
+        case SOUND_CONTROL_ADD_OUTPUT_CONFIG:
+            snd_stream_control(sc->ssc, STREAM_TYPE_SOUND_CARD, STREAM_CMD_ADD_OUTPUT_CONFIG, para);
+            break;
         case SOUND_CONTROL_CLEAR_OUTPUT_CONFIG:
             snd_stream_control(sc->ssc, STREAM_TYPE_SOUND_CARD, STREAM_CMD_CLEAR_OUTPUT_CONFIG, para);
+            break;
+        case SOUND_CONTROL_SET_EQ_MODE:
+            snd_stream_control(sc->ssc, STREAM_TYPE_SOUND_CARD, STREAM_CMD_SET_EQ_MODE, para);
+            break;
+        case SOUND_CONTROL_CLEAR_EQ_MODE:
+            snd_stream_control(sc->ssc, STREAM_TYPE_SOUND_CARD, STREAM_CMD_CLEAR_EQ_MODE, para);
             break;
         default:
             SND_LOGD("unknown command (%d)...", cmd);

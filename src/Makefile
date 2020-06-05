@@ -18,10 +18,14 @@ SUBDIRS += image
 SUBDIRS += rom
 
 ifeq ($(__CONFIG_OS_FREERTOS), y)
-ifneq ($(__CONFIG_ROM_FREERTOS), y)
-SUBDIRS += kernel/FreeRTOS
-endif
-SUBDIRS += kernel/os/FreeRTOS
+  ifneq ($(__CONFIG_ROM_FREERTOS), y)
+    ifeq ($(__CONFIG_OS_FREERTOS_VER), 80203)
+      SUBDIRS += kernel/FreeRTOS/FreeRTOSv8.2.3
+    else ifeq ($(__CONFIG_OS_FREERTOS_VER), 100201)
+      SUBDIRS += kernel/FreeRTOS/FreeRTOSv10.2.1
+    endif
+  endif
+  SUBDIRS += kernel/os/FreeRTOS
 endif
 
 ifeq ($(__CONFIG_BIN_COMPRESS), y)

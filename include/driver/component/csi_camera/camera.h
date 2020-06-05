@@ -43,22 +43,34 @@
 #define ALIGN_16B(x)				(((x) + (15)) & ~(15))
 #define ALIGN_1K(x)					(((x) + (1023)) & ~(1023))
 
+#define CAMERA_BUFF_CNT_MAX			(3)
 #define CAMERA_JPEG_HEADER_LEN		623
 
 typedef struct {
-	uint8_t *org_addr; /* malloc addr */
-	uint8_t *jpeg_buf;  /* last jpeg data buf location */
-	uint8_t *online_jpeg_mempart_tmp_buf; /* mem part mode, temp for hardware rx */
-	uint8_t *online_jpeg_mempart_last_buf;  /* last jpeg data buf location */
-	uint8_t *yuv_buf; /* last yuv420 NV12 data */
-	uint8_t *jpeg_header_buf; /* 623 bytes */
-} CAMERA_Mgmt;
+	uint8_t *addr;
+	uint32_t size;
+} CAMERA_BuffInfo;
 
 typedef struct {
-	SENSOR_PowerCtrlCfg pwcfg;
+	CAMERA_BuffInfo yuv_buf; /* last yuv420 NV12 data */
+	CAMERA_BuffInfo jpeg_buf[CAMERA_BUFF_CNT_MAX];  /* jpeg data, you can use multiple buffers when video*/
+} CAMERA_Mgmt;
+
+typedef enum {
+	CAMERA_STATUS_FRM_END,
+	CAMERA_STATUS_VE_END,
+	CAMERA_STATUS_MPART,
+	CAMERA_STATUS_EXCP,
+} CAMERA_CapStatus;
+
+typedef JPEG_MpartBuffInfo CAMERA_MpartBuffInfo;
+typedef JPEG_BuffInfo CAMERA_JpegBuffInfo;
+
+typedef void (*CAMERA_CapStatusCb)(CAMERA_CapStatus status, void *arg);
+
+typedef struct {
 	uint8_t i2c_id;
-	SENSOR_PixelSize pixel_size;
-	SENSOR_PixelOutFmt pixel_outfmt;
+	SENSOR_PowerCtrlCfg pwcfg;
 } CAMERA_Sensorcfg;
 
 typedef struct {
@@ -73,6 +85,8 @@ typedef struct {
 	uint32_t memPartEn;
 	uint32_t memPartNum;
 	uint32_t quality;
+	uint32_t width;
+	uint32_t height;
 	JPEG_Mode jpeg_mode;
 } CAMERA_JpegCfg;
 
@@ -82,6 +96,7 @@ typedef struct {
 	CAMERA_Sensorcfg sensor_cfg;
 	SENSOR_Func sensor_func;
 	CAMERA_Mgmt *mgmt;
+	CAMERA_CapStatusCb cb;
 } CAMERA_Cfg;
 
 typedef enum {
@@ -94,16 +109,23 @@ typedef enum  {
     CAMERA_SET_JPEG_MODE,
     CAMERA_RESET_CSI_JPEG,
     CAMERA_SET_SENSOR_SUBSAMP,
+    CAMERA_SET_JPEG_SCALE,
 
         /* TODO ... */
 } CAMERA_IoctrlCmd;
 
-HAL_Status HAL_CAMERA_Init(CAMERA_Cfg *cfg);
+int HAL_CAMERA_Init(CAMERA_Cfg *cfg);
 void HAL_CAMERA_DeInit(void);
-int HAL_CAMERA_CaptureImage(CAMERA_OutFmt fmt, uint8_t restart);
-HAL_Status HAL_CAMERA_CaptureVideoStart(void);
-void HAL_CAMERA_CaptureVideoStop(void);
-uint32_t HAL_CAMERA_CaptureVideoGetData(void);
-HAL_Status HAL_CAMERA_IoCtl(CAMERA_IoctrlCmd cmd, uint32_t arg);
+
+int HAL_CAMERA_CaptureMpartStart(uint8_t mode);
+int HAL_CAMERA_CaptureMpartStop(void);
+
+int HAL_CAMERA_CaptureImage(CAMERA_OutFmt fmt, CAMERA_JpegBuffInfo* info, uint8_t restart);
+
+int HAL_CAMERA_CaptureVideoStart(void);
+int HAL_CAMERA_CaptureVideoStop(void);
+uint32_t HAL_CAMERA_CaptureVideoData(CAMERA_JpegBuffInfo *info);
+
+int HAL_CAMERA_IoCtl(CAMERA_IoctrlCmd cmd, uint32_t arg);
 
 #endif

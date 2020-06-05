@@ -33,7 +33,6 @@
  */
 
 #include "codec/audio_arch.h"
-#include "driver/chip/hal_i2s.h"
 
 
 //Debug config
@@ -41,10 +40,6 @@
 
 #define HAL_SND_CARD_DEBUG(fmt, arg...)    	HAL_LOG(HAL_SND_CARD_DBG_EN, "[HAL_SND_CARD] "fmt, ##arg)
 #define HAL_SND_CARD_ERROR(fmt, arg...)    	HAL_LOG(1, "[HAL_SND_CARD] "fmt, ##arg)
-
-//snd card config
-#define SND_CARD_DEFAULT_PLAY_DEV			AUDIO_OUT_DEV_SPK
-#define SND_CARD_DEFAULT_RECORD_DEV			AUDIO_IN_DEV_AMIC
 
 
 //snd card arch list
@@ -184,13 +179,6 @@ HAL_Status HAL_SndCard_SetVolume(Snd_Card_Num card_num, Audio_Device dev, uint16
 
 	HAL_MutexLock(&sound_card->card_lock, OS_WAIT_FOREVER);
 
-	//save snd card play/record volume that will be used in snd card open
-	if(dev & AUDIO_IN_DEV_ALL){
-		sound_card->codec_record_vol = volume;
-	} else if (dev & AUDIO_OUT_DEV_ALL){
-		sound_card->codec_play_vol = volume;
-	}
-
 	//set volume level or gain
 	if(sound_card->codec_drv && sound_card->codec_drv->dai_ops && sound_card->codec_drv->dai_ops->set_volume){
 		hal_status = sound_card->codec_drv->dai_ops->set_volume(dev, volume);
@@ -217,29 +205,6 @@ HAL_Status HAL_SndCard_SetRoute(Snd_Card_Num card_num, Audio_Device dev, Audio_D
 	}
 
 	HAL_MutexLock(&sound_card->card_lock, OS_WAIT_FOREVER);
-
-	//save snd card play/record device that will be used in snd card open
-	if(dev & AUDIO_IN_DEV_ALL){
-		if(state == AUDIO_DEV_EN){
-			if(sound_card->codec_record_dev & AUDIO_DEFAULT_DEV_MASK){
-				sound_card->codec_record_dev = dev;
-			} else {
-				sound_card->codec_record_dev |= dev;
-			}
-		} else {
-			sound_card->codec_record_dev &= ~dev;
-		}
-	} else if (dev & AUDIO_OUT_DEV_ALL){
-		if(state == AUDIO_DEV_EN){
-			if(sound_card->codec_play_dev & AUDIO_DEFAULT_DEV_MASK){
-				sound_card->codec_play_dev = dev;
-			} else {
-				sound_card->codec_play_dev |= dev;
-			}
-		} else {
-			sound_card->codec_play_dev &= ~dev;
-		}
-	}
 
 	//set route
 	if(sound_card->codec_drv && sound_card->codec_drv->dai_ops && sound_card->codec_drv->dai_ops->set_route){
@@ -289,8 +254,9 @@ HAL_Status HAL_SndCard_SetMute(Snd_Card_Num card_num, Audio_Device dev, Audio_Mu
 }
 
 
-HAL_Status HAL_SndCard_Ioctl(Snd_Card_Num card_num, Codec_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len)
+HAL_Status HAL_SndCard_Ioctl(Snd_Card_Num card_num, Snd_Card_Ioctl_Cmd cmd, uint32_t cmd_param[], uint32_t cmd_param_len)
 {
+	HAL_Status ret = HAL_ERROR;
 	struct snd_card *sound_card = card_num_to_snd_card(card_num);
 
 	if(!sound_card){
@@ -300,13 +266,19 @@ HAL_Status HAL_SndCard_Ioctl(Snd_Card_Num card_num, Codec_Ioctl_Cmd cmd, uint32_
 
 	HAL_MutexLock(&sound_card->card_lock, OS_WAIT_FOREVER);
 
-	if(sound_card->codec_drv && sound_card->codec_drv->codec_ops && sound_card->codec_drv->codec_ops->ioctl){
-		return sound_card->codec_drv->codec_ops->ioctl(cmd, cmd_param, cmd_param_len);
+	if(cmd <= CODEC_IOCTL_CMD_MAX){
+		if(sound_card->codec_drv && sound_card->codec_drv->codec_ops && sound_card->codec_drv->codec_ops->ioctl){
+			ret = sound_card->codec_drv->codec_ops->ioctl(cmd, cmd_param, cmd_param_len);
+		}
+	} else {
+		if(sound_card->platform_drv && sound_card->platform_drv->platform_ops && sound_card->platform_drv->platform_ops->ioctl){
+			ret = sound_card->platform_drv->platform_ops->ioctl(cmd, cmd_param, cmd_param_len);
+		}
 	}
 
 	HAL_MutexUnlock(&sound_card->card_lock);
 
-	return HAL_ERROR;
+	return ret;
 }
 
 
@@ -353,7 +325,7 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 {
 	HAL_SND_CARD_DEBUG("--->%s\n",__FUNCTION__);
 
-	uint32_t i,dma_buf_size;
+	uint32_t dma_buf_size;
 	HAL_Status hal_status;
 	struct snd_card *sound_card = card_num_to_snd_card(card_num);
 
@@ -377,12 +349,23 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 	HAL_MutexLock(&sound_card->card_lock, OS_WAIT_FOREVER);
 
 #if 0
+	//codec ioctl hw_config place here
 	if(sound_card->codec_drv && sound_card->codec_drv->codec_ops && sound_card->codec_drv->codec_ops->ioctl){
-		//codec ioctl hw_config place here
-		uint32_t cmd_param[] = {0x00};
-		hal_status = sound_card->codec_drv->codec_ops->ioctl(CODEC_IOCTL_HW_CONFIG, cmd_param, 1);
+		uint32_t cmd_param_codec[] = {0x00};
+		hal_status = sound_card->codec_drv->codec_ops->ioctl(CODEC_IOCTL_HW_CONFIG, cmd_param_codec, 1);
 		if(hal_status != HAL_OK){
 			HAL_SND_CARD_ERROR("snd card[%d] codec IOCTL_HW_CONFIG Fail!\n",(uint8_t)card_num);
+			HAL_MutexUnlock(&sound_card->card_lock);
+			return HAL_ERROR;
+		}
+	}
+
+	//platform ioctl hw_config place here
+	if(sound_card->platform_drv && sound_card->platform_drv->platform_ops && sound_card->platform_drv->platform_ops->ioctl){
+		uint32_t cmd_param_platform[3] = {0x00};
+		hal_status = sound_card->platform_drv->platform_ops->ioctl(PLATFORM_IOCTL_HW_CONFIG, cmd_param_platform, 3);
+		if(hal_status != HAL_OK){
+			HAL_SND_CARD_ERROR("snd card[%d] platform IOCTL_HW_CONFIG Fail!\n",(uint8_t)card_num);
 			HAL_MutexUnlock(&sound_card->card_lock);
 			return HAL_ERROR;
 		}
@@ -397,8 +380,7 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 				sound_card->codec_pllclk_src, sound_card->codec_pll_freq_in, pcm_cfg->rate);
 			if(hal_status != HAL_OK){
 				HAL_SND_CARD_ERROR("snd card[%d] codec set sysclk Fail!\n",(uint8_t)card_num);
-				HAL_MutexUnlock(&sound_card->card_lock);
-				return HAL_ERROR;
+				goto codec_hw_free;
 			}
 		}
 
@@ -407,8 +389,7 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 			hal_status = sound_card->codec_drv->dai_ops->set_fmt(sound_card->i2s_fmt);
 			if(hal_status != HAL_OK){
 				HAL_SND_CARD_ERROR("snd card[%d] codec set fmt Fail!\n",(uint8_t)card_num);
-				HAL_MutexUnlock(&sound_card->card_lock);
-				return HAL_ERROR;
+				goto codec_hw_free;
 			}
 		}
 
@@ -417,43 +398,7 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 			hal_status = sound_card->codec_drv->dai_ops->hw_params(stream_dir, pcm_cfg);
 			if(hal_status != HAL_OK){
 				HAL_SND_CARD_ERROR("snd card[%d] codec config hw params Fail!\n",(uint8_t)card_num);
-				HAL_MutexUnlock(&sound_card->card_lock);
-				return HAL_ERROR;
-			}
-		}
-
-		//codec set volume & route
-		if(sound_card->codec_drv->dai_ops->set_volume || sound_card->codec_drv->dai_ops->set_route){
-			uint32_t route_dev,codec_dev,codec_vol;
-
-			if(stream_dir == PCM_OUT){
-				codec_dev = sound_card->codec_play_dev;
-				codec_vol = sound_card->codec_play_vol;
-			} else {
-				codec_dev = sound_card->codec_record_dev;
-				codec_vol = sound_card->codec_record_vol;
-			}
-
-			for(i=0,route_dev=1; i<31; i++,route_dev=1<<i){	//ignore AUDIO_DEFAULT_DEV_MASK BIT
-				if(codec_dev & route_dev){
-					if(sound_card->codec_drv->dai_ops->set_volume && route_dev != AUDIO_IN_DEV_DMIC){
-						hal_status = sound_card->codec_drv->dai_ops->set_volume(route_dev, codec_vol);
-						if(hal_status != HAL_OK){
-							HAL_SND_CARD_ERROR("snd card[%d] codec set volume Fail!\n",(uint8_t)card_num);
-							HAL_MutexUnlock(&sound_card->card_lock);
-							return HAL_ERROR;
-						}
-					}
-
-					if(sound_card->codec_drv->dai_ops->set_route){
-						hal_status = sound_card->codec_drv->dai_ops->set_route(route_dev, AUDIO_DEV_EN);
-						if(hal_status != HAL_OK){
-							HAL_SND_CARD_ERROR("snd card[%d] codec set route Fail!\n",(uint8_t)card_num);
-							HAL_MutexUnlock(&sound_card->card_lock);
-							return HAL_ERROR;
-						}
-					}
-				}
+				goto codec_hw_free;
 			}
 		}
 	}
@@ -468,27 +413,47 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 			hal_status = sound_card->codec_drv->codec_ops->open(stream_dir);
 			if(hal_status != HAL_OK){
 				HAL_SND_CARD_ERROR("snd card[%d] codec open Fail!\n",(uint8_t)card_num);
-				HAL_MutexUnlock(&sound_card->card_lock);
-				return HAL_ERROR;
+				goto codec_hw_free;
+			}
+		}
+	}
+
+	/* Platform dai config */
+	if(sound_card->platform_drv && sound_card->platform_drv->dai_ops){
+		//platform set i2s fmt
+		if(sound_card->platform_drv->dai_ops->set_fmt){
+			hal_status = sound_card->platform_drv->dai_ops->set_fmt(sound_card->i2s_fmt);
+			if(hal_status != HAL_OK){
+				HAL_SND_CARD_ERROR("snd card[%d] platform set fmt Fail!\n",(uint8_t)card_num);
+				goto platform_hw_free;
+			}
+		}
+
+		//platfrom set clkdiv
+		if(sound_card->platform_drv->dai_ops->set_clkdiv){
+			hal_status = sound_card->platform_drv->dai_ops->set_clkdiv(pcm_cfg->rate);
+			if(hal_status != HAL_OK){
+				HAL_SND_CARD_ERROR("snd card[%d] platform set clkdiv Fail!\n",(uint8_t)card_num);
+				goto platform_hw_free;
+			}
+		}
+
+		//platform hw params config
+		if(sound_card->platform_drv->dai_ops->hw_params){
+			hal_status = sound_card->platform_drv->dai_ops->hw_params(stream_dir, pcm_cfg);
+			if(hal_status != HAL_OK){
+				HAL_SND_CARD_ERROR("snd card[%d] platform config hw params Fail!\n",(uint8_t)card_num);
+				goto platform_hw_free;
 			}
 		}
 	}
 
 	/* Platform open */
 	if(sound_card->platform_drv && sound_card->platform_drv->platform_ops && sound_card->platform_drv->platform_ops->open){
-		//I2S open
-		I2S_DataParam i2s_config;
-		i2s_config.direction = stream_dir;
-		i2s_config.sampleRate = pcm_cfg->rate;
-		i2s_config.channels = pcm_cfg->channels;
-		i2s_config.resolution = pcm_cfg->format;
-		i2s_config.bufSize = dma_buf_size;
-
-		hal_status = sound_card->platform_drv->platform_ops->open(&i2s_config);
+		hal_status = sound_card->platform_drv->platform_ops->open(stream_dir);
 		if(hal_status != HAL_OK){
 			HAL_SND_CARD_ERROR("snd card[%d] platform-I2S open Fail!\n",(uint8_t)card_num);
-			HAL_MutexUnlock(&sound_card->card_lock);
-			return HAL_ERROR;
+			goto platform_hw_free;
 		}
 	}
 
@@ -496,7 +461,7 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 
 	/* PA unmute */
 	if(stream_dir == PCM_OUT){
-		if(sound_card->pa_switch_ctl && (sound_card->codec_play_dev | AUDIO_OUT_DEV_SPK)){
+		if(sound_card->pa_switch_ctl){
 			if(sound_card->pa_switch_ctl->on_delay_before)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay_before);
 			HAL_GPIO_WritePin(sound_card->pa_switch_ctl->pin_param->port, sound_card->pa_switch_ctl->pin_param->pin, sound_card->pa_switch_ctl->on_state);
 			if(sound_card->pa_switch_ctl->on_delay_after)	HAL_MSleep(sound_card->pa_switch_ctl->on_delay_after);
@@ -504,6 +469,34 @@ HAL_Status HAL_SndCard_Open(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir, 
 	}
 
 	return HAL_OK;
+
+
+platform_hw_free:
+	if(sound_card->platform_drv && sound_card->platform_drv->dai_ops && sound_card->platform_drv->dai_ops->hw_free){
+		hal_status = sound_card->platform_drv->dai_ops->hw_free(stream_dir);
+		if(hal_status != HAL_OK){
+			HAL_SND_CARD_ERROR("snd card[%d] platform hw free Fail!\n",(uint8_t)card_num);
+		}
+	}
+
+//codec_close:
+	if(sound_card->codec_drv && sound_card->codec_drv->codec_ops && sound_card->codec_drv->codec_ops->close){
+		hal_status = sound_card->codec_drv->codec_ops->close(stream_dir);
+		if(hal_status != HAL_OK){
+			HAL_SND_CARD_ERROR("snd card[%d] codec close Fail!\n",(uint8_t)card_num);
+		}
+	}
+
+codec_hw_free:
+	if(sound_card->codec_drv && sound_card->codec_drv->dai_ops && sound_card->codec_drv->dai_ops->hw_free){
+		hal_status = sound_card->codec_drv->dai_ops->hw_free(stream_dir);
+		if(hal_status != HAL_OK){
+			HAL_SND_CARD_ERROR("snd card[%d] codec hw free Fail!\n",(uint8_t)card_num);
+		}
+	}
+
+	HAL_MutexUnlock(&sound_card->card_lock);
+	return HAL_ERROR;
 }
 
 HAL_Status HAL_SndCard_Close(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir)
@@ -520,7 +513,7 @@ HAL_Status HAL_SndCard_Close(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir)
 
 	/* PA mute */
 	if(stream_dir == PCM_OUT){
-		if(sound_card->pa_switch_ctl && (sound_card->codec_play_dev | AUDIO_OUT_DEV_SPK)){
+		if(sound_card->pa_switch_ctl){
 			HAL_GPIO_WritePin(sound_card->pa_switch_ctl->pin_param->port, sound_card->pa_switch_ctl->pin_param->pin, !sound_card->pa_switch_ctl->on_state);
 		}
 	}
@@ -532,8 +525,6 @@ HAL_Status HAL_SndCard_Close(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir)
 		hal_status = sound_card->platform_drv->platform_ops->close(stream_dir);
 		if(hal_status != HAL_OK){
 			HAL_SND_CARD_ERROR("snd card[%d] platform close Fail!\n",(uint8_t)card_num);
-			HAL_MutexUnlock(&sound_card->card_lock);
-			return HAL_ERROR;
 		}
 	}
 
@@ -542,8 +533,6 @@ HAL_Status HAL_SndCard_Close(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir)
 		hal_status = sound_card->codec_drv->codec_ops->close(stream_dir);
 		if(hal_status != HAL_OK){
 			HAL_SND_CARD_ERROR("snd card[%d] codec close Fail!\n",(uint8_t)card_num);
-			HAL_MutexUnlock(&sound_card->card_lock);
-			return HAL_ERROR;
 		}
 	}
 
@@ -552,8 +541,14 @@ HAL_Status HAL_SndCard_Close(Snd_Card_Num card_num, Audio_Stream_Dir stream_dir)
 		hal_status = sound_card->codec_drv->dai_ops->hw_free(stream_dir);
 		if(hal_status != HAL_OK){
 			HAL_SND_CARD_ERROR("snd card[%d] codec hw free Fail!\n",(uint8_t)card_num);
-			HAL_MutexUnlock(&sound_card->card_lock);
-			return HAL_ERROR;
+		}
+	}
+
+	/* Platform dai hw free */
+	if(sound_card->platform_drv && sound_card->platform_drv->dai_ops && sound_card->platform_drv->dai_ops->hw_free){
+		hal_status = sound_card->platform_drv->dai_ops->hw_free(stream_dir);
+		if(hal_status != HAL_OK){
+			HAL_SND_CARD_ERROR("snd card[%d] platform hw free Fail!\n",(uint8_t)card_num);
 		}
 	}
 
@@ -630,12 +625,7 @@ static int snd_card_resume(struct soc_device *dev, enum suspend_state_t state)
 				sound_card->codec_drv->init();
 			}
 			if(sound_card->platform_drv && sound_card->platform_drv->init){
-				//I2S init
-				I2S_Param i2s_param;
-				memset(&i2s_param, 0, sizeof(i2s_param));
-				i2s_param.mclkDiv = 1;
-
-				sound_card->platform_drv->init(&i2s_param);
+				sound_card->platform_drv->init();
 			}
 			HAL_BoardIoctl(HAL_BIR_PINMUX_INIT, HAL_MKDEV(HAL_DEV_MAJOR_AUDIO_CODEC, sound_card->card_num), 0);
 
@@ -664,47 +654,16 @@ uint8_t HAL_SndCard_Register(void)
 	HAL_Status hal_status;
 	uint8_t i,found,card_nums=0;
 	struct snd_card *sound_card;
-	struct codec_driver *codec_drv_ptr;
+	struct codec_driver *codec_drv_ptr = NULL;
 	struct platform_driver *platform_drv_ptr = NULL;
 	const struct snd_card_board_config *snd_card_board_cfg = NULL;
 
-	/* Check Codec list empty or not */
-	if(list_empty(&hal_snd_codec_list)){
-		HAL_SND_CARD_ERROR("Hal snd codec list is empty, snd card register Fail!\n");
-		return 0;
-	}
-
-	/* Get codec_drv to register snd card */
-	list_for_each_entry(codec_drv_ptr, &hal_snd_codec_list, node){
-		/* Match board config codec link */
-		for(i=0; i<=SND_CARD_MAX; i++){
-			hal_status = HAL_BoardIoctl(HAL_BIR_GET_CFG, HAL_MKDEV(HAL_DEV_MAJOR_AUDIO_CODEC, i), (uint32_t)&snd_card_board_cfg);
-			if(hal_status == HAL_OK && snd_card_board_cfg && snd_card_board_cfg->codec_link == codec_drv_ptr->codec_attr){
-				break;		//snd card codec match board config codec SUCCESS, break to continue register sound card
-			}
-		}
-		if(i>SND_CARD_MAX){
-			HAL_SND_CARD_DEBUG("snd card codec-[%d] match board config codec Fail!\n",codec_drv_ptr->codec_attr);
+	/* Register snd card according to snd card board config */
+	for(i=0; i<=SND_CARD_MAX; i++,snd_card_board_cfg = NULL){
+		/* Get snd card board config */
+		hal_status = HAL_BoardIoctl(HAL_BIR_GET_CFG, HAL_MKDEV(HAL_DEV_MAJOR_AUDIO_CODEC, i), (uint32_t)&snd_card_board_cfg);
+		if(hal_status != HAL_OK || snd_card_board_cfg == NULL){
 			continue;
-		}
-
-		/* Match board config platform link */
-		if(snd_card_board_cfg->platform_link == XRADIO_PLATFORM_NULL){
-			platform_drv_ptr = NULL;
-		} else {
-			found = 0;
-			if(!list_empty(&hal_snd_platform_list)){
-				list_for_each_entry(platform_drv_ptr, &hal_snd_platform_list, node){
-					if(snd_card_board_cfg->platform_link == platform_drv_ptr->platform_attr){
-						found = 1;
-						break;	//snd card codec match board config platform SUCCESS, break to continue register sound card
-					}
-				}
-			}
-			if(!found){
-				HAL_SND_CARD_ERROR("snd card codec-[%d] match board config platform Fail!\n",codec_drv_ptr->codec_attr);
-				continue;
-			}
 		}
 
 		/* Check the card num to be valid and unique */
@@ -724,6 +683,50 @@ uint8_t HAL_SndCard_Register(void)
 				HAL_SND_CARD_ERROR("The snd card number-[%d] has registered\n",snd_card_board_cfg->card_num);
 				continue;
 			}
+		}
+
+		/* Match board config codec link */
+		if(snd_card_board_cfg->codec_link == XRADIO_CODEC_NULL){
+			codec_drv_ptr = NULL;
+		} else {
+			found = 0;
+			if(!list_empty(&hal_snd_codec_list)){
+				list_for_each_entry(codec_drv_ptr, &hal_snd_codec_list, node){
+					if(snd_card_board_cfg->codec_link == codec_drv_ptr->codec_attr){
+						found = 1;
+						break;	//snd card match board config codec SUCCESS, break to continue register sound card
+					}
+				}
+			}
+			if(!found){
+				HAL_SND_CARD_ERROR("snd card-[%d] match board config codec Fail!\n",snd_card_board_cfg->card_num);
+				continue;
+			}
+		}
+
+		/* Match board config platform link */
+		if(snd_card_board_cfg->platform_link == XRADIO_PLATFORM_NULL){
+			platform_drv_ptr = NULL;
+		} else {
+			found = 0;
+			if(!list_empty(&hal_snd_platform_list)){
+				list_for_each_entry(platform_drv_ptr, &hal_snd_platform_list, node){
+					if(snd_card_board_cfg->platform_link == platform_drv_ptr->platform_attr){
+						found = 1;
+						break;	//snd card match board config platform SUCCESS, break to continue register sound card
+					}
+				}
+			}
+			if(!found){
+				HAL_SND_CARD_ERROR("snd card-[%d] match board config platform Fail!\n",snd_card_board_cfg->card_num);
+				continue;
+			}
+		}
+
+		/* Guarantee at least one codec or platform to be link when register snd card */
+		if(codec_drv_ptr == NULL && platform_drv_ptr == NULL){
+			HAL_SND_CARD_ERROR("snd card-[%d] must link one codec or platform at least!\n",snd_card_board_cfg->card_num);
+			continue;
 		}
 
 		/* Malloc snd card buffer */
@@ -751,25 +754,18 @@ uint8_t HAL_SndCard_Register(void)
 		/* Board config init */
 		sound_card->card_num = snd_card_board_cfg->card_num;
 		sound_card->card_name = snd_card_board_cfg->card_name;
-		sound_card->codec_play_vol = VOLUME_INVALID;
-		sound_card->codec_record_vol = VOLUME_INVALID;
-		sound_card->codec_play_dev = SND_CARD_DEFAULT_PLAY_DEV | AUDIO_DEFAULT_DEV_MASK;
-		sound_card->codec_record_dev = SND_CARD_DEFAULT_RECORD_DEV | AUDIO_DEFAULT_DEV_MASK;
 		sound_card->codec_sysclk_src = snd_card_board_cfg->codec_sysclk_src;
 		sound_card->codec_pllclk_src = snd_card_board_cfg->codec_pllclk_src;
 		sound_card->codec_pll_freq_in = snd_card_board_cfg->codec_pll_freq_in;
 		sound_card->i2s_fmt = snd_card_board_cfg->i2s_fmt;
 
 		sound_card->pa_switch_ctl = snd_card_board_cfg->pa_switch_ctl;
+		HAL_BoardIoctl(HAL_BIR_PINMUX_INIT, HAL_MKDEV(HAL_DEV_MAJOR_AUDIO_CODEC, (uint8_t)sound_card->card_num), 0);
 
 		if(sound_card->pa_switch_ctl){
-			HAL_BoardIoctl(HAL_BIR_PINMUX_INIT, HAL_MKDEV(HAL_DEV_MAJOR_AUDIO_CODEC, (uint8_t)sound_card->card_num), 0);
-
 			//PA switch init
-			if(sound_card->pa_switch_ctl){
-				HAL_GPIO_WritePin(sound_card->pa_switch_ctl->pin_param->port,\
-					sound_card->pa_switch_ctl->pin_param->pin, !sound_card->pa_switch_ctl->on_state);
-			}
+			HAL_GPIO_WritePin(sound_card->pa_switch_ctl->pin_param->port,\
+				sound_card->pa_switch_ctl->pin_param->pin, !sound_card->pa_switch_ctl->on_state);
 		}
 
 		/* Codec init */
@@ -784,12 +780,7 @@ uint8_t HAL_SndCard_Register(void)
 
 		/* Platform init */
 		if(sound_card->platform_drv && sound_card->platform_drv->init){
-			//I2S init
-			I2S_Param i2s_param;
-			memset(&i2s_param, 0, sizeof(i2s_param));
-			i2s_param.mclkDiv = 2;
-
-			hal_status = sound_card->platform_drv->init(&i2s_param);
+			hal_status = sound_card->platform_drv->init();
 			if(hal_status != HAL_OK){
 				HAL_SND_CARD_ERROR("snd card[%d] platform-I2S init Fail\n", (uint8_t)sound_card->card_num);
 				HAL_Free(sound_card);
@@ -891,6 +882,16 @@ HAL_Status HAL_SndCard_CodecRegisterAc107(void)
 HAL_Status HAL_SndCard_CodecUnregisterAc107(void)
 {
 	return ac107_codec_unregister();
+}
+
+HAL_Status HAL_SndCard_CodecRegisterAc101(void)
+{
+	return ac101_codec_register();
+}
+
+HAL_Status HAL_SndCard_CodecUnregisterAc101(void)
+{
+	return ac101_codec_unregister();
 }
 
 HAL_Status HAL_SndCard_PlatformRegisterI2S(void)

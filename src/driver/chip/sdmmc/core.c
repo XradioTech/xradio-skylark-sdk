@@ -26,7 +26,7 @@
  *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include "sys/dma_heap.h"
 #include "driver/chip/sdmmc/hal_sdhost.h"
 #include "driver/chip/sdmmc/sdmmc.h"
 #ifdef CONFIG_USE_SDIO
@@ -58,31 +58,63 @@ extern int32_t _mmc_block_write(struct mmc_card *card, const uint8_t *buf, uint6
 int32_t mmc_block_read(struct mmc_card *card, uint8_t *buf, uint64_t sblk, uint32_t nblk)
 {
 	int32_t err;
-#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-    if(HAL_Dcache_IsCacheable((uint32_t)buf, (uint32_t)(sblk*nblk))) {
-        HAL_ERR("SDMMC: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
-        return -1;
+    uint8_t *dma_buf = buf;
+#if ((defined __CONFIG_PSRAM_ALL_CACHEABLE) && (defined __CONFIG_PSRAM))
+    uint8_t bufIsCacheable = HAL_Dcache_IsCacheable((uint32_t)buf, (uint32_t)(nblk*512));
+    if(bufIsCacheable) {
+        dma_buf = dma_malloc(nblk*512, DMAHEAP_PSRAM);
+        if(dma_buf == NULL) {
+            HAL_ERR("dma_malloc failed\n");
+            return -1;
+        }
     }
 #endif
 
 	HAL_SDC_Claim_Host(card->host);
-	err = _mmc_block_read(card, buf, sblk, nblk);
+	err = _mmc_block_read(card, dma_buf, sblk, nblk);
 	HAL_SDC_Release_Host(card->host);
+#if ((defined __CONFIG_PSRAM_ALL_CACHEABLE) && (defined __CONFIG_PSRAM))
+    if(bufIsCacheable) {
+        HAL_Memcpy(buf, dma_buf, nblk*512);
+        dma_free(dma_buf, DMAHEAP_PSRAM);
+    }
+#endif
 	return err;
 }
 
 int32_t mmc_block_write(struct mmc_card *card, const uint8_t *buf, uint64_t sblk, uint32_t nblk)
 {
 	int32_t err;
-#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-    if(HAL_Dcache_IsCacheable((uint32_t)buf, (uint32_t)(sblk*nblk))) {
-        HAL_ERR("SDMMC: buf addr 0x%08x MUST NOT CACHEABLE!!!\n", (uint32_t)buf);
-        return -1;
+    uint8_t *dma_buf = (uint8_t *)buf;
+#if ((defined __CONFIG_PSRAM_ALL_CACHEABLE) && (defined __CONFIG_PSRAM))
+    uint8_t bufIsCacheable = HAL_Dcache_IsCacheable((uint32_t)buf, (uint32_t)(nblk*512));
+    if(bufIsCacheable) {
+        dma_buf = dma_malloc(nblk*512, DMAHEAP_PSRAM);
+        if(dma_buf == NULL) {
+            HAL_ERR("dma_malloc failed\n");
+            return -1;
+        }
+        HAL_Memcpy(dma_buf, buf, nblk*512);
     }
 #endif
 	HAL_SDC_Claim_Host(card->host);
-	err = _mmc_block_write(card, buf, sblk, nblk);
+	err = _mmc_block_write(card, dma_buf, sblk, nblk);
 	HAL_SDC_Release_Host(card->host);
+#if ((defined __CONFIG_PSRAM_ALL_CACHEABLE) && (defined __CONFIG_PSRAM))
+    if(bufIsCacheable) {
+        dma_free(dma_buf, DMAHEAP_PSRAM);
+    }
+#endif
 	return err;
 }
 #endif
+
+uint32_t mmc_get_capacity(struct mmc_card *card)
+{
+	if (!card) {
+		HAL_ERR("card not exist\n");
+		return 0;
+	}
+	return card->csd.capacity;
+}
+

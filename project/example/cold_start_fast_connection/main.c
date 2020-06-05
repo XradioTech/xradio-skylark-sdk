@@ -37,6 +37,7 @@
 #include "common/cmd/cmd.h"
 #include "lwip/inet.h"
 #include "sys/fdcm.h"
+#include "sys/xr_debug.h"
 #include "util/time_logger.h"
 
 extern uint64_t HAL_RTC_GetFreeRunTime(void);
@@ -163,14 +164,18 @@ int save_bss_to_flash(bss_info_t * pbss_info)
 
     //Gererate 32 bytes HEX psk, so that we don't need to calcute next time
 	wlan_gen_psk_param_t param;
-	param.ssid_len = strlen(sta_ssid);
-	memcpy(param.ssid, sta_ssid, param.ssid_len);
-	strlcpy(param.passphrase, sta_psk, sizeof(param.passphrase));
-	ret = wlan_sta_gen_psk(&param);
-	if (ret != 0) {
-		printf("fail to generate psk\n");
-		ret = -1;
-		return ret;
+	if (strlen(sta_psk) == 64) {
+		hex2bin(param.psk, sta_psk, 32);
+	} else {
+		param.ssid_len = strlen(sta_ssid);
+		memcpy(param.ssid, sta_ssid, param.ssid_len);
+		strlcpy(param.passphrase, sta_psk, sizeof(param.passphrase));
+		ret = wlan_sta_gen_psk(&param);
+		if (ret != 0) {
+			printf("fail to generate psk\n");
+			ret = -1;
+			return ret;
+		}
 	}
 
     //Save current bss info to flash
@@ -305,7 +310,9 @@ void fast_connect_example(void)
 	FC_DEBUG("Begin fast connect example\n");
 	FC_DEBUG("Try to get old bss info in flash...\n");
 	if (get_bss_from_flash(&g_bss_info)) {
+#if !FC_DEBUG_EN
 		stdout_enable(1);
+#endif
 		printf("Get old bss failed!\n");
 		printf("Begin normal connection\n");
 		connect_ap_normal();
@@ -314,7 +321,9 @@ void fast_connect_example(void)
 		FC_DEBUG("Get old bss info success!\n");
 		FC_DEBUG("Begin fast connection\n");
 		connect_ap_fast(&g_bss_info);
+#if !FC_DEBUG_EN
 		stdout_enable(1);
+#endif
 	}
 }
 
@@ -322,7 +331,9 @@ int main(void)
 {
 	uint32_t time_eob, time_eop;
 	time_eob = (uint32_t)HAL_RTC_GetFreeRunTime();
+#if !FC_DEBUG_EN
 	stdout_enable(0);
+#endif
 	platform_init();
 	time_eop = (uint32_t)HAL_RTC_GetFreeRunTime();
 	save_time(time_eob, 0);

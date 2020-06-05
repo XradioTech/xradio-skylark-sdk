@@ -43,19 +43,5 @@ static const struct cmd_data g_main_cmds[] = {
 
 void main_cmd_exec(char *cmd)
 {
-	enum cmd_status status;
-
-	if (cmd[0] == '\0') { /* empty command */
-		CMD_LOG(1, "$\n");
-		return;
-	}
-
-	CMD_LOG(CMD_DBG_ON, "$ %s\n", cmd);
-
-	status = cmd_exec(cmd, g_main_cmds, cmd_nitems(g_main_cmds));
-	if (status == CMD_STATUS_ACKED) {
-		return; /* already acked, just return */
-	}
-
-	cmd_write_respond(status, cmd_get_status_desc(status));
+	cmd_main_exec(cmd, g_main_cmds, cmd_nitems(g_main_cmds));
 }

@@ -125,6 +125,24 @@ static int set_webclient(void *arg)
 	return 0;
 }
 #endif
+
+#if CMD_DESCRIBE
+#define tls_help_info \
+"[*] -p <port> : set port, must be the same as the server port\n"\
+"[*] -t <time> : set test time(ms)\n"\
+"[*] -c : set to client mode\n"\
+"[*] -n : set server host name, or server ip\n"\
+"[*] -s : set to server mode"
+#endif /* CMD_DESCRIBE */
+
+static int print_help_info(void *arg)
+{
+#if CMD_DESCRIBE
+	CMD_LOG(1, "%s\n", tls_help_info);
+#endif
+	return CMD_STATUS_ACKED;
+}
+
 static struct config_exec_arg keywords[] = {
 
 	{"-p",  set_port,       1},    /* set port*/
@@ -145,6 +163,11 @@ enum cmd_status cmd_tls_exec(char *cmd)
 	mbedtls_test_param *param = (mbedtls_test_param *)&g_tls_data;
 	memset(param, 0, sizeof(mbedtls_test_param));
 	argc = cmd_parse_argv(cmd, argv, 12);
+
+	if (cmd_strcmp(cmd, "help") == 0 || cmd_strcmp(cmd, "-h") == 0) {
+		print_help_info(cmd);
+		return CMD_STATUS_ACKED;
+	}
 
 	for (j = 0; j < argc; ++j) {
 		 for (i = 0; strlen(keywords[i].cmd_str); i++)

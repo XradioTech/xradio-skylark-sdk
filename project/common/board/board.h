@@ -60,7 +60,7 @@ HAL_Status board_spi_init(SPI_Port spi);
 HAL_Status board_spi_deinit(SPI_Port spi);
 #endif
 
-#if PRJCONF_INTERNAL_SOUNDCARD_EN || PRJCONF_AC107_SOUNDCARD_EN
+#if PRJCONF_AUDIO_SNDCARD_EN
 HAL_Status board_soundcard_init(void);
 HAL_Status board_soundcard_deinit(void);
 #endif

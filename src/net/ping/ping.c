@@ -4,19 +4,20 @@
 #include <lwip/tcpip.h>
 #include <lwip/inet.h>
 #include "lwip/sockets.h"
+#include "lwip/netdb.h"
 #include <lwip/ip.h>
 #include <lwip/icmp.h>
 #include <lwip/inet_chksum.h>
 #include "net/ping/ping.h"
+#include "kernel/os/os_thread.h"
 
-static u16_t PING_IDs = 0x1234;
 #define PING_TO		5000    /* timeout to wait every reponse(ms) */
 #define PING_ID		0xABCD
 #define PING_DATA_SIZE	100     /* size of send frame buff, not include ICMP frma head */
 #define PING_IP_HDR_SIZE	40
 #define GET_TICKS	OS_GetTicks
 
-static void generate_ping_echo(u8_t *buf, u32_t len, u16_t seq)
+static void generate_ping_echo(u8_t *buf, u32_t len, u16_t seq, u16_t id)
 {
 	u32_t i;
 	u32_t data_len = len - sizeof(struct icmp_echo_hdr);
@@ -28,7 +29,7 @@ static void generate_ping_echo(u8_t *buf, u32_t len, u16_t seq)
 	ICMPH_CODE_SET(pecho, 0);
 
 	pecho->chksum = 0;
-	pecho->id = PING_IDs;
+	pecho->id = id;
 	pecho->seqno = htons(seq);
 
 	/* fill the additional data buffer with some data */
@@ -54,23 +55,36 @@ s32_t ping(struct ping_data *data)
 	struct icmp_echo_hdr *pecho;
 	u16_t ping_seq_num = 1;
 	s32_t ping_pass = 0;
+	u16_t ping_fail = 0;
 	u32_t i;
-	u32_t TimeStart,TimeNow,TimeElapse;
-	PING_IDs++;
-	if (PING_IDs == 0x7FFF)
-		PING_IDs = 0x1234;
+	u32_t TimeStart=0,TimeNow=0,TimeElapse=0;
+	u32_t start_time = 0, stop_time = 0;
+	u16_t ping_ids = 0x1234;
+	u32_t min_time = 0, max_time = 0, avg_time = 0;
+
 	memset(&FromAddr, 0, sizeof(FromAddr));
 	FromLen = sizeof(FromAddr);
 
 	iSockID = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (iSockID < 0) {
-		printf("create socket fail.\n");
+		printf("create socket fail. errno:%d\n", errno);
 		return -1;
 	}
 
 //	fcntl(iSockID, F_SETFL, O_NONBLOCK);  /* set noblocking */
 	int val = 1;
-	ioctlsocket(iSockID, FIONBIO,  (void *)&val);/* set noblocking */
+	iStatus = ioctlsocket(iSockID, FIONBIO, (void *)&val);/* set noblocking */
+	if (iStatus < 0)
+		printf("setsockopt err! errno:%d\n", errno);
+
+	if (data->ttl > 0) {
+		val = data->ttl;
+		if (val > 255)
+			val = 255;
+		iStatus = setsockopt(iSockID, IPPROTO_IP, IP_TTL, &val, sizeof(val));
+		if (iStatus < 0)
+			printf("setsockopt err! errno:%d\n", errno);
+	}
 
 	memset(&ToAddr, 0, sizeof(ToAddr));
 	ToAddr.sin_len = sizeof(ToAddr);
@@ -83,22 +97,33 @@ s32_t ping(struct ping_data *data)
 #else
 	#error "IPv4 not support!"
 #endif
-	if (data->data_long != 0xffff)
+	if (data->data_long != 0xffff) {
 		request_size = data->data_long;
-	else
+		if (request_size > 65500)
+			request_size = 65500;
+	} else {
 		request_size = PING_DATA_SIZE;
+	}
 	request_size += sizeof(struct icmp_echo_hdr);
 	buf_size = request_size + PING_IP_HDR_SIZE;
 	ping_buf = malloc(buf_size);
 	if (!ping_buf) {
-        	return -1;
+		return -1;
 	}
 
-	for (i = 0; i < data->count; i++) {
-		generate_ping_echo(ping_buf, request_size, ping_seq_num);
+	start_time = GET_TICKS();
+	if (data->deadline > 0)
+		stop_time = start_time + data->deadline * 1000;
+
+	data->run_flag = 1;
+
+	printf("PING %s %d bytes of data.\n", inet_ntoa(data->sin_addr), request_size);
+
+	for (i = 0; i < data->count && data->run_flag; i++) {
+		generate_ping_echo(ping_buf, request_size, ping_seq_num, ping_ids);
 		sendto(iSockID, ping_buf, request_size, 0, (struct sockaddr*)&ToAddr, sizeof(ToAddr));
 		TimeStart = GET_TICKS();
-		while (1) {
+		while (data->run_flag) {
 			FD_ZERO(&ReadFds);
 			FD_SET(iSockID, &ReadFds);
 			Timeout.tv_sec = 0;
@@ -118,9 +143,19 @@ s32_t ping(struct ping_data *data)
 					}
 					iphdr = (struct ip_hdr *)ping_buf;
 					pecho = (struct icmp_echo_hdr *)(ping_buf + (IPH_HL(iphdr) * 4));
-					if ((pecho->id == PING_IDs) && (pecho->seqno == htons(ping_seq_num))) {
+					if ((pecho->id == ping_ids) && (pecho->seqno == htons(ping_seq_num))) {
 						/* do some ping result processing */
-						printf("%d bytes from %s: icmp_seq=%d	 time=%d ms\n",
+						if (ping_pass) {
+							if (TimeElapse > max_time)
+								max_time = TimeElapse;
+							if (TimeElapse < min_time)
+								min_time = TimeElapse;
+						} else {
+							max_time = min_time = TimeElapse;
+						}
+						avg_time += TimeElapse;
+
+						printf("%d bytes from %s: icmp_seq=%d    time=%d ms\n",
 						       (reply_size - (IPH_HL(iphdr) * 4) - sizeof(struct icmp_echo_hdr)),
 						       inet_ntoa(FromAddr.sin_addr),
 						       htons(pecho->seqno), TimeElapse);
@@ -132,18 +167,38 @@ s32_t ping(struct ping_data *data)
 
 			TimeNow = GET_TICKS();
 			if (TimeNow >= TimeStart) {
-				TimeElapse=TimeNow - TimeStart;
+				TimeElapse = TimeNow - TimeStart;
 			} else {
-				TimeElapse=0xffffffffUL - TimeStart + TimeNow;
+				TimeElapse = 0xffffffffUL - TimeStart + TimeNow;
 			}
-			if (TimeElapse >= PING_TO) {  /* giveup this wait, if wait timeout */
+			if (TimeElapse >= data->timeout) {  /* giveup this wait, if wait timeout */
 				printf("Request timeout for icmp_seq=%d\n", ping_seq_num);
+				ping_fail++;
 				break;
 			}
 		}
+
 		ping_seq_num++;
-		OS_Sleep(1);
+		ping_ids++;
+		if (ping_ids == 0x7FFF)
+			ping_ids = 0x1234;
+
+		if (data->deadline > 0) {
+			if (GET_TICKS() >= stop_time) {
+				data->run_flag = 0;
+				break;
+			}
+		}
+
+		OS_Sleep(data->interval);
 	}
+
+	printf("\n--- %s ping statistics ---\n"\
+           "%d packets transmitted, %d received, %d%% packet loss, time %dms\n"\
+           "rtt min/avg/max/mdev = %d/%d/%d/%d ms\n",
+           inet_ntoa(data->sin_addr), ping_seq_num - 1, ping_pass,
+           ping_fail * 100 / (ping_seq_num - 1), GET_TICKS() - start_time,
+           min_time, ping_pass > 0 ? avg_time/ping_pass : 0, max_time, max_time - min_time);
 
 	free(ping_buf);
 	closesocket(iSockID);
@@ -152,3 +207,4 @@ s32_t ping(struct ping_data *data)
 	else
 		return -1;
 }
+

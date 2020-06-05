@@ -454,42 +454,8 @@ typedef struct {
 	bool cs_level;	/*!< the cs voltage level of chip running */
 } SPI_Global_Config;
 
-/*
- * @brief
- *        reset(not init) <--> ready(inited/closed) <--> busy(opened) <--> tx/rx/tx_rx(transmitting)
- *
- *        each state --> error
- */
-HAL_Status HAL_SPI_Init(SPI_Port port, const SPI_Global_Config *gconfig);
-HAL_Status HAL_SPI_Deinit(SPI_Port port);
-HAL_Status HAL_SPI_Receive(SPI_Port port, uint8_t *data, uint32_t size);
-HAL_Status HAL_SPI_Transmit(SPI_Port port, uint8_t *data, uint32_t size);
-HAL_Status HAL_SPI_TransmitReceive(SPI_Port port, uint8_t *tx_data, uint8_t *rx_data, uint32_t size);
-HAL_Status HAL_SPI_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t msec);
-HAL_Status HAL_SPI_Close(SPI_Port port);
-HAL_Status HAL_SPI_CS(SPI_Port port, bool select);
-HAL_Status HAL_SPI_Config(SPI_Port port, SPI_Attribution attr, uint32_t arg);
-void HAL_SPI_Test();
-void HAL_SPI_TestByFlash();
-
 #define SPI_MAX_WAIT_MS (2000)
-
 //#define SPI_SOURCE_CLK (24 * 1000 * 1000)
-
-/* for spi slave dma transfer */
-HAL_Status HAL_SPI_Slave_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t msec);
-HAL_Status HAL_SPI_Slave_Close(SPI_Port port);
-
-HAL_Status HAL_SPI_Slave_InitTxDMA(SPI_Port port, const DMA_ChannelInitParam *param);
-HAL_Status HAL_SPI_Slave_InitRxDMA(SPI_Port port, const DMA_ChannelInitParam *param);
-HAL_Status HAL_SPI_Slave_DeInitTxDMA(SPI_Port port);
-HAL_Status HAL_SPI_Slave_DeInitRxDMA(SPI_Port port);
-
-HAL_Status HAL_SPI_Slave_StartTransmit_DMA(SPI_Port port, const uint8_t *buf, int32_t size);
-int32_t HAL_SPI_Slave_StopTransmit_DMA(SPI_Port port);
-
-HAL_Status HAL_SPI_Slave_StartReceive_DMA(SPI_Port port, uint8_t *buf, int32_t size);
-int32_t HAL_SPI_Slave_StopReceive_DMA(SPI_Port port);
 
 typedef enum {
 	SPI_INT_CS_DESELECT = SPI_IER_SS_INT_EN_MASK,
@@ -513,6 +479,41 @@ typedef struct {
 	SPI_IRQCallback  callback;
 	void            *arg;
 } SPI_IrqParam;
+
+/*
+ * @brief
+ *        reset(not init) <--> ready(inited/closed) <--> busy(opened) <--> tx/rx/tx_rx(transmitting)
+ *
+ *        each state --> error
+ */
+HAL_Status HAL_SPI_Init(SPI_Port port, const SPI_Global_Config *gconfig);
+HAL_Status HAL_SPI_Deinit(SPI_Port port);
+HAL_Status HAL_SPI_CS(SPI_Port port, bool select);
+HAL_Status HAL_SPI_Config(SPI_Port port, SPI_Attribution attr, uint32_t arg);
+void HAL_SPI_Test();
+void HAL_SPI_TestByFlash();
+
+/* for spi master mode api. */
+HAL_Status HAL_SPI_Receive(SPI_Port port, uint8_t *data, uint32_t size);
+HAL_Status HAL_SPI_Transmit(SPI_Port port, uint8_t *data, uint32_t size);
+HAL_Status HAL_SPI_TransmitReceive(SPI_Port port, uint8_t *tx_data, uint8_t *rx_data, uint32_t size);
+HAL_Status HAL_SPI_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t msec);
+HAL_Status HAL_SPI_Close(SPI_Port port);
+
+/* for spi slave mode api. */
+HAL_Status HAL_SPI_Slave_Open(SPI_Port port, SPI_CS cs, SPI_Config *config, uint32_t msec);
+HAL_Status HAL_SPI_Slave_Close(SPI_Port port);
+
+HAL_Status HAL_SPI_Slave_InitTxDMA(SPI_Port port, const DMA_ChannelInitParam *param);
+HAL_Status HAL_SPI_Slave_InitRxDMA(SPI_Port port, const DMA_ChannelInitParam *param);
+HAL_Status HAL_SPI_Slave_DeInitTxDMA(SPI_Port port);
+HAL_Status HAL_SPI_Slave_DeInitRxDMA(SPI_Port port);
+
+HAL_Status HAL_SPI_Slave_StartTransmit_DMA(SPI_Port port, const uint8_t *buf, int32_t size);
+int32_t HAL_SPI_Slave_StopTransmit_DMA(SPI_Port port);
+
+HAL_Status HAL_SPI_Slave_StartReceive_DMA(SPI_Port port, uint8_t *buf, int32_t size);
+int32_t HAL_SPI_Slave_StopReceive_DMA(SPI_Port port);
 
 HAL_Status HAL_SPI_Slave_EnableIRQ(SPI_Port port, SPI_IrqParam *param);
 HAL_Status HAL_SPI_Slave_DisableIRQ(SPI_Port port);

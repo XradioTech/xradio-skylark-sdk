@@ -46,6 +46,9 @@ __XIP_END = ORIGIN(FLASH) + LENGTH(FLASH) -1;
 __PSRAM_BASE = ORIGIN(PSRAM);
 __PSRAM_LENGTH = LENGTH(PSRAM);
 __PSRAM_END = ORIGIN(PSRAM) + LENGTH(PSRAM) -1;
+__DMAHEAP_PSRAM_BASE = __PSRAM_BASE + __PSRAM_LENGTH - __CONFIG_DMAHEAP_PSRAM_SIZE*1024;
+__DMAHEAP_PSRAM_LENGTH = __CONFIG_DMAHEAP_PSRAM_SIZE*1024;
+__DMAHEAP_PSRAM_END = __DMAHEAP_PSRAM_BASE + __DMAHEAP_PSRAM_LENGTH -1;
 #endif
 
 /* Linker script to place sections and symbol values. Should be used together
@@ -92,6 +95,8 @@ SECTIONS
         *libamr.a: (.text .text.* .rodata .rodata.*)
         *libamren.a: (.text .text.* .rodata .rodata.*)
         *libreverb.a: (.text .text.* .rodata .rodata.*)
+        *libopus.a: (.text .text.* .rodata .rodata.*)
+        *libspeex.a: (.text .text.* .rodata .rodata.*)
         *libcedarx.a: (.text .text.* .rodata .rodata.*)
         *libpcm.a: (.text .text.* .rodata .rodata.*)
         *libaudmgr.a: (.text .text.* .rodata .rodata.*)
@@ -147,7 +152,6 @@ SECTIONS
         *libchip.a:hal_dmic.o (.text .text.* .rodata .rodata.*)
         *libchip.a:hal_pwm.o (.text .text.* .rodata .rodata.*)
         *libchip.a:hal_spi.o (.text .text.* .rodata .rodata.*)
-        *libchip.a:hal_csi.o (.text .text.* .rodata .rodata.*)
         *libchip.a:hal_efuse.o (.text .text.* .rodata .rodata.*)
 
         *libm.a: (EXCLUDE_FILE (lib_a-s_fpclassify.o lib_a-sf_fpclassify.o) .text
@@ -249,7 +253,11 @@ SECTIONS
         *project/common/framework*.o (.text .text.* .rodata .rodata.*)
         *project/common/apps/player_app.o (.text .text.* .rodata .rodata.*)
         *project/common/apps/recorder_app.o (.text .text.* .rodata .rodata.*)
-        *project/common/apps/cedarx/cdx_memory.o (.text .text.* .rodata .rodata.*)
+        *project/common/apps/cedarx/os_glue/cdx_memory.o (.text .text.* .rodata .rodata.*)
+        *project/common/apps/cedarx/os_glue/atomic.o (.text .text.* .rodata .rodata.*)
+        *project/common/apps/cedarx/os_glue/file.o (.text .text.* .rodata .rodata.*)
+        *project/common/apps/cedarx/os_glue/pthread.o (.text .text.* .rodata .rodata.*)
+        *project/common/apps/cedarx/os_glue/sleep.o (.text .text.* .rodata .rodata.*)
         *project/common/apps/cedarx/capture_ctrl/captureControl_rtos.o (.text .text.* .rodata .rodata.*)
         *project/common/apps/cedarx/sound_ctrl/card_pcm.o (.text .text.* .rodata .rodata.*)
         *project/common/apps/cedarx/sound_ctrl/reverb_buffer.o (.text .text.* .rodata .rodata.*)
@@ -289,6 +297,7 @@ SECTIONS
         *libamr.a: ( .data .data.* vtable )
         *libamren.a: ( .data .data.* vtable )
         *libreverb.a: ( .data .data.* vtable )
+        *libopus.a: ( .data .data.* vtable )
         *libcedarx.a: ( .data .data.* vtable )
         *libpcm.a: ( .data .data.* vtable )
         *libaudmgr.a: ( .data .data.* vtable )
@@ -341,7 +350,6 @@ SECTIONS
         *libchip.a:hal_dmic.o ( .data .data.* vtable )
         *libchip.a:hal_pwm.o ( .data .data.* vtable )
         *libchip.a:hal_spi.o ( .data .data.* vtable )
-        *libchip.a:hal_csi.o ( .data .data.* vtable )
         *libchip.a:hal_efuse.o ( .data .data.* vtable )
         *libm.a: ( .data .data.* vtable )
         *libc_nano.a:lib_a-asctime.o ( .data .data.* vtable )
@@ -371,7 +379,11 @@ SECTIONS
         *project/common/iperf*.o ( .data .data.* vtable )
         *project/common/apps/player_app.o ( .data .data.* vtable )
         *project/common/apps/recorder_app.o ( .data .data.* vtable )
-        *project/common/apps/cedarx/cdx_memory.o ( .data .data.* vtable )
+        *project/common/apps/cedarx/os_glue/cdx_memory.o ( .data .data.* vtable )
+        *project/common/apps/cedarx/os_glue/atomic.o ( .data .data.* vtable )
+        *project/common/apps/cedarx/os_glue/file.o ( .data .data.* vtable )
+        *project/common/apps/cedarx/os_glue/pthread.o ( .data .data.* vtable )
+        *project/common/apps/cedarx/os_glue/sleep.o ( .data .data.* vtable )
         *project/common/apps/cedarx/capture_ctrl/captureControl_rtos.o ( .data .data.* vtable )
         *project/common/apps/cedarx/sound_ctrl/card_pcm.o ( .data .data.* vtable )
         *project/common/apps/cedarx/sound_ctrl/reverb_buffer.o ( .data .data.* vtable )
@@ -395,6 +407,7 @@ SECTIONS
         *libamr.a: ( .bss .bss.* COMMON )
         *libamren.a: ( .bss .bss.* COMMON )
         *libreverb.a: ( .bss .bss.* COMMON )
+        *libopus.a: ( .bss .bss.* COMMON )
         *libcedarx.a: ( .bss .bss.* COMMON )
         *libpcm.a: ( .bss .bss.* COMMON )
         *libaudmgr.a: ( .bss .bss.* COMMON )
@@ -447,7 +460,6 @@ SECTIONS
         *libchip.a:hal_dmic.o ( .bss .bss.* COMMON )
         *libchip.a:hal_pwm.o ( .bss .bss.* COMMON )
         *libchip.a:hal_spi.o ( .bss .bss.* COMMON )
-        *libchip.a:hal_csi.o ( .bss .bss.* COMMON )
         *libchip.a:hal_efuse.o ( .bss .bss.* COMMON )
         *libm.a: ( .bss .bss.* COMMON )
         *libc_nano.a:lib_a-asctime.o ( .bss .bss.* COMMON )
@@ -477,7 +489,11 @@ SECTIONS
         *project/common/iperf*.o ( .bss .bss.* COMMON )
         *project/common/apps/player_app.o ( .bss .bss.* COMMON )
         *project/common/apps/recorder_app.o ( .bss .bss.* COMMON )
-        *project/common/apps/cedarx/cdx_memory.o ( .bss .bss.* COMMON )
+        *project/common/apps/cedarx/os_glue/cdx_memory.o ( .bss .bss.* COMMON )
+        *project/common/apps/cedarx/os_glue/atomic.o ( .bss .bss.* COMMON )
+        *project/common/apps/cedarx/os_glue/file.o ( .bss .bss.* COMMON )
+        *project/common/apps/cedarx/os_glue/pthread.o ( .bss .bss.* COMMON )
+        *project/common/apps/cedarx/os_glue/sleep.o ( .bss .bss.* COMMON )
         *project/common/apps/cedarx/capture_ctrl/captureControl_rtos.o ( .bss .bss.* COMMON )
         *project/common/apps/cedarx/sound_ctrl/card_pcm.o ( .bss .bss.* COMMON )
         *project/common/apps/cedarx/sound_ctrl/reverb_buffer.o ( .bss .bss.* COMMON )
@@ -658,5 +674,9 @@ SECTIONS
     PROVIDE(__stack = __StackTop);
 
     /* Check if data + heap + stack exceeds RAM limit */
-    ASSERT(__StackLimit >= __HeapLimit, "region RAM overflowed with stack")
+    ASSERT(__StackLimit >= __HeapLimit, "ld: region RAM overflowed with stack")
+#if (defined(__CONFIG_PSRAM))
+	/* Check if psramdata exceeds PSRAM limit */
+    ASSERT(__DMAHEAP_PSRAM_BASE > __psram_end__, "ld: region dmapsramheap overflowed with psram heap")
+#endif
 }

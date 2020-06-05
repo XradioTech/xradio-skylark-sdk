@@ -42,7 +42,14 @@
 
 #define OTA_UPDATE_DEBUG_SIZE_UNIT		(50 * 1024)
 
+#define OTA_START_PERCENT (0)
+#define OTA_DOWNLOAD_FINISH_PERCENT (80)
+#define OTA_CHECK_SECTIONS_PERCENT (90)
+#define OTA_VERIFY_IMAGE_PERCENT (100)
+
 static ota_priv_t	ota_priv;
+static ota_callback ota_cb = NULL;
+static int32_t		ota_skip_size = -1;
 
 /* indexed by image_seq_t */
 static const image_seq_t ota_update_seq_policy[IMAGE_SEQ_NUM] = {
@@ -116,9 +123,7 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 	ota_status_t	status;
 	uint32_t		flash;
 	uint32_t		addr;
-#if (__CONFIG_OTA_POLICY == 0x00)
-	uint32_t		bl_size;
-#endif
+	uint32_t		skip_size;
 	uint32_t		recv_size;
 	uint32_t		img_max_size;
 	uint8_t		   *ota_buf;
@@ -137,6 +142,9 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 	OTA_DBG("%s(), seq %d, flash %u, addr %#x, size %d\n", __func__, seq,
 			flash, addr, img_max_size);
 	OTA_SYSLOG("OTA: erase flash...\n");
+
+	if (ota_cb)
+		ota_cb(OTA_UPGRADE_START, 0, OTA_START_PERCENT);
 
 	if (flash_erase(flash, addr, img_max_size) != 0) {
 		return ret;
@@ -159,18 +167,25 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 	debug_size = OTA_UPDATE_DEBUG_SIZE_UNIT;
 	ota_priv.get_size = 0;
 
-#if (__CONFIG_OTA_POLICY == 0x00)
 	/* skip bootloader */
-	bl_size = iop->bl_size;
-	while (bl_size > 0) {
+	if (ota_skip_size < 0) {
+#if (__CONFIG_OTA_POLICY == 0x00)
+		ota_skip_size = iop->bl_size;
+#else
+		ota_skip_size = 0;
+#endif
+	}
+
+	skip_size = ota_skip_size;
+	while (skip_size > 0) {
 		status = get_cb(ota_buf,
-		                (bl_size > OTA_BUF_SIZE) ? OTA_BUF_SIZE : bl_size,
+		                (skip_size > OTA_BUF_SIZE) ? OTA_BUF_SIZE : skip_size,
 		                &recv_size, &eof_flag);
 		if ((status != OTA_STATUS_OK) || eof_flag) {
 			OTA_ERR("status %d, eof %d\n", status, eof_flag);
 			goto ota_err;
 		}
-		bl_size -= recv_size;
+		skip_size -= recv_size;
 		ota_priv.get_size += recv_size;
 
 		if (ota_priv.get_size >= debug_size) {
@@ -178,10 +193,11 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 			           ota_priv.get_size / 1024);
 			debug_size += OTA_UPDATE_DEBUG_SIZE_UNIT;
 		}
+		if (ota_cb)
+			ota_cb(OTA_UPGRADE_UPDATING, 0, OTA_START_PERCENT);
 	}
 
-	OTA_DBG("%s(), skip bootloader success\n", __func__);
-#endif
+	OTA_DBG("%s(), skip %d success\n", __func__, ota_skip_size);
 
 	if (HAL_Flash_Open(flash, OTA_FLASH_TIMEOUT) != HAL_OK) {
 		OTA_ERR("open flash %u fail\n", flash);
@@ -223,6 +239,16 @@ static ota_status_t ota_update_image_process(image_seq_t seq, void *url,
 			           ota_priv.get_size / 1024);
 			debug_size += OTA_UPDATE_DEBUG_SIZE_UNIT;
 		}
+
+		if (ota_cb)
+			ota_cb(OTA_UPGRADE_UPDATING, ota_priv.get_size - ota_skip_size,
+				(ota_priv.get_size - ota_skip_size) * OTA_DOWNLOAD_FINISH_PERCENT /
+#if (__CONFIG_OTA_POLICY == 0x00)
+				IMAGE_AREA_SIZE(iop->img_max_size)
+#else
+				IMAGE_AREA_SIZE(iop->img_xz_max_size)
+#endif
+				);
 	}
 #if OTA_IMG_DATA_CORRUPTION_TEST
 	OTA_SYSLOG("ota img data corruption test end\n");
@@ -238,7 +264,7 @@ ota_err:
 		if (img_max_size == 0) {
 			/* reach max size, but not end, continue trying to check sections */
 			OTA_ERR("download img size %u == %u, but not end\n",
-					ota_priv.get_size - iop->bl_size, IMAGE_AREA_SIZE(iop->img_max_size));
+					ota_priv.get_size - ota_skip_size, IMAGE_AREA_SIZE(iop->img_max_size));
 		} else {
 			return ret;
 		}
@@ -251,6 +277,9 @@ ota_err:
 		return OTA_STATUS_ERROR;
 	}
 
+	if (ota_cb)
+		ota_cb(OTA_UPGRADE_UPDATING, ota_priv.get_size - ota_skip_size, OTA_CHECK_SECTIONS_PERCENT);
+
 	OTA_SYSLOG("OTA: finish checking image.\n");
 	return OTA_STATUS_OK;
 }
@@ -259,11 +288,24 @@ static ota_status_t ota_update_image(void *url,
 									 ota_update_init_t init_cb,
 									 ota_update_get_t get_cb)
 {
-	image_seq_t		seq;
+	ota_status_t ret = OTA_STATUS_ERROR;
+	const image_ota_param_t *iop = ota_priv.iop;
+	image_seq_t	 seq;
 	seq = ota_get_update_seq();
 
 	if (seq < IMAGE_SEQ_NUM) {
-		return ota_update_image_process(seq, url, init_cb, get_cb);
+		ret = ota_update_image_process(seq, url, init_cb, get_cb);
+		if (ret != OTA_STATUS_OK && ota_cb != NULL) {
+			ota_cb(OTA_UPGRADE_FAIL, ota_priv.get_size - ota_skip_size,
+				(ota_priv.get_size - ota_skip_size) * OTA_DOWNLOAD_FINISH_PERCENT /
+#if (__CONFIG_OTA_POLICY == 0x00)
+				IMAGE_AREA_SIZE(iop->img_max_size)
+#else
+				IMAGE_AREA_SIZE(iop->img_xz_max_size)
+#endif
+				);
+		}
+		return ret;
 	} else {
 		return OTA_STATUS_ERROR;
 	}
@@ -297,6 +339,241 @@ ota_status_t ota_get_image(ota_protocol_t protocol, void *url)
 		OTA_ERR("invalid protocol %d\n", protocol);
 		return OTA_STATUS_ERROR;
 	}
+}
+
+/**
+ * @brief Set the callback function of ota
+ * @retval ota_status_t, OTA_STATUS_OK on success
+ */
+ota_status_t ota_set_cb(ota_callback cb)
+{
+	ota_cb = cb;
+
+	return OTA_STATUS_OK;
+}
+
+/**
+ * @brief The init operation of pushing the image file
+ * @retval ota_status_t, OTA_STATUS_OK on success
+ */
+ota_status_t ota_push_init(void)
+{
+	OTA_SYSLOG("OTA: push init\n");
+
+	return ota_init();
+}
+
+/**
+ * @brief The begin operation of pushing the image file
+ * @retval ota_status_t, OTA_STATUS_OK on success
+ */
+ ota_status_t ota_push_start(void)
+ {
+	image_seq_t	 seq;
+	uint32_t		 flash;
+	uint32_t		 addr;
+	uint32_t		 img_max_size;
+	const image_ota_param_t *iop = NULL;
+
+	iop = ota_priv.iop;
+	seq = ota_get_update_seq();
+	flash = iop->flash[seq];
+	addr = iop->addr[seq];
+#if (__CONFIG_OTA_POLICY == 0x00)
+	img_max_size = IMAGE_AREA_SIZE(iop->img_max_size);
+#else
+	img_max_size = IMAGE_AREA_SIZE(iop->img_xz_max_size);
+#endif
+
+	if (ota_skip_size < 0) {
+#if (__CONFIG_OTA_POLICY == 0x00)
+		ota_skip_size = iop->bl_size;
+#else
+		ota_skip_size = 0;
+#endif
+	}
+
+	if (ota_cb)
+		ota_cb(OTA_UPGRADE_START, 0, OTA_START_PERCENT);
+
+	OTA_DBG("%s(), seq %d, flash %u, addr %#x\n", __func__, seq, flash, addr);
+	OTA_SYSLOG("OTA: erase flash...\n");
+
+	if (flash_erase(flash, addr, img_max_size) != 0) {
+		OTA_ERR("OTA: erase fail\n");
+		return OTA_STATUS_ERROR;
+	}
+
+
+	return OTA_STATUS_OK;
+ }
+
+ /**
+  * @brief Set the skip size
+  * @param[in] the data size need skip
+  * @retval ota_status_t, OTA_STATUS_OK on success
+  */
+ ota_status_t ota_set_skip_size(int32_t skip_size)
+ {
+	ota_skip_size = skip_size;
+	return OTA_STATUS_OK;
+ }
+
+/**
+ * @brief Push image file data
+ * @param[in] data Pointer of push data buffer
+ * @param[in] size Size of push data
+ * @retval ota_status_t, OTA_STATUS_OK on success
+ */
+ ota_status_t ota_push_data(uint8_t *data, uint32_t size)
+ {
+	image_seq_t	 seq;
+	uint32_t		 flash;
+	uint32_t		 addr;
+	uint32_t		 ret = 0;
+	uint8_t			*write_data = NULL;
+	uint32_t		 write_size = 0;
+	uint32_t		 remain_skip_size = 0;
+	uint32_t		 remain_img_size = 0;
+	uint32_t		 img_max_size;
+	const image_ota_param_t *iop = ota_priv.iop;
+	ota_status_t	 status = OTA_STATUS_OK;
+
+#if (__CONFIG_OTA_POLICY == 0x00)
+	img_max_size = IMAGE_AREA_SIZE(iop->img_max_size);
+#else
+	img_max_size = IMAGE_AREA_SIZE(iop->img_xz_max_size);
+#endif
+
+	if (size == 0) {
+		goto out;
+	}
+
+	/* skip size */
+	if (ota_priv.get_size < ota_skip_size) {
+		remain_skip_size = ota_skip_size - ota_priv.get_size;
+		if (remain_skip_size >= size) {
+			ota_priv.get_size += size;
+			status = OTA_STATUS_OK;
+			goto out;
+		} else {
+			write_data = &data[remain_skip_size];
+			write_size = size - remain_skip_size;
+			ota_priv.get_size += remain_skip_size;
+		}
+	} else {
+		write_data = data;
+		write_size = size;
+	}
+
+	/* check remain img size */
+	remain_img_size = img_max_size + ota_skip_size - ota_priv.get_size;
+	if (write_size > remain_img_size) {
+		OTA_ERR("download img size overflow: %u == %u\n",
+			ota_priv.get_size - ota_skip_size + write_size, img_max_size);
+		status = OTA_STATUS_ERROR;
+		goto out;
+	}
+
+	/* write to flash */
+	seq = ota_get_update_seq();
+	flash = iop->flash[seq];
+	addr = iop->addr[seq] + ota_priv.get_size - ota_skip_size;
+
+	ret = flash_write(flash, addr, write_data, write_size);
+	ota_priv.get_size += ret;
+	if (ret != write_size) {
+		OTA_ERR("write flash fail, flash %u, addr %#x, size %#x, ret %#x\n",
+				 flash, addr, write_size, ret);
+		status = OTA_STATUS_ERROR;
+		goto out;
+	}
+
+ out:
+	if (ota_cb)
+		ota_cb(status == OTA_STATUS_OK ? OTA_UPGRADE_UPDATING : OTA_UPGRADE_FAIL,
+			ota_priv.get_size > ota_skip_size ? ota_priv.get_size - ota_skip_size : 0,
+			remain_img_size > 0 ?
+			OTA_DOWNLOAD_FINISH_PERCENT - remain_img_size * OTA_DOWNLOAD_FINISH_PERCENT /
+			img_max_size : OTA_START_PERCENT);
+	return status;
+ }
+
+/**
+ * @brief The end operation of pushing the image file
+ * @retval ota_status_t, OTA_STATUS_OK on success
+ */
+ota_status_t ota_push_finish(void)
+{
+	image_seq_t seq;
+	uint32_t *verify_value;
+	ota_verify_t verify_type;
+	ota_verify_data_t verify_data;
+	ota_status_t status = OTA_STATUS_OK;
+	const image_ota_param_t *iop = ota_priv.iop;
+	uint32_t img_max_size;
+
+#if (__CONFIG_OTA_POLICY == 0x00)
+	img_max_size = IMAGE_AREA_SIZE(iop->img_max_size);
+#else
+	img_max_size = IMAGE_AREA_SIZE(iop->img_xz_max_size);
+#endif
+
+	OTA_SYSLOG("OTA: pushed image size (%#010x = %u KB)\n",
+		ota_priv.get_size, ota_priv.get_size / 1024);
+
+	OTA_SYSLOG("OTA: checking image...\n");
+	seq = ota_get_update_seq();
+	if (image_check_sections(seq) == IMAGE_INVALID) {
+		OTA_ERR("check image failed\n");
+		status = OTA_STATUS_ERROR;
+		goto out;
+	}
+
+	if (ota_cb)
+		ota_cb(OTA_UPGRADE_UPDATING, ota_priv.get_size - ota_skip_size, OTA_CHECK_SECTIONS_PERCENT);
+
+	if (ota_get_verify_data(&verify_data) != OTA_STATUS_OK) {
+		verify_type = OTA_VERIFY_NONE;
+		verify_value = NULL;
+	} else {
+		verify_type = verify_data.ov_type;
+		verify_value = (uint32_t*)(verify_data.ov_data);
+	}
+
+	if (ota_verify_image(verify_type, verify_value) != OTA_STATUS_OK) {
+		OTA_ERR("verify image failed\n");
+		status = OTA_STATUS_ERROR;
+		goto out;
+	}
+
+	OTA_SYSLOG("OTA: check ok\n");
+
+	OTA_SYSLOG("OTA: push finish\n");
+
+out:
+	if (ota_cb)
+		ota_cb(status == OTA_STATUS_OK ? OTA_UPGRADE_SUCCESS : OTA_UPGRADE_FAIL,
+					ota_priv.get_size - ota_skip_size,
+					status == OTA_STATUS_OK ? OTA_VERIFY_IMAGE_PERCENT :
+					(ota_priv.get_size - ota_skip_size) * OTA_DOWNLOAD_FINISH_PERCENT / img_max_size);
+	return status;
+}
+
+/**
+ * @brief The stop operation of pushing the image file
+ * @retval ota_status_t, OTA_STATUS_OK on success
+ */
+ota_status_t ota_push_stop(void)
+{
+	OTA_SYSLOG("OTA: push stop\n");
+
+	if (ota_cb)
+		ota_cb(OTA_UPGRADE_STOP, ota_priv.get_size - ota_skip_size, OTA_VERIFY_IMAGE_PERCENT);
+
+	ota_deinit();
+
+	return OTA_STATUS_OK;
 }
 
 #if (OTA_OPT_EXTRA_VERIFY_CRC32 || OTA_OPT_EXTRA_VERIFY_MD5 || \
@@ -480,14 +757,10 @@ static ota_status_t ota_verify_image_append(image_seq_t seq,
 
 	OTA_DBG("%s(), seq %d\n", __func__, seq);
 
-#if (__CONFIG_OTA_POLICY == 0x01)
 #if defined(__CONFIG_BOOTLOADER)
     size = ota_get_verify_data_pos(seq) - iop->addr[seq];
 #else
-	size = ota->get_size - sizeof(ota_verify_data_t);
-#endif
-#else
-	size = ota->get_size - iop->bl_size - sizeof(ota_verify_data_t);
+	size = ota->get_size - ota_skip_size - sizeof(ota_verify_data_t);
 #endif
 
 	//If there is no verify data in new image, we will use OTA_VERIFY_NONE to verify it.
@@ -650,6 +923,7 @@ static ota_status_t ota_verify_image_sha256(image_seq_t seq, uint32_t *value)
  */
 ota_status_t ota_verify_image(ota_verify_t verify, uint32_t *value)
 {
+	int				ret;
 	ota_status_t	status;
 	image_cfg_t		cfg;
 	image_seq_t		seq;
@@ -712,7 +986,7 @@ ota_status_t ota_verify_image(ota_verify_t verify, uint32_t *value)
 
 	if (status != OTA_STATUS_OK) {
 		OTA_ERR("verify fail, status %d, verify %d\n", status, verify);
-		return OTA_STATUS_ERROR;
+		goto verify_err;
 	}
 #if (__CONFIG_OTA_POLICY == 0x01)
 	cfg.seq = ota_get_update_seq();
@@ -724,7 +998,28 @@ ota_status_t ota_verify_image(ota_verify_t verify, uint32_t *value)
 	cfg.seq = seq;
 	cfg.state = IMAGE_STATE_VERIFIED;
 #endif
-	return (image_set_cfg(&cfg) == 0 ? OTA_STATUS_OK : OTA_STATUS_ERROR);
+	ret = image_set_cfg(&cfg);
+	if (ret == 0) {
+		if (ota_cb)
+#if (__CONFIG_OTA_POLICY == 0x00)
+			ota_cb(OTA_UPGRADE_SUCCESS, ota_priv.get_size - ota_skip_size, OTA_VERIFY_IMAGE_PERCENT);
+#else
+			ota_cb(OTA_UPGRADE_SUCCESS, ota_priv.get_size, OTA_VERIFY_IMAGE_PERCENT);
+#endif
+		return OTA_STATUS_OK;
+	}
+
+verify_err:
+	if (ota_cb)
+#if (__CONFIG_OTA_POLICY == 0x00)
+		ota_cb(OTA_UPGRADE_FAIL, ota_priv.get_size - ota_skip_size,
+			(ota_priv.get_size - ota_skip_size) * OTA_DOWNLOAD_FINISH_PERCENT /
+			IMAGE_AREA_SIZE(ota_priv.iop->img_max_size));
+#else
+		ota_cb(OTA_UPGRADE_FAIL, ota_priv.get_size,
+			ota_priv.get_size * OTA_DOWNLOAD_FINISH_PERCENT / IMAGE_AREA_SIZE(ota_priv.iop->img_xz_max_size));
+#endif
+	return OTA_STATUS_ERROR;
 }
 
 /**

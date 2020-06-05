@@ -1087,7 +1087,7 @@ static int psram_suspend(struct soc_device *dev, enum suspend_state_t state)
         HAL_PsramCtrl_Set_SBUS_WR_LATENCY(_chip_priv->ctrl, 0 << 8);
         HAL_PsramCtrl_ConfigCCMU(96000000);
         HAL_UDelay(10);
-        HAL_PsramCtrl_Set_DQS_Delay_Cal(96000000);
+	    HAL_PsramCtrl_Set_DQS_Delay_Cal(96000000);
         HAL_PsramCtrl_MaxCE_LowCyc(_chip_priv->ctrl, 96000000);
         HAL_MODIFY_REG(PSRAM_CTRL->PSRAM_TIM_CFG, PSRAMC_CS_OUTP_DHCYC_MASK, PSRAMC_CS_OUTP_DHCYC(3));
         HAL_UDelay(10);
@@ -1176,6 +1176,9 @@ int32_t psram_init(struct psram_chip *chip, struct psram_ctrl *ctrl, PSRAMChip_I
 		break;
 	}
 	HAL_PsramCtrl_Set_Address_Field(ctrl, 0, PSRAM_START_ADDR, PSRAM_END_ADDR, 0);
+    HAL_PsramCtrl_ConfigCCMU(ctrl->freq);
+    HAL_UDelay(10);
+	HAL_PsramCtrl_DQS_Delay_Cal_Policy(ctrl);
 	_chip_priv = chip;
 #ifdef CONFIG_PM
     pm_register_ops(&psram_dev);

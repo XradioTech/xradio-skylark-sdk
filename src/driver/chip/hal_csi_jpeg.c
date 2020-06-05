@@ -98,15 +98,15 @@
 #define JPEG_SRAM_SWITCH_THR_W		(720)
 #define JPEG_SRAM_SWITCH_THR_H		(576)
 
-#define	VE_COUNT_THRESHOLD 			10
-
 typedef struct {
 	CSI_CapType 		capMode;
 	JPEG_Mode			encMode;
-	uint8_t * 			jpgOutStmAddr;
+	uint8_t				jpgOutBufId;
+	uint8_t * 			jpgOutStmAddr[JPEG_BUFF_CNT_MAX];
 	uint8_t 			jpgOutBufNum;
 	uint32_t 			jpgOutStmSize;
 	uint32_t			jpgMemSize;
+	uint32_t			jpgOutStmOffset;
 
 	uint8_t				memPartEn;
 	uint8_t 			memPartNum;
@@ -114,137 +114,34 @@ typedef struct {
 	uint32_t			memPartCnt;
 	uint32_t			memPartOffSet;
 	uint32_t			memCurSize;
-	uint8_t 			*memPartDstBuf;
 
 	uint8_t 			jpgVeEn;
 	uint8_t 			capRun;
 	CSI_State 			state;
 	CSI_JPEG_IRQCallback cb;
 
-	uint32_t 			ve_finish_count;
-
 	JpegCtx 			*jpegCtx;
+#ifdef CONFIG_PM
+	uint8_t suspend;
+	uint8_t *baseAddr;
+	CSI_JPEG_InitParam initParam;
+	CSI_ConfigParam csiParam;
+	JPEG_ConfigParam jpegParam;
+	struct soc_device dev;
+#endif
+
 } CSI_JPEG_Priv;
 
-static CSI_JPEG_Priv gCsiJpegPriv;
+static CSI_JPEG_Priv *_CsiJpegPriv;
 
-static void CSI_JPEG_IRQHandler(void)
+static CSI_JPEG_Priv *CSI_JPEG_GetPriv()
 {
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	return _CsiJpegPriv;
+}
 
-	uint32_t csi_irq=0, jpe_irq=0;
-	uint8_t ve_overrun = 0;
-
-	csi_irq = CSI->CSI_C0_INT_STA_REG;
-	jpe_irq = JPEG->VE_INT_STA_REG;
-
-	CSI_JPEG_DBG("csi:%x jpe:%x\n",csi_irq, jpe_irq);
-
-	if (jpe_irq & (0xE00182)) {
-		CSI_JPEG_ERR("excption\n");
-		priv->state = CSI_STATE_INIT;
-		HAL_CLR_BIT(CSI->CSI_CAP_REG, CSI_C0_VCAP_EN | CSI_C0_SCAP_EN);
-		if (priv->cb)
-			priv->cb(CSI_JPEG_EVENT_EXCP, NULL);
-		CSI->CSI_C0_INT_STA_REG = csi_irq;
-		JPEG->VE_INT_STA_REG = jpe_irq;
-		return;
-	}
-
-	if (csi_irq & 0x02) {
-		CSI_JPEG_DBG("f\n");
-		if (priv->jpgVeEn && priv->encMode == JPEG_MOD_OFFLINE && priv->capRun) {
-			JPEG->OUTSTM_OFFSET = 0;
-			JPEG->OUTSTM_START_ADDR = (uint32_t)priv->jpgOutStmAddr;
-			JPEG->OUTSTM_END_ADDR = (uint32_t)priv->jpgOutStmAddr+ (priv->jpgMemSize-1);
-			JPEG->VE_START_REG = 0x08;
-		}
-		if (priv->cb)
-			priv->cb(CSI_JPEG_EVENT_FRM_END, NULL);
-#if 0
-		else if (!priv->jpgVeEn || (priv->capMode == CSI_CAP_STILL && !priv->capRun)) {
-			priv->cb(CSI_JPEG_EVENT_FRM_END, NULL);
-		}
-#endif
-		if (!priv->jpgVeEn && (priv->capMode == CSI_CAP_STILL || !priv->capRun))
-			priv->state = CSI_STATE_READY;
-		if (priv->encMode == JPEG_MOD_OFFLINE && !priv->capRun)
-			priv->state = CSI_STATE_READY;
-	}
-
-	uint32_t cur_part_len;
-	if (priv->memPartEn && (jpe_irq & JPEG_MEM_PART_INT)) {
-		CSI_JPEG_DBG("part\n");
-		cur_part_len = (priv->memPartCnt + 1) * priv->memPartSize - priv->memPartOffSet;
-
-		memcpy(priv->memPartDstBuf + priv->memCurSize, priv->jpgOutStmAddr + priv->memPartOffSet, cur_part_len);
-		priv->memPartOffSet += cur_part_len;
-		priv->memCurSize += cur_part_len;
-
-		priv->memPartCnt++;
-		if (priv->memPartCnt >= priv->memPartNum) {
-			priv->memPartCnt = 0;
-			priv->memPartOffSet = 0;
-		}
-
-		HAL_SET_BIT(JPEG->VE_MODE_REG, 0x20000);
-	}
-
-	if (jpe_irq & 0x08 && priv->jpgVeEn) {
-		CSI_JPEG_DBG("ve\n");
-		priv->ve_finish_count ++;
-		if (priv->ve_finish_count >= VE_COUNT_THRESHOLD) {
-			ve_overrun = 1;
-			CSI_JPEG_ERR("overrun\n");
-		}
-
-		uint32_t encode_len = ((JPEG->HARDWARE_OFFSET)+7)/8;//unit is bytes
-	    encode_len = (encode_len+3)/4*4;
-
-		if (priv->memPartEn && encode_len >= priv->memCurSize) {
-			cur_part_len = encode_len - priv->memCurSize;
-
-			memcpy(priv->memPartDstBuf + priv->memCurSize, priv->jpgOutStmAddr + priv->memPartOffSet, cur_part_len);
-			priv->memCurSize = 0;
-			priv->memPartOffSet += cur_part_len;
-			priv->memPartOffSet = ALIGN_32B(priv->memPartOffSet);
-		}
-
-		if (priv->encMode == JPEG_MOD_ONLINE) {
-			static uint8_t addr_offset = 0;
-			#if 0
-			if (priv->capMode == CSI_CAP_VIDEO) {
-				static uint8_t buff_index = 1;
-				for (; buff_index < priv->jpgOutBufNum; buff_index++)
-					addr_offset + = priv->jpgOutStmSize;
-				if (buff_index >= priv->jpgOutBufNum) {
-					buff_index = 1;
-					addr_offset = 0;
-				}
-			}
-			#endif
-			JPEG->OUTSTM_OFFSET = 0;
-			JPEG->OUTSTM_START_ADDR = (uint32_t)priv->jpgOutStmAddr + addr_offset;
-			if (!priv->memPartEn)
-				JPEG->OUTSTM_END_ADDR = (uint32_t)priv->jpgOutStmAddr+ (priv->jpgMemSize - 1) + addr_offset;
-
-			if (priv->capRun && !ve_overrun)
-				JPEG->VE_START_REG = 0x08;
-		}
-
-		if (priv->cb)
-			priv->cb(CSI_JPEG_EVENT_VE_END, &encode_len);
-
-		priv->ve_finish_count--;
-
-		if (!priv->capRun || priv->capMode == CSI_CAP_STILL || ve_overrun) {
-			priv->state = CSI_STATE_READY;
-			HAL_CLR_BIT(CSI->CSI_CAP_REG, CSI_C0_VCAP_EN | CSI_C0_SCAP_EN);
-		}
-	}
-
-	CSI->CSI_C0_INT_STA_REG = csi_irq;
-	JPEG->VE_INT_STA_REG = jpe_irq;
+static void CSI_JPEG_SetPriv(CSI_JPEG_Priv *priv)
+{
+	_CsiJpegPriv = priv;
 }
 
 __STATIC_INLINE void CSI_EnableIRQ(void)
@@ -278,17 +175,237 @@ __STATIC_INLINE HAL_Status CSI_PINS_Deinit()
 	return HAL_BoardIoctl(HAL_BIR_PINMUX_DEINIT, HAL_MKDEV(HAL_DEV_MAJOR_CSI, 0), 0);
 }
 
+__STATIC_INLINE void CSI_EnableCap(CSI_CapType mode)
+{
+	if (CSI_CAP_STILL == mode)
+		HAL_SET_BIT(CSI->CSI_CAP_REG, CSI_C0_SCAP_EN);
+	else
+		HAL_SET_BIT(CSI->CSI_CAP_REG, CSI_C0_VCAP_EN);
+}
+
+__STATIC_INLINE void CSI_DisableCap(void)
+{
+	HAL_CLR_BIT(CSI->CSI_CAP_REG, CSI_C0_VCAP_EN | CSI_C0_SCAP_EN);
+}
+
+__STATIC_INLINE void JPEG_EncStart(void)
+{
+	JPEG->VE_START_REG = 0x08;
+}
+
+__STATIC_INLINE void JPEG_MemPartTake(void)
+{
+	HAL_SET_BIT(JPEG->VE_MODE_REG, 0x20000);
+}
+
+static void CSI_JPEG_IRQHandler(void)
+{
+	uint32_t csi_int, jpe_int;
+	//CSI_JPEG_StreamInfo stream;
+	JPEG_MpartBuffInfo mpart_info;
+	JPEG_BuffInfo jpeg_info;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
+
+	csi_int = CSI->CSI_C0_INT_STA_REG;
+	jpe_int = JPEG->VE_INT_STA_REG;
+
+	CSI_JPEG_DBG("csi:%x jpe:%x\n",csi_int, jpe_int);
+
+	if (jpe_int & JPEG_INT_ERR) {
+		CSI_JPEG_ERR("excption\n");
+		priv->state = CSI_STATE_INIT;
+		CSI_DisableCap();
+		if (priv->cb)
+			priv->cb(CSI_JPEG_EVENT_EXCP, NULL);
+		CSI->CSI_C0_INT_STA_REG = csi_int;
+		JPEG->VE_INT_STA_REG = jpe_int;
+		return;
+	}
+
+	if (csi_int & CSI_C0_INT_STA_FRM_END_PD) {
+		CSI_JPEG_DBG("f\n");
+#if 0
+		if (priv->jpgVeEn && priv->encMode == JPEG_MOD_OFFLINE) {
+			JPEG->OUTSTM_OFFSET = 0;
+			JPEG->OUTSTM_START_ADDR = (uint32_t)priv->jpgOutStmAddr[0];
+			JPEG->OUTSTM_END_ADDR = (uint32_t)priv->jpgOutStmAddr[0]+ (priv->jpgMemSize-1);
+			JPEG->VE_START_REG = 0x08;
+		}
+#else
+		if (priv->jpgVeEn && priv->encMode == JPEG_MOD_OFFLINE)
+			JPEG_EncStart();
+#endif
+		if (priv->cb)
+			priv->cb(CSI_JPEG_EVENT_FRM_END, NULL);
+
+		if (!priv->jpgVeEn && (priv->capMode != CSI_CAP_STILL || !priv->capRun))
+			priv->state = CSI_STATE_READY;
+	}
+
+	uint32_t len;
+	if (priv->memPartEn && (jpe_int & JPEG_MEM_PART_INT)) {
+		CSI_JPEG_DBG("part\n");
+
+		len = (priv->memPartCnt + 1) * priv->memPartSize - priv->memPartOffSet;
+
+		mpart_info.buff_index = priv->jpgOutBufId;
+		mpart_info.buff_offset = priv->memPartOffSet;
+		mpart_info.size = len;
+		mpart_info.tail = 0;
+		priv->memPartOffSet += len;
+		priv->memCurSize += len;
+
+		priv->memPartCnt++;
+		if (priv->memPartCnt >= priv->memPartNum) {
+			priv->memPartCnt = 0;
+			priv->memPartOffSet = 0;
+		}
+
+		if (priv->cb)
+			priv->cb(CSI_JPEG_EVENT_MPART, &mpart_info);
+		JPEG_MemPartTake();
+	}
+
+	if (jpe_int & JPEG_ENC_FINISH) {
+		CSI_JPEG_DBG("ve\n");
+		uint32_t encode_len = 0;
+
+		encode_len = ((JPEG->HARDWARE_OFFSET - priv->jpgOutStmOffset)+7)/8;//unit is bytes
+	    encode_len = (encode_len+3)/4*4;
+
+		jpeg_info.buff_index = priv->jpgOutBufId;
+		jpeg_info.size = encode_len;
+		mpart_info.buff_index = priv->jpgOutBufId;
+		mpart_info.buff_offset = (uint32_t)priv->jpgOutStmAddr[priv->jpgOutBufId];
+		mpart_info.size = encode_len;
+		mpart_info.tail = 1;
+		priv->jpgOutBufId++;
+		if (priv->jpgOutBufId >= priv->jpgOutBufNum)
+			priv->jpgOutBufId = 0;
+
+		if (priv->memPartEn && encode_len >= priv->memCurSize) {
+			len = encode_len - priv->memCurSize;
+			mpart_info.buff_offset = priv->memPartOffSet;
+			mpart_info.size = len;
+			priv->memCurSize = 0;
+
+			priv->memPartCnt++;
+			if (priv->memPartCnt >= priv->memPartNum)
+				priv->memPartCnt = 0;
+			priv->memPartOffSet = priv->memPartSize * priv->memPartCnt;
+			priv->memPartOffSet = ALIGN_32B(priv->memPartOffSet);
+			priv->jpgOutStmOffset = priv->memPartOffSet * 8;
+
+			if (priv->cb)
+				priv->cb(CSI_JPEG_EVENT_MPART, &mpart_info);
+		}
+
+		JPEG->OUTSTM_OFFSET = priv->memPartEn ? priv->jpgOutStmOffset : 0;
+		JPEG->OUTSTM_START_ADDR = (uint32_t)priv->jpgOutStmAddr[priv->jpgOutBufId];
+		JPEG->OUTSTM_END_ADDR = (uint32_t)priv->jpgOutStmAddr[priv->jpgOutBufId] + (priv->jpgMemSize - 1);
+
+		if (priv->capRun && priv->encMode == JPEG_MOD_ONLINE)
+			JPEG_EncStart();
+
+		if (priv->cb)
+			priv->cb(CSI_JPEG_EVENT_VE_END, &jpeg_info);
+
+		if (!priv->capRun || priv->capMode == CSI_CAP_STILL) {
+			priv->state = CSI_STATE_READY;
+			CSI_DisableCap();
+		}
+	}
+
+	CSI->CSI_C0_INT_STA_REG = csi_int;
+	JPEG->VE_INT_STA_REG = jpe_int;
+}
+
+#ifdef CONFIG_PM
+static int csi_jpeg_suspend(struct soc_device *dev, enum suspend_state_t state)
+{
+	CSI_JPEG_Priv *priv = (CSI_JPEG_Priv*)dev->platform_data;
+	priv->suspend = 1;
+
+	switch (state) {
+	case PM_MODE_SLEEP:
+	case PM_MODE_STANDBY:
+	case PM_MODE_HIBERNATION:
+		HAL_CSI_JPEG_Deinit();
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static int csi_jpeg_resume(struct soc_device *dev, enum suspend_state_t state)
+{
+	CSI_JPEG_Priv *priv = (CSI_JPEG_Priv*)dev->platform_data;
+
+	switch (state) {
+	case PM_MODE_SLEEP:
+	case PM_MODE_STANDBY:
+	case PM_MODE_HIBERNATION:
+		HAL_CSI_JPEG_Init(&priv->initParam);
+		HAL_JPEG_Config(&priv->jpegParam);
+		HAL_JPEG_WriteHeader(priv->baseAddr);
+		HAL_CSI_Config(&priv->csiParam);
+		break;
+	default:
+		break;
+	}
+	priv->suspend = 0;
+
+	return 0;
+}
+
+static const struct soc_device_driver csi_jpeg_drv = {
+	.name = "csi_jpeg",
+	.suspend = csi_jpeg_suspend,
+	.resume = csi_jpeg_resume,
+};
+#endif
+
 HAL_Status HAL_CSI_JPEG_Init(CSI_JPEG_InitParam *param)
 {
 	if (!param)
 		return HAL_INVALID;
 
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 
-	if (priv->state != CSI_STATE_INVALID)
+#ifdef CONFIG_PM
+	if (priv && priv->suspend) {
+		;
+	} else {
+#endif
+		if (!priv) {
+			priv = HAL_Malloc(sizeof(CSI_JPEG_Priv));
+			if (!priv) {
+				CSI_JPEG_ERR("csi jpeg malloc faild\n");
+				return HAL_ERROR;
+			}
+			HAL_Memset(priv, 0, sizeof(CSI_JPEG_Priv));
+			CSI_JPEG_SetPriv(priv);
+		}
+#ifdef CONFIG_PM
+	}
+#endif
+
+	if (priv->state != CSI_STATE_INVALID) {
+		CSI_JPEG_ERR("invalid state\n");
 		return HAL_ERROR;
+	}
 
-	HAL_Memset(priv, 0, sizeof(*priv));
+#ifdef CONFIG_PM
+	if (!priv->suspend) {
+		priv->dev.name = "csi_jpeg";
+		priv->dev.driver = &csi_jpeg_drv;
+		HAL_Memcpy(&priv->initParam, param, sizeof(CSI_JPEG_InitParam));
+		priv->dev.platform_data = priv;
+		pm_register_ops(&priv->dev);
+	}
+#endif
 
 	priv->jpegCtx = JpegEncCreate();
 	if (!priv->jpegCtx) {
@@ -326,10 +443,17 @@ HAL_Status HAL_CSI_JPEG_Init(CSI_JPEG_InitParam *param)
 
 HAL_Status HAL_CSI_JPEG_Deinit(void)
 {
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 
-	if (priv->state != CSI_STATE_INIT && priv->state != CSI_STATE_READY)
+	if (!priv || priv->state == CSI_STATE_INVALID) {
+		CSI_JPEG_ERR("%s has deinit\n", __func__);
 		return HAL_ERROR;
+	}
+
+#ifdef CONFIG_PM
+	if (!priv->suspend)
+		pm_unregister_ops(&priv->dev);
+#endif
 
 	if (priv->jpegCtx) {
 		JpegEncDestory(priv->jpegCtx);
@@ -345,6 +469,15 @@ HAL_Status HAL_CSI_JPEG_Deinit(void)
 
 	priv->state = CSI_STATE_INVALID;
 
+#ifdef CONFIG_PM
+	if (!priv->suspend)
+#endif
+	{
+		CSI_JPEG_SetPriv(NULL);
+		HAL_Free(priv);
+		priv = NULL;
+	}
+
 	return HAL_OK;
 }
 
@@ -352,9 +485,15 @@ HAL_Status HAL_CSI_Config(CSI_ConfigParam *cfg)
 {
 	uint32_t reg_val;
 
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 	if (priv->state != CSI_STATE_INIT && priv->state != CSI_STATE_READY)
 		return HAL_ERROR;
+
+#ifdef CONFIG_PM
+	if (!priv->suspend) {
+		HAL_Memcpy(&(priv->csiParam), cfg, sizeof(CSI_ConfigParam));
+	}
+#endif
 
 	priv->state = CSI_STATE_READY;
 
@@ -394,7 +533,7 @@ HAL_Status HAL_CSI_Config(CSI_ConfigParam *cfg)
 
 HAL_Status HAL_CSI_StartCapture(CSI_CapType mode)
 {
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 
 	if (priv->state != CSI_STATE_READY) {
 		CSI_JPEG_ERR("invalid state: %d %d\n", priv->state, __LINE__);
@@ -407,22 +546,17 @@ HAL_Status HAL_CSI_StartCapture(CSI_CapType mode)
 	priv->capMode = mode;
 	HAL_ExitCriticalSection(flags);
 
-	HAL_CLR_BIT(CSI->CSI_CAP_REG, CSI_C0_VCAP_EN | CSI_C0_SCAP_EN);
-
-	if (CSI_CAP_STILL == mode)
-		HAL_SET_BIT(CSI->CSI_CAP_REG, CSI_C0_SCAP_EN);
-	else
-		HAL_SET_BIT(CSI->CSI_CAP_REG, CSI_C0_VCAP_EN);
+	CSI_EnableCap(mode);
 
 	if (priv->encMode == JPEG_MOD_ONLINE)
-		JPEG->VE_START_REG = 0x08;
+		JPEG_EncStart();
 
 	return HAL_OK;
 }
 
 HAL_Status HAL_CSI_StopCapture(void)
 {
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 
 	if (priv->state != CSI_STATE_BUSY) {
 		CSI_JPEG_ERR("invalid state: %d %d\n", priv->state, __LINE__);
@@ -433,22 +567,26 @@ HAL_Status HAL_CSI_StopCapture(void)
 	priv->capRun = 0;
 	HAL_ExitCriticalSection(flags);
 
-	while(1) {
+	CSI_JPEG_DBG("csi capture stop..\n");
+
+	uint8_t cnt, timeout = 1;
+	for (cnt = 0; cnt < 5; cnt++) {
 		if (priv->state == CSI_STATE_READY || priv->state == CSI_STATE_INVALID) {
+			timeout = 0;
 			break;
 		} else {
 			OS_MSleep(100);
 		}
 	}
-
-	CSI_JPEG_DBG("csi capture stop..\n");
+	if (timeout)
+		return HAL_ERROR;
 
 	return HAL_OK;
 }
 
 static void JPEG_SetQtab(uint32_t quality)
 {
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 
 	priv->jpegCtx->ctl_ops->setQuantTbl(priv->jpegCtx, quality);
 
@@ -461,7 +599,7 @@ static void JPEG_WriteQtab(uint32_t base_addr)
 {
 	uint8_t i = 0;
 
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 
 	JPEG->QM_INDEX = base_addr;
 
@@ -480,24 +618,38 @@ HAL_Status HAL_JPEG_Config(JPEG_ConfigParam *cfg)
     }
 
 #if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
-    if((HAL_Dcache_IsCacheable((uint32_t)cfg->csi_output_addr_y, 4))
-        || (HAL_Dcache_IsCacheable((uint32_t)cfg->csi_output_addr_uv, 4))
-        || (HAL_Dcache_IsCacheable((uint32_t)cfg->outstream_start_addr,
-            ((uint32_t)cfg->outstream_end_addr - (uint32_t)cfg->outstream_start_addr + 1)))) {
+    if ((HAL_Dcache_IsCacheable((uint32_t)cfg->csi_output_addr_y, 4))
+        || (HAL_Dcache_IsCacheable((uint32_t)cfg->csi_output_addr_uv, 4))) {
         HAL_ERR("CSI_JPEG: Data buf MUST NOT CACHEABLE!!!\n");
         return HAL_ERROR;
     }
 #endif
 
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 	if (priv->state != CSI_STATE_INIT && priv->state != CSI_STATE_READY)
 		return HAL_ERROR;
 
+#ifdef CONFIG_PM
+	if (!priv->suspend) {
+		HAL_Memcpy(&priv->jpegParam, cfg, sizeof(JPEG_ConfigParam));
+	}
+#endif
+
+	priv->jpgMemSize = cfg->outstream_buff_size;
+	priv->jpgOutBufNum = cfg->outstream_buff_num ? cfg->outstream_buff_num : 1;
+	for (int i = 0; i < priv->jpgOutBufNum; i++) {
+#if ((__CONFIG_CACHE_POLICY & 0xF) != 0)
+	if (HAL_Dcache_IsCacheable((uint32_t)cfg->outstream_buff_addr[i], cfg->outstream_buff_size)) {
+		HAL_ERR("CSI_JPEG: Data buf MUST NOT CACHEABLE!!!\n");
+		return HAL_ERROR;
+	}
+#endif
+		priv->jpgOutStmAddr[i] = (uint8_t*)cfg->outstream_buff_addr[i];
+	}
+	//priv->jpgOutStmSize = priv->jpgMemSize / priv->jpgOutBufNum;
+
 	priv->jpgVeEn = cfg->jpeg_en;
 	priv->encMode = cfg->jpeg_en ? cfg->jpeg_mode : JPEG_MOD_OFFLINE;
-	priv->jpgMemSize = cfg->outstream_mem_size;
-	priv->jpgOutBufNum = cfg->outstream_buff_num ? cfg->outstream_buff_num : 1;
-	priv->jpgOutStmSize = priv->jpgMemSize / priv->jpgOutBufNum;
 
 	priv->jpegCtx->JpgColorFormat = JpgYUV420;
 	priv->jpegCtx->quality = cfg->quality;
@@ -509,10 +661,7 @@ HAL_Status HAL_JPEG_Config(JPEG_ConfigParam *cfg)
 		priv->memPartNum = 1 << (cfg->mem_part_num + 1);
 		priv->memPartSize = priv->jpgMemSize / priv->memPartNum;
 		priv->memPartOffSet = 0;
-		priv->memPartDstBuf = cfg->mem_part_buf;
 	}
-	CSI_JPEG_DBG("JPEG mem part num: %d\n", priv->memPartNum);
-	CSI_JPEG_DBG("JPEG mem part size: %d\n", priv->memPartSize);
 
 	if (cfg->jpeg_en) {
 #ifdef __CONFIG_JPEG
@@ -564,8 +713,14 @@ HAL_Status HAL_JPEG_Config(JPEG_ConfigParam *cfg)
 		reg_val = ((cfg->pic_size_width /16 	& 0xfff) << 0);
 		JPEG->JPE_STRIDE_CTRL_1 = reg_val;
 
-		JPEG->JPE_INPUT_ADDR_Y = cfg->jpe_input_addr_y;
-		JPEG->JPE_INPUT_ADDR_C = cfg->jpe_input_addr_uv;
+		JPEG->JPE_INPUT_ADDR_Y = cfg->jpeg_input_addr_y;
+		JPEG->JPE_INPUT_ADDR_C = cfg->jpeg_input_addr_uv;
+	}
+
+	if (cfg->jpeg_scale) {
+		reg_val = ((1	& 0x1) << 11)	|\
+				  ((1	& 0x1) << 10);
+		HAL_MODIFY_REG(JPEG->VE_MODE_REG, (1<<11)|(1<<10), reg_val);
 	}
 
 	reg_val = ((1	& 0x1) << 2)		|\
@@ -576,13 +731,12 @@ HAL_Status HAL_JPEG_Config(JPEG_ConfigParam *cfg)
 	JPEG_SetQtab(cfg->quality);
 
 	JPEG->JPEG_PARA0_REG = 3<<30 | priv->jpegCtx->dc_value[1]<<16 | priv->jpegCtx->dc_value[0];
-	JPEG->JPEG_BITRATE_CTRL = 0x00000840;
-	JPEG->OUTSTM_OFFSET = cfg->outstream_offset;
-	JPEG->OUTSTM_START_ADDR = cfg->outstream_start_addr;
-	JPEG->OUTSTM_END_ADDR = cfg->outstream_end_addr;
+	JPEG->JPEG_BITRATE_CTRL = cfg->jpeg_bitrate_en ? 0xC0000840 : 0x00000840;
+	JPEG->OUTSTM_OFFSET = cfg->outstream_buff_offset;
+	JPEG->OUTSTM_START_ADDR = cfg->outstream_buff_addr[0];
+	JPEG->OUTSTM_END_ADDR = cfg->outstream_buff_addr[0] + cfg->outstream_buff_size - 1;
 
-	priv->jpgOutStmAddr =  (uint8_t*)JPEG->OUTSTM_START_ADDR;
-
+	//priv->jpgOutStmAddr =  (uint8_t*)JPEG->OUTSTM_START_ADDR;
 	JPEG_WriteQtab(0x0);
 
 	CSI_JPEG_REG_ALL(JPEG_REG_MASK);
@@ -590,45 +744,6 @@ HAL_Status HAL_JPEG_Config(JPEG_ConfigParam *cfg)
 	priv->state = CSI_STATE_READY;
 
 	return HAL_OK;
-}
-
-void HAL_JPEG_Scale(uint8_t height_scale, uint8_t width_scale)
-{
-	uint32_t reg_val;
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
-
-	uint32_t width, height;
-
-	if (height_scale && width_scale) {
-		width = 320;
-		height = 240;
-	} else if (!height_scale && !width_scale) {
-		width = 640;
-		height = 480;
-	} else {
-		CSI_JPEG_ERR("invalid arg\n");
-		return;
-	}
-
-	reg_val = ((width/8		& 0x7ff) << 16)		|\
-			  ((height/8	& 0x7ff) << 0);
-	JPEG->INPUT_PIC_SIZE = reg_val;
-
-	if (JPEG_MOD_OFFLINE == priv->encMode) {
-		reg_val = ((width	/16		& 0x7ff) << 16)		|\
-			      ((height  /16  	& 0x7ff) << 0);
-		JPEG->CSI_OUTPUT_STRIDE = reg_val;
-
-		reg_val = ((width /16 	& 0x7ff) << 16);
-		JPEG->JPE_STRIDE_CTRL = reg_val;
-
-		reg_val = ((width /16 	& 0xfff) << 0);
-		JPEG->JPE_STRIDE_CTRL_1 = reg_val;
-	}
-
-	reg_val = ((height_scale			& 0x1) << 11)		|\
-			  ((width_scale				& 0x1) << 10);
-	HAL_MODIFY_REG(JPEG->VE_MODE_REG, (1<<11)|(1<<10), reg_val);
 }
 
 void HAL_JPEG_Reset(void)
@@ -639,13 +754,17 @@ void HAL_JPEG_Reset(void)
 
 void HAL_JPEG_WriteHeader(uint8_t *baseAddr)
 {
-	CSI_JPEG_Priv *priv = &gCsiJpegPriv;
+	CSI_JPEG_Priv *priv = CSI_JPEG_GetPriv();
 
 	if (baseAddr == NULL) {
 		CSI_JPEG_ERR("invalid handle\n");
 		return;
 	}
-
+#ifdef CONFIG_PM
+	if (!priv->suspend) {
+		priv->baseAddr = baseAddr;
+	}
+#endif
 	priv->jpegCtx->BaseAddr = (char*)baseAddr;
 	priv->jpegCtx->ctl_ops->writeHeader(priv->jpegCtx);
 }

@@ -72,12 +72,23 @@ static int dec_valid_packet_count(uint8_t *count_pkt, uint8_t packet_num)
 
 static enum LEADCODE_SEQ
 dec_get_lead_code(struct ieee80211_frame *iframe, sc_lead_code_t *lead_code,
-                  uint8_t packet_num, SMART_CONFIG_STATUS_T *status)
+                  uint8_t packet_num, SMART_CONFIG_STATUS_T *status, uint8_t addr_src)
 {
 	uint8_t *sa = iframe->i_addr2;
-	uint8_t *data = &iframe->i_addr3[4];
-	uint8_t *crc = &iframe->i_addr3[5];
+	uint8_t *data;
+	uint8_t *crc;
 	uint8_t crc8;
+
+	if (addr_src == 1) {
+		data = &iframe->i_addr1[4];
+		crc = &iframe->i_addr1[5];
+	} else if (addr_src == 3) {
+		data = &iframe->i_addr3[4];
+		crc = &iframe->i_addr3[5];
+	} else {
+		SC_DBG(ERROR, "%s, %d addr_src error, addr_src:%d", __func__, __LINE__, addr_src);
+		return LEAD_CODE_NOME;
+	}
 
 	if (packet_num == LEAD_CODE_NOME || packet_num > LEAD_CODE_GET_ROUND_NUM) {
 		SC_DBG(ERROR, "%s,%d packet_num:%d", __func__, __LINE__, packet_num);
@@ -306,7 +317,8 @@ SMART_CONFIG_STATUS_T
 sc_dec_packet_decode(smartconfig_priv_t *priv, uint8_t *data, uint32_t len)
 {
 	struct ieee80211_frame *iframe = (struct ieee80211_frame *)data;
-	uint8_t packet_num = iframe->i_addr3[3];
+	uint8_t packet_num;
+	uint8_t addr_src = 0xff;
 	int ret;
 	SMART_CONFIG_STATUS_T status = priv->status;
 	sc_lead_code_t *lead_code = &priv->lead_code;
@@ -316,17 +328,28 @@ sc_dec_packet_decode(smartconfig_priv_t *priv, uint8_t *data, uint32_t len)
 		return status;
 	}
 
+	if((iframe->i_addr1[0] == SC_MAGIC_ADD0) &&
+	   (iframe->i_addr1[1] == SC_MAGIC_ADD1) &&
+	   (iframe->i_addr1[2] == SC_MAGIC_ADD2)) {
+			addr_src = 1;
+			packet_num = iframe->i_addr1[3];
+			SC_DBG(INFO, "i_addr is %d\n", addr_src);
+	}
 	if ((iframe->i_addr3[0] == SC_MAGIC_ADD0) &&
 	    (iframe->i_addr3[1] == SC_MAGIC_ADD1) &&
-	    (iframe->i_addr3[2] == SC_MAGIC_ADD2))
-	      ;
-	else
+	    (iframe->i_addr3[2] == SC_MAGIC_ADD2)) {
+			addr_src = 3;
+			packet_num = iframe->i_addr3[3];
+			SC_DBG(INFO, "i_addr is %d\n", addr_src);
+	}
+	if (addr_src == 0xff) {
 		return status;
+	}
 
 	if (packet_num > LEAD_CODE_NOME && packet_num < LEAD_CODE_COMPLETE) {
 		if (!lead_code->lead_complete_flag) {
 			status = priv->status;
-			ret = dec_get_lead_code(iframe, lead_code, packet_num, &status);
+			ret = dec_get_lead_code(iframe, lead_code, packet_num, &status, addr_src);
 			if (ret == LEAD_CODE_COMPLETE)
 				lead_code->lead_complete_flag = 1;
 		}
@@ -342,10 +365,18 @@ sc_dec_packet_decode(smartconfig_priv_t *priv, uint8_t *data, uint32_t len)
 		if (packet_num > 64) {
 			SC_DBG(ERROR, "ERR strange pkt num %u\n", packet_num);
 		}
-		if (dec_push_data(lead_code, packet_num, priv->src_data_buff,
-		                  &iframe->i_addr3[4]) != 0) {
+		if (addr_src == 1) {
+			if (dec_push_data(lead_code, packet_num, priv->src_data_buff,
+			                  &iframe->i_addr1[4]) != 0) {
+				return status;
+			}
+		} else if (addr_src == 3) {
+			if (dec_push_data(lead_code, packet_num, priv->src_data_buff,
+			                  &iframe->i_addr3[4]) != 0) {
+				return status;
+			}
+		} else
 			return status;
-		}
 	}
 
 	if (priv->status < SC_STATUS_COMPLETE &&

@@ -83,7 +83,10 @@ typedef enum player_events
 typedef enum player_cmd
 {
     PLAYER_CMD_SET_OUTPUT_CONFIG,
+    PLAYER_CMD_ADD_OUTPUT_CONFIG,
     PLAYER_CMD_CLEAR_OUTPUT_CONFIG,
+    PLAYER_CMD_SET_EQ_MODE,
+    PLAYER_CMD_CLEAR_EQ_MODE,
 } player_cmd;
 
 typedef void (*app_player_callback)(player_events event, void *data, void *arg);

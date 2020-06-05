@@ -51,7 +51,7 @@
 #include "driver/chip/hal_pwm.h"
 #include "driver/chip/hal_i2s.h"
 #include "driver/chip/hal_dmic.h"
-#include "driver/chip/hal_csi.h"
+#include "driver/chip/hal_csi_jpeg.h"
 #include "driver/chip/hal_irtx.h"
 #include "driver/chip/hal_irrx.h"
 #include "driver/chip/sdmmc/hal_sdhost.h"

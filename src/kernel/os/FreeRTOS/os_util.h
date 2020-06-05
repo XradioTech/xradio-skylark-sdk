@@ -33,7 +33,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "driver/chip/hal_cmsis.h"
-#include "kernel/os/FreeRTOS/os_time.h"
+#include "kernel/os/os_time.h"
+#include "FreeRTOS.h"
 #include "os_debug.h"
 
 /* check if in ISR context or not */
@@ -45,14 +46,16 @@ static __always_inline int OS_IsISRContext(void)
 static __always_inline TickType_t OS_CalcWaitTicks(OS_Time_t msec)
 {
 	TickType_t tick;
+
 	if (msec == OS_WAIT_FOREVER) {
 		tick = portMAX_DELAY;
-	} else if (msec != 0) {
-		tick = OS_MSecsToTicks(msec);
-		if (tick == 0)
-			tick = 1;
-	} else {
+	} else if (msec == 0) {
 		tick = 0;
+	} else {
+		tick = OS_MSecsToTicks(msec);
+		if (tick == 0) {
+			tick = 1;
+		}
 	}
 	return tick;
 }

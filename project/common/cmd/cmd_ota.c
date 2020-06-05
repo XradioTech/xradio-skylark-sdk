@@ -116,14 +116,22 @@ enum cmd_status cmd_ota_http_exec(char *cmd)
 }
 #endif /* OTA_OPT_PROTOCOL_HTTP */
 
+static enum cmd_status cmd_ota_help_exec(char *cmd);
+
 static const struct cmd_data g_ota_cmds[] = {
 #if (OTA_OPT_PROTOCOL_FILE && PRJCONF_MMC_EN)
-    { "file",	cmd_ota_file_exec},
+    { "file",	cmd_ota_file_exec, CMD_DESC("file <url>, ota from file, eg. ota file file://0:/ota/xr_system.img") },
 #endif
 #if (OTA_OPT_PROTOCOL_HTTP && PRJCONF_NET_EN)
-    { "http",	cmd_ota_http_exec},
+    { "http",	cmd_ota_http_exec, CMD_DESC("http <url>, ota from http, eg. ota http http://192.168.1.1/xr_system.img") },
 #endif
+    { "help",	cmd_ota_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_ota_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_ota_cmds, cmd_nitems(g_ota_cmds), 8);
+}
 
 enum cmd_status cmd_ota_exec(char *cmd)
 {

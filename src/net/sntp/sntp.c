@@ -167,10 +167,13 @@ static int sntp_process_time(ntp_packet *packet, struct timeval *time)
 		t2_s =  ntohl(packet->txTm_s);
 		t2_us = ntohl(packet->txTm_f) / 4295;
 
-		deta1 = (t3_s - t0_s) * 1000000 + (t3_us - t0_us); /* us */
-		deta2 = (t2_s - t1_s) * 1000000 + (t2_us - t1_us); /* us */
-
-		transmit_time = (deta1 - deta2) / 2; /* us */
+		if (t3_s > t0_s) {
+			deta1 = (t3_s - t0_s) * 1000000 + (t3_us - t0_us); /* us */
+			deta2 = (t2_s - t1_s) * 1000000 + (t2_us - t1_us); /* us */
+			transmit_time = (deta1 - deta2) / 2; /* us */
+		} else {
+			transmit_time = 0;
+		}
 
 		real_time_s = t2_s + (t2_us + transmit_time) / 1000000;
 		real_time_us = (t2_us + transmit_time) % 1000000;

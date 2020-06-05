@@ -320,7 +320,6 @@ static AT_ERROR_CODE powersave_handler(at_para_t *at_para);
 static AT_ERROR_CODE wakeupgpio_handler(at_para_t *at_para);
 static AT_ERROR_CODE wifi_mode_handler(at_para_t *at_para);
 static AT_ERROR_CODE join_ap_handler(at_para_t *at_para);
-static AT_ERROR_CODE join_ap_save_handler(at_para_t *at_para);
 static AT_ERROR_CODE scan_attr_handler(at_para_t *at_para);
 static AT_ERROR_CODE disconnect_handler(at_para_t *at_para);
 static AT_ERROR_CODE setautoconnect_handler(at_para_t *at_para);
@@ -2380,7 +2379,11 @@ static AT_ERROR_CODE disp_ipinfo_handler(at_para_t *at_para)
 
 	res = is_netconnet_ap();
 
+#if defined(__CONFIG_LWIP_V1)
 	at_dump("+CIFSR:APIP,\"%s\"\r\n",ipaddr_ntoa(&sysinfo->netif_ap_param.ip_addr));
+#else
+	at_dump("+CIFSR:APIP,\"%s\"\r\n",ip4addr_ntoa(&sysinfo->netif_ap_param.ip_addr));
+#endif
 	at_dump("+CIFSR:APMAC,\"%02x:%02x:%02x:%02x:%02x:%02x\"\r\n",
 			sysinfo->mac_addr[0],
 			sysinfo->mac_addr[1],
@@ -2693,12 +2696,18 @@ static AT_ERROR_CODE set_dns_handler(at_para_t *at_para)
 
     s32 paracnt;
     int res;
-	ip_addr_t getdnsip;
 
 	 if(*at_para->ptr == AT_QUE) {
 	    	//memcpy(&getdnsip,dns_getserver(0),sizeof(ip_addr_t));
+#if defined(__CONFIG_LWIP_V1)
+			ip_addr_t getdnsip;
 	    	getdnsip = dns_getserver(0);
 			at_dump("+CIPDNS:\"%s\"\r\n",ipaddr_ntoa(&getdnsip));
+#else
+			const ip_addr_t *getdnsip;
+	    	getdnsip = dns_getserver(0);
+			at_dump("+CIPDNS:\"%s\"\r\n",ipaddr_ntoa(getdnsip));
+#endif
 	        return AEC_OK;
 
 	    }

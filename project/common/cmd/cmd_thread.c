@@ -37,11 +37,19 @@ enum cmd_status cmd_thread_list_exec(char *cmd)
 }
 #endif
 
+static enum cmd_status cmd_thread_help_exec(char *cmd);
+
 static const struct cmd_data g_thread_cmds[] = {
 #if (configUSE_TRACE_FACILITY == 1)
-	{ "list",	cmd_thread_list_exec },
+	{ "list",	cmd_thread_list_exec, CMD_DESC("show the thread list") },
 #endif
+	{ "help",	cmd_thread_help_exec, CMD_DESC(CMD_HELP_DESC) },
 };
+
+static enum cmd_status cmd_thread_help_exec(char *cmd)
+{
+	return cmd_help_exec(g_thread_cmds, cmd_nitems(g_thread_cmds), 8);
+}
 
 enum cmd_status cmd_thread_exec(char *cmd)
 {

@@ -226,7 +226,15 @@ int sysinfo_default(void)
 	sysinfo_init_mac_addr();
 
 	/* wlan mode */
+#ifdef __CONFIG_WLAN_STA
 	g_sysinfo.wlan_mode = WLAN_MODE_STA;
+#elif defined(__CONFIG_WLAN_AP)
+	g_sysinfo.wlan_mode = WLAN_MODE_HOSTAP;
+#elif defined(__CONFIG_WLAN_MONITOR)
+	g_sysinfo.wlan_mode = WLAN_MODE_MONITOR;
+#else
+	g_sysinfo.wlan_mode = WLAN_MODE_INVALID;
+#endif
 
 	/* netif STA */
 	g_sysinfo.sta_use_dhcp = 1;
