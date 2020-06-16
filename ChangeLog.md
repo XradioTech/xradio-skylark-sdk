@@ -1,5 +1,11 @@
 # ChangeLog for XRADIO Skylark SDK
 
+## xradio_skylark_sdk-1.1.1 (20200616)
+
+  * Driver
+    - EFUSE: adjust the programming voltage to avoid failure issues
+
+
 ## xradio_skylark_sdk-1.1.0 (20200605)
 
   * WLAN

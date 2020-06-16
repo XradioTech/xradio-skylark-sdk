@@ -34,7 +34,7 @@
 
 #include <stdio.h>
 
-#include "kernel/FreeRTOS/task.h"
+#include "task.h"
 
 #define ABS(x) ((x) >= 0 ? (x) : (-x))
 
@@ -61,7 +61,7 @@ void vApplicationIdleHook(void)
 
 #elif ((configUSE_IDLE_HOOK == 0) && (configUSE_TICKLESS_IDLE == 1))
 
-#include "kernel/os/FreeRTOS/os_common.h"
+#include "kernel/os/os_common.h"
 
 static uint32_t OSIdleTimeBegin;
 

@@ -266,7 +266,7 @@ static void avs_timer_callback(void *arg)
     maxPsensor = (temp >> 16) & 0xFFFF;
 
     psensor = HAL_Psensor_GetValue();
-    workVolt = HAL_PRCM_GetLDO1WorkVolt();
+    workVolt = HAL_PRCM_GetLDO1WorkVolt() >> PRCM_LDO1_VOLT_SHIFT;
     FWK_DBG("AVS: minPsensor=%d, maxPsensor=%d, workVolt = %d, psensor=%d\n",
             minPsensor, maxPsensor, workVolt, psensor);
     if(psensor < minPsensor) {
