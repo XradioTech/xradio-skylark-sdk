@@ -89,7 +89,7 @@
 #define PSRAM_DUMP(a, l)
 #endif
 
-#define PSRAM_FREQ (192000000)
+#define PSRAM_FREQ (96000000)
 #define LOAD_SIZE (1 * 1024)
 
 //#define LOAD_BY_DBUS_CPU
