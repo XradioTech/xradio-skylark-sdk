@@ -249,6 +249,18 @@ uint16_t efpg_read_mac(uint8_t *data)
 		return EFPG_ACK_RW_ERR;
 	}
 
+	if ((data[3] == 0x6d) &&
+		(data[4] == 0x44) &&
+		(data[5] == 0xdc) &&
+		((data[0] & 0x01) == 0x01)) {
+		uint8_t tmp;
+		for (int i = 0;i < 3;i++) {
+			tmp = data[i];
+			data[i] = data[5 - i];
+			data[5 - i] = tmp;
+		}
+	}
+
 	return EFPG_ACK_OK;
 }
 
