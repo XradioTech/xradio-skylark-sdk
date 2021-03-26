@@ -488,8 +488,17 @@ int buttons_deinit(void)
 {
 	button_obj *obj_t;
 
-	if (list_empty(&buttons_head))
+	// fixbug begin lmx 1007566569@qq.com (2021-03-23) -------------------
+	
+	// move list empty check, the list will be deleted button_destroy()
+	//	if (list_empty(&buttons_head))
+	//		return 0;
+
+	// add flag check, avoid repeated calls
+	if(0 == buttons_thread_run_flag)
 		return 0;
+
+	// fixbug end lmx 1007566569@qq.com (2021-03-23) ---------------------
 
 	buttons_thread_run_flag = 0;
 	/* release the semaphore,
